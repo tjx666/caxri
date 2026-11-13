@@ -37,6 +37,7 @@ export const settingsPage = {
     'settings.page.skillHealthFailed': 'Unable to inspect Caxri CLI skills',
     'settings.subcategory.general.workspace': 'Workspace',
     'settings.subcategory.general.sessions': 'Sessions',
+    'settings.subcategory.general.background': 'Background',
     'settings.subcategory.general.appearance': 'Appearance',
     'settings.subcategory.general.sidebar': 'Sidebar',
 

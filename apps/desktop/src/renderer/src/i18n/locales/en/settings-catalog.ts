@@ -85,6 +85,13 @@ export const settingsCatalog = {
     'settings.workbench.removeWorktreeOnArchive.description':
         "Delete a Session's worktree on archive after committing its changes to the kept branch; an unmerged one asks first.",
 
+    'settings.power.keepAwakeWhileAgentsWork.title': 'Keep Mac awake while Agents work',
+    'settings.power.keepAwakeWhileAgentsWork.description':
+        'Stop idle sleep while an Agent works or waits for a plan limit to reset; the display can still sleep, and a closed lid on battery still sleeps.',
+    'settings.window.menuBarWhenClosed.title': 'Keep running in the menu bar',
+    'settings.window.menuBarWhenClosed.description':
+        'When you close the window while work is running, hide the Dock icon and keep Caxri in the menu bar.',
+
     'settings.workbench.theme.followSystem.title': 'Follow system appearance',
     'settings.workbench.theme.followSystem.description':
         'Switch between the light and dark theme with macOS.',

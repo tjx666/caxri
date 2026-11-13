@@ -43,13 +43,11 @@ import {
 import { createExtensionService } from './extensions/create-service';
 import { createExtensionEventRouter } from './extensions/event-router';
 import type { ExtensionService } from './extensions/service';
-import {
-    createDomainOperationForwarder,
-    disconnectableForwarder,
-} from './forward-domain-operation';
+import { createDomainForwarders } from './forward-domain-operation';
 import { readHostStatus } from './host-status';
 import { acceptHostStop } from './host-stop';
 import { createIdleExitConnectionTracker, createIdleTimeoutMonitor } from './idle-exit';
+import { startServerKeepAwake } from './keep-awake-binding';
 import { isMobileControlRequest, resolveMobileAgentEndpoint } from './mobile';
 import { isDeviceScopedRequest } from './mobile/access-controller-contract';
 import { MutationAdmission } from './mutation-admission';
@@ -131,15 +129,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
     const dispatchWaits = new DispatchWaits(domainService);
     const requestCancellations = new RequestCancellationRegistry();
-    const forwardDomainOperation = createDomainOperationForwarder(
+    const { forwardDomainOperation, forwardDisconnectable } = createDomainForwarders({
+        agentEndpoints,
+        cancellations: requestCancellations,
         domainService,
         mutationAdmission,
-        agentEndpoints,
-    );
-    const forwardDisconnectable = disconnectableForwarder(
-        requestCancellations,
-        forwardDomainOperation,
-    );
+    });
     const extensionEvents = createExtensionEventRouter({
         domainService,
         extensionService: () => extensionService,
@@ -147,6 +142,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         logger,
         watchesExtensionViews: credentials.watchesExtensionViews,
     });
+    const keepAwake = startServerKeepAwake({ domainService, logger, stopping });
     const recoveryJournal = createServerRecoveryJournal(
         serverRecoverySnapshot(domainService),
         (observation) => logDurableRecovery(logger, observation),
@@ -352,6 +348,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         clientCount: () => server?.clientCount() ?? 0,
                         desktopRouter: () => desktopRouter,
                         domainService,
+                        keepAwake: () => keepAwake.status(),
                         profileId: lease.identity.profileId,
                         startedAt,
                         version: options.version,
@@ -570,9 +567,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         // Armed after `publish`: an earlier idle stop released the lease, then `publish` left a stopped Core's manifest.
         idleExitConnections.bind(
             createIdleTimeoutMonitor({
-                ...(options.idleExitThresholdMs !== undefined && {
-                    thresholdMs: options.idleExitThresholdMs,
-                }),
+                thresholdMs: options.idleExitThresholdMs,
                 logger,
                 isBusy: async () => (await domainService.request('app.health')).activePtyCount > 0,
                 stop,

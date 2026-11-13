@@ -8,6 +8,18 @@ const probes = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ Notification: class {} }));
 /**
+ * The menu bar binds Electron's `app` and `BrowserWindow`, which this suite does not exercise.
+ */
+vi.mock(import('../../menu-bar/electron-menu-bar'), () => ({
+    createElectronMenuBarMode: () => ({
+        isActive: () => false,
+        observe: () => {},
+        quitting: () => {},
+        windowClosed: () => Promise.resolve(),
+        windowOpening: () => {},
+    }),
+}));
+/**
  * Keeps the real delivery (mode resolution and its fallback log included) and swaps only the two probes that would run
  * `codesign` against this machine's executable and look for an installed alerter binary.
  */

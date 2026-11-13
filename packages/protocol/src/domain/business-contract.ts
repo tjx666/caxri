@@ -144,6 +144,7 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
     'files.maxFileBytes': true,
     'updates.skippedVersion': true,
     'mobile.computerName': true,
+    'power.keepAwakeWhileAgentsWork': true,
 });
 const settingsPatchKeySchema = z.enum([
     'notifications.worktreeFallback',
@@ -158,6 +159,7 @@ const settingsPatchKeySchema = z.enum([
     'files.maxFileBytes',
     'updates.skippedVersion',
     'mobile.computerName',
+    'power.keepAwakeWhileAgentsWork',
 ]);
 /**
  * Patch values reuse the bounded field schemas from `appSettingsSchema` with the `.default()` stripped: a patch must
@@ -171,6 +173,10 @@ export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
     z.object({
         key: z.literal('notifications.agentRecovery'),
         value: appSettingsSchema.shape['notifications.agentRecovery'].unwrap(),
+    }),
+    z.object({
+        key: z.literal('power.keepAwakeWhileAgentsWork'),
+        value: appSettingsSchema.shape['power.keepAwakeWhileAgentsWork'].unwrap(),
     }),
     z.object({
         key: z.literal('session.defaultAgent'),

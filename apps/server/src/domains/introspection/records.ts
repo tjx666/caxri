@@ -6,11 +6,14 @@ import type {
     SessionQuery,
     SessionQueryResult,
     SessionRecord,
+    SessionWorkSummary,
     TerminalQuery,
     TerminalQueryResult,
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
+
+import { summarizeSessionWork } from '../session';
 
 export interface RecordQuerySource {
     currentProjectId(): string | undefined;
@@ -220,6 +223,17 @@ export class RecordQueryService {
                 }),
             ),
         };
+    }
+
+    /**
+     * Whole-app work counts for the menu bar and the keep-awake decision; see `summarizeSessionWork`.
+     */
+    workSummary(): SessionWorkSummary {
+        return summarizeSessionWork({
+            projects: this.source.projects(),
+            sessions: this.source.sessions(),
+            terminals: this.source.terminals(),
+        });
     }
 
     terminal(query: TerminalQuery, principal: Principal): TerminalQueryResult {

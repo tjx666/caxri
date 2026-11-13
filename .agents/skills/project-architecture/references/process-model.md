@@ -57,7 +57,9 @@ window.
 A second same-profile Desktop exits before attachment and asks the existing Desktop to restore or focus
 its window. The typed Desktop lease remains defense in depth for non-Electron Clients and stale-build
 recovery. Desktop Main is otherwise replaceable: closing a window revokes its lease and detaches views
-without stopping Server Core, Terminal Host, or PTYs. Explicit application quit inspects Server impact:
+without stopping Server Core, Terminal Host, or PTYs; with work still running, Main may leave the Dock
+for a menu bar status item until a window reopens, and Server Core alone holds the Mac awake while Agents
+work (see `docs/unattended-mode.md`). Explicit application quit inspects Server impact:
 an idle Server owned only by Desktop stops directly, while live PTYs require a native choice to terminate
 tasks, keep them attached in the background, or cancel. Restart to Update uses the `update` quit intent, which
 always stops Server Core and installs the staged bundle on exit; see [Desktop updates](../../../../docs/desktop-updates.md).

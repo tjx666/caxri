@@ -16,6 +16,7 @@ import {
     readPublicIp,
     readPublicIpProfile,
 } from '../environment-monitor';
+import { createElectronMenuBarMode } from '../menu-bar/electron-menu-bar';
 import type { NotificationHelperControl } from './agent-notification-delivery';
 import { createAgentNotificationDelivery } from './agent-notification-delivery';
 import { createDesktopAgentNotifications } from './agent-notification-runtime';
@@ -36,6 +37,9 @@ interface DesktopNotificationOptions {
 }
 
 export interface DesktopNotifications {
+    /**
+     * Called once a quit is accepted (`onAccepted`), before any window closes.
+     */
     dispose(): void;
     environmentMonitor: EnvironmentMonitor;
     /**
@@ -53,9 +57,10 @@ export interface DesktopNotifications {
 
 /**
  * Desktop system notification families behind one handle: Agent attention, Bot Inbox items, delivery failures, and
- * selected environment signals. They share one delivery, so the native/alerter choice is probed (a `codesign` child
- * process) and its fallback logged once per change rather than once per family, and the composition root does not need
- * to remember to fan `observe` and `dispose` out to each.
+ * selected environment signals, plus the menu bar presence that stands in for the closed window. They share one
+ * delivery, so the native/alerter choice is probed (a `codesign` child process) and its fallback logged once per change
+ * rather than once per family, and the composition root does not need to remember to fan `observe` and `dispose` out to
+ * each.
  */
 export function createDesktopNotifications({
     currentDirectory,
@@ -119,6 +124,13 @@ export function createDesktopNotifications({
         readConnections: readMihomoConnections,
         readNodes: readMihomoNodes,
     });
+    // The menu bar takes over from the Dock while work runs with every window closed; see docs/unattended-mode.md.
+    const menuBar = createElectronMenuBarMode({
+        delivery: systemNotifications,
+        focusMainWindow,
+        logger,
+        supervisor,
+    });
     return {
         environmentMonitor,
         helper: {
@@ -126,6 +138,7 @@ export function createDesktopNotifications({
             status: (options) => systemNotifications.status(options),
         },
         dispose: () => {
+            menuBar.quitting();
             agents.dispose();
             delivery.dispose();
             botInbox.dispose();
@@ -143,6 +156,7 @@ export function createDesktopNotifications({
             delivery.observe(event);
             botInbox.observe(event);
             environmentMonitor.observe(event);
+            menuBar.observe(event);
         },
     };
 }

@@ -9,10 +9,33 @@ import type { RequestCancellationRegistry } from './request-cancellation';
 import { principalRequestKey } from './request-cancellation';
 
 /**
+ * Server Core's two domain forwarders: the plain one, and the one a caller's disconnect aborts.
+ */
+export function createDomainForwarders(options: {
+    agentEndpoints: AgentEndpointRegistry;
+    cancellations: RequestCancellationRegistry;
+    domainService: ServerDomainService;
+    mutationAdmission: MutationAdmission;
+}) {
+    const forwardDomainOperation = createDomainOperationForwarder(
+        options.domainService,
+        options.mutationAdmission,
+        options.agentEndpoints,
+    );
+    return {
+        forwardDomainOperation,
+        forwardDisconnectable: disconnectableForwarder(
+            options.cancellations,
+            forwardDomainOperation,
+        ),
+    };
+}
+
+/**
  * Forwards a Server operation to the domain service: reads pass straight through, writes queue behind mutation
  * admission and retire the Agent endpoints they invalidate first.
  */
-export function createDomainOperationForwarder(
+function createDomainOperationForwarder(
     domainService: ServerDomainService,
     mutationAdmission: MutationAdmission,
     agentEndpoints: AgentEndpointRegistry,
@@ -32,7 +55,7 @@ export function createDomainOperationForwarder(
 /**
  * Forwards a long wait that the caller's disconnect aborts, since nobody is left to read its answer.
  */
-export function disconnectableForwarder(
+function disconnectableForwarder(
     cancellations: RequestCancellationRegistry,
     forward: (request: ServerOperationRequest, signal?: AbortSignal) => Promise<unknown>,
 ): (

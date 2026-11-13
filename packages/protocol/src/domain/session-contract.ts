@@ -25,6 +25,7 @@ import {
     sessionQuitStoppedCountResultSchema,
     sessionRestoreQuitStoppedResultSchema,
 } from './session/session-quit-restore.js';
+import { sessionWorkSummarySchema } from './session/work-summary.js';
 import {
     sessionAgentHistoryResultSchema,
     sessionReopenConversationParametersSchema,
@@ -151,6 +152,15 @@ export const sessionMethods = {
         ...commandPolicy('server', 'read'),
         params: z.object({}),
         result: sessionQuitStoppedCountResultSchema,
+    },
+    /**
+     * How many Agents are working and which Sessions need the user, without reading the Session list. The menu bar
+     * reads it while no window is open, and Server Core reads it to keep the Mac awake while work continues.
+     */
+    'session.workSummary': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({}),
+        result: sessionWorkSummarySchema,
     },
     /**
      * Finds Agent conversations across every provider's history on this machine, open, archived, or never in Caxri, by

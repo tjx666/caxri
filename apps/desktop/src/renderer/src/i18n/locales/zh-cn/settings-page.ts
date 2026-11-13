@@ -36,6 +36,7 @@ export const settingsPage: TranslatedNamespace<typeof source> = {
     'settings.page.skillHealthFailed': '无法检查 Caxri CLI Skill',
     'settings.subcategory.general.workspace': '工作区',
     'settings.subcategory.general.sessions': '会话',
+    'settings.subcategory.general.background': '后台运行',
     'settings.subcategory.general.appearance': '外观',
     'settings.subcategory.general.sidebar': '侧边栏',
 

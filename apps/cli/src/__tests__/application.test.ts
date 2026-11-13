@@ -134,6 +134,7 @@ describe('CLI application', () => {
             protocolVersion: 2,
             protocolCompatible: true,
             desktop: { state: 'offline' },
+            keepAwake: { active: false },
         });
         const connect = vi.fn(() => Promise.resolve(client));
 

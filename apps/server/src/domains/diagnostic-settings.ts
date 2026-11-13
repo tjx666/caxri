@@ -184,6 +184,8 @@ const settingsProjection: SettingsProjection = {
     'workbench.newWorktreeBehavior': exportAsIs,
     'workbench.confirmWorktreeAuthorization': exportAsIs,
     'workbench.removeWorktreeOnArchive': exportAsIs,
+    'power.keepAwakeWhileAgentsWork': exportAsIs,
+    'window.menuBarWhenClosed': exportAsIs,
     'workbench.theme.followSystem': exportAsIs,
     'workbench.theme.light': exportAsIs,
     'workbench.theme.dark': exportAsIs,

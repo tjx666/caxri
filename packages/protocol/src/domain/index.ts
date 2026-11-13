@@ -46,6 +46,7 @@ export * from './session/session-airplane-mode.js';
 export * from './session/session-archive-worktree.js';
 export * from './session/session-list-window.js';
 export * from './session/session-quit-restore.js';
+export * from './session/work-summary.js';
 export * from './session-agent-history.js';
 export * from './session-compaction.js';
 export * from './session-conversation-reference.js';

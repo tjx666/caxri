@@ -203,6 +203,9 @@ setInterval(() => {
                 running.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
             )
             .toBe(0);
+        await expect
+            .poll(() => running.app.evaluate(({ app }) => app.dock?.isVisible()))
+            .toBe(false);
 
         await writeClaudeTranscript(config, root);
         await writeClaudeMetadata(config, root, startedAt, 'idle');
@@ -227,6 +230,14 @@ setInterval(() => {
                 }),
             )
             .toEqual([
+                // Closing the last window with a Chat running moved Caxri to the menu bar
+                // (`window.menuBarWhenClosed`), which introduces itself once per profile.
+                {
+                    body: 'Your Agents keep working. Click the menu bar icon to come back, or turn this off in Settings.',
+                    groupId: 'menu-bar',
+                    id: 'menu-bar-intro',
+                    title: 'Caxri is still running in the menu bar',
+                },
                 {
                     body: REPLY_SUMMARY,
                     groupId: 'caxri-agent-sessions',
@@ -312,6 +323,10 @@ setInterval(() => {
                 }),
             )
             .toEqual({ minimized: false, visible: true });
+        // Reopening a window leaves the menu bar and brings the Dock icon back.
+        await expect
+            .poll(() => running.app.evaluate(({ app }) => app.dock?.isVisible()))
+            .toBe(true);
     } finally {
         try {
             await running.app.close();

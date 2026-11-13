@@ -14,6 +14,11 @@ const generalGroups = {
         titleKey: 'settings.subcategory.general.workspace',
     },
     sessions: { kind: 'group', id: 'sessions', titleKey: 'settings.subcategory.general.sessions' },
+    background: {
+        kind: 'group',
+        id: 'background',
+        titleKey: 'settings.subcategory.general.background',
+    },
     appearance: {
         kind: 'group',
         id: 'appearance',
@@ -56,6 +61,8 @@ export const settingRowSources: SettingRowSource[] = [
         advanced: true,
         subcategory: generalGroups.sessions,
     }),
+    specRow('power.keepAwakeWhileAgentsWork', { subcategory: generalGroups.background }),
+    specRow('window.menuBarWhenClosed', { subcategory: generalGroups.background }),
     specRow('workbench.theme.followSystem', { subcategory: generalGroups.appearance }),
     specRow('workbench.theme.light', {
         enabledBy: 'workbench.theme.followSystem',
