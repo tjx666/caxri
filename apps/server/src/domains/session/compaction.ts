@@ -1,7 +1,6 @@
 import type {
     SessionCompactionOutcome,
     SessionCompactionResult,
-    SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
@@ -69,7 +68,7 @@ export class SessionCompaction {
             session.primaryAgentTerminalId && database.getTerminal(session.primaryAgentTerminalId);
         if (!terminal || (terminal.provider !== 'claude' && terminal.provider !== 'codex'))
             return 'unsupported';
-        if (!isPtyTerminal(terminal)) return this.chatTarget(terminal, session.agentActivityState);
+        if (!isPtyTerminal(terminal)) return this.chatTarget(terminal);
         const launchId = terminals.agentLaunchId(terminal.id);
         if (
             !launchId ||
@@ -96,19 +95,20 @@ export class SessionCompaction {
     /**
      * A Chat's own projection proves it idle, so it needs no PTY input proof. A stopped Chat is never woken: starting a
      * provider only to compact it would cost more than the cache it saves.
+     *
+     * Running background tasks do not count as busy, as in idle compaction: compaction leaves them running, and a turn
+     * that ended with background work keeps the Session's activity `running` until that work drains, so neither the
+     * strict idle check nor the Session activity may gate it.
      */
-    private chatTarget(
-        terminal: TerminalRecord,
-        activity: SessionRecord['agentActivityState'],
-    ): Target | SessionCompactionOutcome {
+    private chatTarget(terminal: TerminalRecord): Target | SessionCompactionOutcome {
         if (
             !terminal.agentSessionId ||
             terminal.lastProcessState !== 'running' ||
             !this.options.agentChat.isLive(terminal.id)
         )
             return 'not_running';
-        const launchId = this.options.agentChat.idleLaunchId(terminal.id);
-        if (!launchId || !['idle', 'completed'].includes(activity)) return 'busy';
+        const launchId = this.options.agentChat.idleLaunchId(terminal.id, true);
+        if (!launchId) return 'busy';
         return { isChat: true, terminal, launchId, turnId: launchId };
     }
 

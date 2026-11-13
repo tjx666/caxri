@@ -90,8 +90,11 @@ safely target that Session. Existing manual `/compact` remains available.
 
 A primary Agent Chat needs no input proof: its composer draft never reaches the provider, and its own
 projection says whether it is idle. The Server compacts a Chat only while its provider is running,
-bound to an Agent Session, and reports no turn, approval, operation, running task, or queued message
-(`AgentChatService.idleLaunchId`). It then runs the provider's native compaction (Claude Code's
+bound to an Agent Session, and reports no turn, approval, operation, or queued message
+(`AgentChatService.idleLaunchId` with `isCompaction`). A running background task (a background shell,
+a CI watch) does not make the Chat busy: compaction only summarizes the conversation and leaves the
+task running, and the Session's activity stays `running` until such a task drains, so neither gates
+it. It then runs the provider's native compaction (Claude Code's
 `/compact`, Codex's `thread/compact/start`) through the Chat's send chain with
 `AgentChatService.compactIdle`, which rechecks that the same launch is still idle. A stopped or
 suspended Chat, or one with no provider in this Server Core, is reported `not_running` and is never
