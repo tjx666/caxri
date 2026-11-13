@@ -196,7 +196,8 @@ export function agentChatWorkflowPhaseDurationMs(
 
 /**
  * The counts a phase header shows before its failure and interruption tallies: an ended phase names how many subagents
- * it ran and how long it took, any other phase how many of its members are done.
+ * it ran and how long it took, any other phase how many of its members are done. A phase of one member says nothing
+ * until it ends: its only row already shows that member running, so `0/1` would only repeat it.
  */
 export function agentChatWorkflowPhaseSummary(
     group: {
@@ -207,13 +208,15 @@ export function agentChatWorkflowPhaseSummary(
     t: Translate,
 ): string[] {
     const { counts } = group;
-    if (state !== 'ended')
+    if (state !== 'ended') {
+        if (counts.total === 1) return [];
         return [
             t('agentChat.workflow.progress', {
                 done: counts.completed + counts.failed + counts.stopped,
                 total: counts.total,
             }),
         ];
+    }
     const size = t(
         counts.total === 1
             ? 'agentChat.workflow.phaseSubagentOne'
