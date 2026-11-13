@@ -108,7 +108,8 @@ export const FilesWorktreePicker = ({
                                         }
                                         disabled={!canSwitch || !root.projectId}
                                         icon={FolderGit2}
-                                        key={root.projectId ?? `unauthorized-${index}`}
+                                        // A branch is checked out in at most one worktree, so it names an unauthorized one.
+                                        key={root.projectId ?? `${root.title}:${root.branch}`}
                                         label={rootLabel(root)}
                                         onPress={() => {
                                             dismiss();

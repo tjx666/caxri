@@ -18,6 +18,7 @@ export async function listMobileWorkbenchRoots(
 ): Promise<{ roots: MobileWorkbenchRoot[] }> {
     const { sessionId } = request.params;
     const session = await sessionForPrincipal(domainService, principal, sessionId);
+    // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- the device must be admitted before Desktop's worktree topology is read.
     const roots = await domainService.request('session.workbenchRoots', { sessionId });
     return {
         roots: roots.map((root) => ({
