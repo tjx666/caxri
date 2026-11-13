@@ -10,6 +10,7 @@ import { Highlight, themes } from 'prism-react-renderer';
 
 import { MONOSPACE_FONT } from '../theme/monospace';
 import { mobileSpace, mobileType } from '../theme/scale';
+import { clipLineTokens, widestLineColumns } from './highlighted-line-geometry';
 
 /**
  * One rendered row's height; fixed so the list can jump to any line without measuring the rows above it.
@@ -42,7 +43,7 @@ const LineList = ({
 }) => {
     const renderLine = useCallback(
         ({ item }: ListRenderItemInfo<Line>) => (
-            <Text selectable style={[styles.line, { color }]}>
+            <Text numberOfLines={1} selectable style={[styles.line, { color }]}>
                 {item.tokens.map((token, tokenIndex) => (
                     <Text
                         // A line's tokens never reorder, so their position is a stable key.
@@ -80,7 +81,7 @@ const LineList = ({
 /**
  * A whole file's syntax-colored text, one virtualized row per line. A single `Text` holding every token span of a large
  * file made Android lay out tens of thousands of spans at once: the app stopped answering and was killed. Only the rows
- * near the viewport are mounted now, so selection spans one line at a time.
+ * near the viewport are mounted now, so selection spans one line at a time, and a very long line shows only its start.
  */
 export const HighlightedLines = memo(
     ({
@@ -94,15 +95,18 @@ export const HighlightedLines = memo(
         language: string | null;
         testID?: string;
     }) => {
-        const longest = code.split('\n').reduce((width, line) => Math.max(width, line.length), 0);
-        const width = longest * styles.line.fontSize * MONOSPACE_ADVANCE + mobileSpace.lg * 2;
+        const width =
+            widestLineColumns(code) * styles.line.fontSize * MONOSPACE_ADVANCE + mobileSpace.lg * 2;
         return (
             <Highlight code={code} language={language ?? 'text'} theme={themes.dracula}>
                 {({ getTokenProps, tokens }) => (
                     <LineList
                         color={color}
                         getTokenProps={getTokenProps}
-                        lines={tokens.map((line, index) => ({ index, tokens: line }))}
+                        lines={tokens.map((line, index) => ({
+                            index,
+                            tokens: clipLineTokens(line),
+                        }))}
                         testID={testID}
                         width={width}
                     />
