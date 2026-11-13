@@ -4,6 +4,9 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, concludeScenario } from './mobile-agent-actions-scenarios';
 import { hasCheck, isReachedWithin, waitForCheck } from './mobile-agent-chat-helpers';
 import {
+    adbShell,
+    coldStartMobileApp,
+    mobileSemantics,
     observeMobileNode,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -59,6 +62,17 @@ export async function executeMobilePreviousSessionScenario(
 
         await tapMobileCheckByBounds(serial, `session-row-${first}`);
         const isFirstOpened = await isTitleShown(serial, FIRST_TITLE);
+        // Nothing was opened before the first Session, so its menu offers no way back.
+        await tapMobileCheck(serial, 'session-detail-menu');
+        await waitForCheck(serial, 'session-mark-read', 10_000);
+        const isFirstMenuWithoutPrevious = !hasCheck(
+            await mobileSemantics(serial),
+            'session-previous',
+        );
+        await capture(environment, 'first-menu', artifacts);
+        // Android Back closes the menu sheet before it would leave the Session.
+        await adbShell(serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+        await isReachedWithin(serial, (nodes) => !hasCheck(nodes, 'session-mark-read'), 10_000);
         await tapMobileCheck(serial, 'session-detail-back');
         await waitForCheck(serial, `session-row-${second}`);
         await tapMobileCheckByBounds(serial, `session-row-${second}`);
@@ -77,6 +91,7 @@ export async function executeMobilePreviousSessionScenario(
 
         await tapMobileCheck(serial, 'session-detail-back', { isLongPress: true });
         const isLongPressBackToSecond = await isTitleShown(serial, SECOND_TITLE);
+        await capture(environment, 'long-press-back', artifacts);
 
         await tapMobileCheck(serial, 'session-detail-back');
         const isListAfterOneBack = await isReachedWithin(
@@ -87,13 +102,29 @@ export async function executeMobilePreviousSessionScenario(
         );
         await capture(environment, 'list', artifacts);
 
+        // The list of opened Sessions survives the system ending the app: Beta was opened last, so it still leads back
+        // to Alpha.
+        await coldStartMobileApp(serial);
+        await waitForCheck(serial, `session-row-${second}`, 60_000);
+        await tapMobileCheckByBounds(serial, `session-row-${second}`);
+        await isTitleShown(serial, SECOND_TITLE);
+        await tapMobileCheck(serial, 'session-detail-menu');
+        const isPreviousKeptAfterColdStart = await isReachedWithin(
+            serial,
+            (nodes) => hasCheck(nodes, 'session-previous'),
+            10_000,
+        );
+        await capture(environment, 'cold-start-menu', artifacts);
+
         const checks = {
             firstOpened: isFirstOpened,
+            firstMenuWithoutPrevious: isFirstMenuWithoutPrevious,
             secondOpened: isSecondOpened,
             menuOffersPrevious: isMenuEntryShown,
             menuOpensPrevious: isSwitchedToFirst,
             longPressBackOpensPrevious: isLongPressBackToSecond,
             oneBackReachesList: isListAfterOneBack,
+            previousKeptAfterColdStart: isPreviousKeptAfterColdStart,
         };
         await concludeScenario(environment, artifacts, checks, checks);
     } finally {
