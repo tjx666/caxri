@@ -334,7 +334,7 @@ test('the user hands a taken-over Session back, the parent is told and its follo
  * it started, and the creator is never woken for it.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('an independent Session gets its own sidebar row and a Started from line, and wakes nobody', async ({}, testInfo) => {
+test('an independent Session gets its own sidebar row, opens with a Started by line, and wakes nobody', async ({}, testInfo) => {
     const chat = await launchDelegatingChat('caxri-delegated-independent-');
     try {
         const { page } = chat.running;
@@ -367,12 +367,13 @@ test('an independent Session gets its own sidebar row and a Started from line, a
         // The sibling carries its origin line and a way back, and no delegation copy.
         await row.click();
         await expect.poll(() => selectedSessionId(page)).toBe(siblingId);
-        const origin = session.locator('[data-agent-chat-independent-origin]');
-        await expect(origin).toContainText(`Started from ${parent.title}`);
-        await expect(session.locator('[data-agent-chat-delegated-task]').first()).toContainText(
-            'Started by',
-        );
-        await expect(origin.getByRole('button', { name: `Back to ${parent.title}` })).toBeVisible();
+        // The origin lives only in the opening task bubble; the composer strip holds no origin row.
+        const task = session.locator('[data-agent-chat-delegated-task]').first();
+        await expect(task).toContainText('Started by');
+        await expect(task.getByRole('button', { name: parent.title })).toBeVisible();
+        await expect(
+            session.locator('[data-agent-chat-composer-strip]').getByText(parent.title),
+        ).toHaveCount(0);
         await expect(session.locator('[data-agent-chat-delegation-origin]')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('independent-origin.png') });
 

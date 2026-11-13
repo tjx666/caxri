@@ -261,9 +261,9 @@ Then write the task to a file and run
   that is none of these, such as one that changes files and that you wait on, takes no flag.
 - Add `--independent` (only with `--new-session`, never with `--handoff` or `--consult`) when the user
   asks for a separate, parallel, or sibling Session for its own task that you will not wait on, for
-  example "open another Session to write the release notes". It gets its own top-level sidebar row
-  with a "Started from" line. Caxri sends you no update when it settles and asks you none of its
-  questions; they go to the user. Report the new Session and move on. `wait` and `result` still work
+  example "open another Session to write the release notes". It gets its own top-level sidebar row,
+  and its first message says "Started by" your Session. Caxri sends you no update when it settles
+  and asks you none of its questions; they go to the user. Report the new Session and move on. `wait` and `result` still work
   if you call them. Use the default only when you wait on the task and read its result.
 - Add `--worktree <new-branch>` (only with `--new-session`) to work on the same repository in
   parallel: Caxri creates a Git worktree on that new branch beside the Project folder

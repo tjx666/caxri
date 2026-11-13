@@ -8,7 +8,6 @@ import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
 import type { AgentChatWorkingActivity } from '../activity/agent-chat-goal-row';
 import { AgentChatDelegatedSessionsSection } from '../delegation/agent-chat-delegated-sessions-section';
 import { useCanShowDelegatedSessions } from '../delegation/hooks/use-can-show-delegated-sessions';
-import { AgentChatIndependentOriginRow } from '../delegation/independent/agent-chat-independent-origin-row';
 import { AgentChatDelegationOriginRow } from '../delegation/origin/agent-chat-delegation-origin-row';
 import type { AgentChatPendingMessage } from '../transcript/agent-chat-pending';
 import { AgentChatQueueList } from './agent-chat-queue-list';
@@ -131,7 +130,6 @@ export function AgentChatComposerStrip({
                         }
                         terminalId={terminalId}
                     />
-                    <AgentChatIndependentOriginRow terminalId={terminalId} />
                 </AgentChatStripSection>
                 <AgentChatStripSection name="goal" terminalId={terminalId}>
                     <AgentChatGoalBar

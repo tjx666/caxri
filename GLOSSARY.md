@@ -192,7 +192,7 @@ A sibling Session an Agent starts because the user asked for a separate, paralle
 own task, which the Agent does not wait on. The Session records the Agent's Session as its creator,
 which may still rename and archive it, but the creator is sent no notice when it settles, is rolled
 up none of its cost or attention, and is not asked its questions or approvals: they go to the user.
-The sidebar gives it an ordinary row with a "Started from" line. It is not a Delegated Session, and
+The sidebar gives it an ordinary row, and its first message says "Started by" the creator. It is not a Delegated Session, and
 unlike a Hand-off the creator's own work does not move there.
 _Avoid_: Sibling Session, detached Session, spin-off
 

@@ -192,9 +192,11 @@ prompt file and returns a receipt like any other task, but the creator is out of
 - **Rights kept.** The creator may still `rename` and `archive` the Session it created, and
   `wait` and `result` work if it calls them. Neither a Summary instruction nor a stored result is
   written, and the Session has no hand-back: the user owns it from the start.
-- **Sidebar.** An ordinary top-level row in its own Project. In its Chat the first composer-strip
-  row reads `Started from <title>` (zh-CN `由 <title> 创建`) with a `Back to <title>` link, and says
-  nothing about results or takeover.
+- **Sidebar.** An ordinary top-level row in its own Project. In its Chat the task bubble that opens
+  the transcript reads `Started by <title>` (zh-CN `创建自 <title>`), the title a link back to the
+  creator, and says nothing about results or takeover. The composer strip carries no origin row:
+  the origin never changes and needs nothing from the user, so it scrolls away with the first
+  message instead of holding space above the input.
 - **Choosing the flag.** The `caxri-cli` skill tells Agents to use `--independent` when the user
   asks for a separate, parallel, or sibling Session that the creator will not wait on, and the
   default only when the creator waits on and reads the result.

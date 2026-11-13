@@ -103,7 +103,6 @@ export const delegation = {
     'delegation.origin.autoReturn':
         'The Agent that delegated this is notified when it finishes, while it is still running.',
     'delegation.origin.back': 'Back to {{title}}',
-    'delegation.origin.startedFrom': 'Started from',
     'delegation.origin.hint': 'Sending a message, Stop or Rewind here takes over this Session',
     'delegation.origin.takenOver': 'You took over this Session',
     'delegation.origin.takenOverDetail': 'its replies no longer go back to',
