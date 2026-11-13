@@ -215,7 +215,8 @@ and `screenshot <absolute path>`; every step also takes `--screenshot <absolute 
 Chat's Delegated Sessions strip, which only a Server-side Agent can fill, run `open-chat`, then
 `switch-worktree stop`, then `bun run .agents/skills/debug/scripts/seed-delegated-chat.ts
 --user-data-dir /tmp/<task>/profile`, then `dev` again: it seeds failed, unreadable, completed,
-consult, and grandchild rows under that Chat. It reaches the same checked window as `worktree-browser.ts`,
+consult, and grandchild rows under that Chat, plus one child with an unread finished result and
+one with an unread question for the sidebar's nested status glyphs. It reaches the same checked window as `worktree-browser.ts`,
 which stays the tool for generic clicks and snapshots. A step it lacks goes into that script, not a
 throwaway one. `settings.update` takes `{ source }`, the whole settings JSON as a string, never a
 partial patch. If the fixture's test root does not cover the flow, export
