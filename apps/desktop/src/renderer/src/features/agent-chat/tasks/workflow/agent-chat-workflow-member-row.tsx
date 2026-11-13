@@ -24,7 +24,11 @@ import {
 } from './agent-chat-workflow';
 import { AgentChatWorkflowMemberGlyph } from './agent-chat-workflow-member-glyph';
 
-const COLUMN_CLASS_NAME = 'w-12 shrink-0 text-right tabular-nums';
+/**
+ * A minimum, not a fixed width: a long elapsed time such as `61 分 56 秒` must stay on one line rather than wrap the row
+ * to twice its height.
+ */
+const COLUMN_CLASS_NAME = 'min-w-12 shrink-0 text-right whitespace-nowrap tabular-nums';
 const DETAIL_CLASS_NAME = 'truncate text-[11px] leading-4';
 
 /**
@@ -98,6 +102,8 @@ export function AgentChatWorkflowMemberRow({
     ]
         .filter(Boolean)
         .join(' · ');
+    // The label leads so a title the row truncates can still be read in full.
+    const tooltip = [member.label, summary, member.promptPreview].filter(Boolean).join('\n\n');
     const statusLabel = memberStatusLabel(member, t);
     const detail = isRunning ? undefined : agentChatWorkflowMemberDetail(member, t);
     const body = (
@@ -163,13 +169,7 @@ export function AgentChatWorkflowMemberRow({
         'flex w-full min-w-0 items-start gap-2 rounded border-0 bg-transparent px-2 py-1 text-left text-[12px] leading-5';
     return (
         <li>
-            <Tooltip
-                content={
-                    <span className="whitespace-pre-wrap">
-                        {member.promptPreview ? `${summary}\n\n${member.promptPreview}` : summary}
-                    </span>
-                }
-            >
+            <Tooltip content={<span className="whitespace-pre-wrap">{tooltip}</span>}>
                 {taskId ? (
                     <button
                         aria-label={t('agentChat.workflow.openWithStatus', {
