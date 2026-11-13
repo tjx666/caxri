@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { Button } from '../../components/button';
-import { HighlightedCode } from '../../components/highlighted-code';
+import { HighlightedLines } from '../../components/highlighted-lines';
 import { IconButton } from '../../components/icon-button';
 import { ScreenState } from '../../components/screen-state';
 import { useTranslation } from '../../i18n';
@@ -184,17 +184,12 @@ export const FilePreview = ({
                     </Text>
                 ) : null}
                 {draft === null ? (
-                    <ScrollView style={styles.preview}>
-                        <ScrollView horizontal>
-                            <Text
-                                selectable
-                                style={[styles.previewText, { color: theme.text }]}
-                                testID="files-preview-text"
-                            >
-                                <HighlightedCode code={document.content} language={language} />
-                            </Text>
-                        </ScrollView>
-                    </ScrollView>
+                    <HighlightedLines
+                        code={document.content}
+                        color={theme.text}
+                        language={language}
+                        testID="files-preview-text"
+                    />
                 ) : (
                     <TextInput
                         accessibilityLabel={t('panels.fileContents')}
