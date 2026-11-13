@@ -132,8 +132,8 @@ already runs it for TypeScript and manifest changes; pass `--knip` when an expli
 it. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.
-For mobile or Renderer React changes, run `bun run doctor:changed` after new files are staged or
-committed and before pushing. Its Git diff scope omits untracked files.
+For mobile or Renderer React changes, run `bun run doctor:changed` before pushing, and before the
+delivery's final Acceptance round (see `acceptance` Prepare). It includes untracked files.
 
 ## Repository-wide gates
 
