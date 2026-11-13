@@ -1,8 +1,10 @@
 import type { MobileAndroidCaseHandler } from '../mobile-android-case-registry';
+import { executeMobileFilesPreviewScenario } from '../mobile-files-preview-scenario';
 import { executeMobileProjectPanelsScenario } from '../mobile-project-panels-scenarios';
 import { executeMobileProjectReorderScenario } from '../mobile-project-reorder-scenario';
 
 export const handlers = {
+    'MOB-FILES-PREVIEW-DENSE-01': executeMobileFilesPreviewScenario,
     'MOB-PANELS-01': executeMobileProjectPanelsScenario,
     'MOB-PANELS-TABS-SAVED-01': executeMobileProjectPanelsScenario,
     'MOB-PANELS-TREE-REFRESH-01': executeMobileProjectPanelsScenario,
