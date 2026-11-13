@@ -13,6 +13,24 @@
     transform-origin: center;
 }
 
+/*
+ * A Chat kept alive behind another Session stops looping. `reconcileSessionAnimations` pauses what is running when the
+ * switch paints, but an animation that starts later inside the hidden Session (an Agent that begins a tool call while
+ * the user reads another Session) fires no `animationstart` there and kept looping until the next switch: production
+ * caught a subagent glyph and two spinners running for over twenty minutes, and six SVG-child loops cost about 10 ms of
+ * main thread per second while nothing was on screen. The pause sits on each figure's root, whose class is the
+ * rightmost compound, so toggling `[hidden]` restyles only those small subtrees, never the whole Session (see
+ * `hidden-session-transitions.ts`). The parts follow their root through `inherit`; `!important` because every
+ * animation shorthand below resets the play state, and the more specific Buddy freezes further down still win.
+ */
+.workbench-session[hidden] :is(.agent-chat-glyph, .agent-chat-buddy, .agent-chat-figure) {
+    animation-play-state: paused;
+}
+
+:is(.agent-chat-glyph, .agent-chat-buddy, .agent-chat-figure) * {
+    animation-play-state: inherit !important;
+}
+
 /* Shared: a quick blink for any glyph with eyes. */
 @keyframes glyph-blink {
     0%,

@@ -90,8 +90,8 @@ export class GitService {
     private readonly changeTracker: GitChangeTracker;
     private readonly ignoredChanges: IgnoredChangeFilter;
     private readonly metadataWatcher: GitMetadataWatcher;
-    private readonly originFacts: OriginRemoteFacts;
     private readonly externalStatus: ExternalStatusHub;
+    readonly originFacts: OriginRemoteFacts;
 
     constructor(
         private readonly paths: ProjectRootResolver,

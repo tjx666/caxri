@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { errorLogFields, logEventCatalog, mapWithConcurrency, SingleFlight } from '@caxri/system';
-import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
+import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
 import {
@@ -149,7 +149,9 @@ export class SessionPullRequestService {
 
     constructor(
         private readonly database: SessionPullRequestDatabase,
-        private readonly git: Pick<GitService, 'summary'>,
+        private readonly git: Pick<GitService, 'summary'> & {
+            originFacts: Pick<GitService['originFacts'], 'githubRepository'>;
+        },
         private readonly logger: StructuredLogger,
         private readonly runner: ExternalStatusRunner = runExternalStatusCommand,
         private readonly options: SessionPullRequestServiceOptions = {},
@@ -513,8 +515,8 @@ export class SessionPullRequestService {
     private async githubRemote(session: SessionRecord): Promise<GitHubRemote | undefined> {
         const repo = await this.primaryRepository(session);
         if (!repo || INTEGRATION_BRANCHES.has(repo.branch)) return undefined;
-        const remote = await this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']);
-        const github = remote ? parseGitHubRemote(remote) : undefined;
+        // Cached per root: every sweep asks for every visible Session, even when no lookup is due.
+        const github = await this.git.originFacts.githubRepository(repo.rootPath);
         return github
             ? {
                   branch: repo.branch,
@@ -637,17 +639,6 @@ export class SessionPullRequestService {
             MAX_PULL_REQUEST_ENTRIES,
         );
         return { expiresAt, lookedUp: true, value, unavailable };
-    }
-
-    private async optionalGit(
-        cwd: string,
-        arguments_: readonly string[],
-    ): Promise<string | undefined> {
-        try {
-            return (await this.runner('git', arguments_, cwd)).trim();
-        } catch {
-            return undefined;
-        }
     }
 
     private async runCommand(arguments_: readonly string[], cwd: string): Promise<string> {

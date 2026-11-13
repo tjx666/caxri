@@ -1,5 +1,7 @@
 import type { ServerEvent } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
+import type { GitHubRepoSlug } from '@caxri/utils';
+import { parseGitHubRemote } from '@caxri/utils';
 
 import { parseGitRemoteHost } from './remote-host';
 import { deriveRepoKey } from './repo-key';
@@ -7,16 +9,19 @@ import { sharedGitRequest } from './request-signal';
 
 /**
  * What a repository root's `origin` remote says, resolved once per root and kept until {@link revalidate}: the
- * commit-avatar privacy gate (`git.remoteHost`) must never re-spawn Git on every commit row render, and the repository
- * key (`project.repositoryKeys`) is read for every Project on every machine. A remote changing mid-session is rare, so
- * the Git metadata watcher calls {@link revalidate} when `.git/config` moves instead of anything polling. Reads local
- * Git config only (`remote get-url`), never the network.
+ * commit-avatar privacy gate (`git.remoteHost`) must never re-spawn Git on every commit row render, the repository key
+ * (`project.repositoryKeys`) is read for every Project on every machine, and the sidebar's pull-request sweep
+ * (`githubRepository`) asks for every visible Session about every 30 seconds. Production logged ~3,900 `remote get-url`
+ * spawns in 90 minutes from that sweep alone, with 146 Sessions and no lookup due. A remote changing mid-session is
+ * rare, so the Git metadata watcher calls {@link revalidate} when `.git/config` moves instead of anything polling. Reads
+ * local Git config only (`remote get-url`), never the network.
  */
 export class OriginRemoteFacts {
-    private readonly hostByRoot = new Map<string, string | null>();
-    private readonly hostRequests = new SingleFlight<string, string | null>();
-    private readonly keyByRoot = new Map<string, string | null>();
-    private readonly keyRequests = new SingleFlight<string, string | null>();
+    /**
+     * The trimmed `origin` URL per root, `''` when the root has none or it could not be read.
+     */
+    private readonly remoteByRoot = new Map<string, string>();
+    private readonly requests = new SingleFlight<string, string>();
 
     /**
      * @param originRemote Prints a root's `origin` URL, or an empty string when it has none.
@@ -27,25 +32,23 @@ export class OriginRemoteFacts {
         private readonly emit?: (event: ServerEvent) => void,
     ) {}
 
-    private async cached(
-        rootPath: string,
-        byRoot: Map<string, string | null>,
-        requests: SingleFlight<string, string | null>,
-        derive: (remote: string) => string | null,
-    ): Promise<string | null> {
-        const cached = byRoot.get(rootPath);
+    private async readRemote(rootPath: string): Promise<string> {
+        try {
+            return (await this.originRemote(rootPath)).trim();
+        } catch {
+            // No readable `origin`: nothing to derive.
+            return '';
+        }
+    }
+
+    private async remote(rootPath: string): Promise<string> {
+        const cached = this.remoteByRoot.get(rootPath);
         if (cached !== undefined) return cached;
         return sharedGitRequest(() =>
-            requests.run(rootPath, async () => {
-                let remote = '';
-                try {
-                    remote = await this.originRemote(rootPath);
-                } catch {
-                    // No readable `origin`: nothing to derive.
-                }
-                const value = derive(remote);
-                byRoot.set(rootPath, value);
-                return value;
+            this.requests.run(rootPath, async () => {
+                const remote = await this.readRemote(rootPath);
+                this.remoteByRoot.set(rootPath, remote);
+                return remote;
             }),
         );
     }
@@ -53,39 +56,39 @@ export class OriginRemoteFacts {
     /**
      * The `origin` host, or `null` when there is none or it cannot be parsed.
      */
-    host(rootPath: string): Promise<string | null> {
-        return this.cached(rootPath, this.hostByRoot, this.hostRequests, parseGitRemoteHost);
+    async host(rootPath: string): Promise<string | null> {
+        return parseGitRemoteHost(await this.remote(rootPath));
     }
 
     /**
      * The machine-independent repository key (see {@link deriveRepoKey}), or `null` when there is none.
      */
-    repositoryKey(rootPath: string): Promise<string | null> {
-        return this.cached(rootPath, this.keyByRoot, this.keyRequests, deriveRepoKey);
+    async repositoryKey(rootPath: string): Promise<string | null> {
+        return deriveRepoKey(await this.remote(rootPath));
     }
 
     /**
-     * Re-reads `origin` for every cached root and replaces the cached host and key.
+     * The GitHub owner and repository `origin` points at, or `undefined` when it is not a GitHub remote.
+     */
+    async githubRepository(rootPath: string): Promise<GitHubRepoSlug | undefined> {
+        const remote = await this.remote(rootPath);
+        return remote ? parseGitHubRemote(remote) : undefined;
+    }
+
+    /**
+     * Re-reads `origin` for every cached root and replaces the cached URL.
      *
      * Emits `state.changed` when any root's repository key changed.
      */
     async revalidate(): Promise<void> {
-        const roots = new Set([...this.hostByRoot.keys(), ...this.keyByRoot.keys()]);
         const changes = await Promise.all(
-            [...roots].map(async (rootPath) => {
-                let remote = '';
-                try {
-                    remote = await sharedGitRequest(() => this.originRemote(rootPath));
-                } catch {
-                    // No readable `origin`: nothing to derive.
-                }
-                const key = deriveRepoKey(remote);
-                const isKeyChanged =
-                    this.keyByRoot.has(rootPath) && this.keyByRoot.get(rootPath) !== key;
-                if (this.keyByRoot.has(rootPath)) this.keyByRoot.set(rootPath, key);
-                if (this.hostByRoot.has(rootPath))
-                    this.hostByRoot.set(rootPath, parseGitRemoteHost(remote));
-                return isKeyChanged;
+            this.remoteByRoot.keys().map(async (rootPath) => {
+                const remote = await sharedGitRequest(() => this.readRemote(rootPath));
+                const previous = this.remoteByRoot.get(rootPath);
+                // `clear()` may have run while the read was in flight; do not resurrect the root.
+                if (previous === undefined) return false;
+                this.remoteByRoot.set(rootPath, remote);
+                return deriveRepoKey(previous) !== deriveRepoKey(remote);
             }),
         );
         if (changes.includes(true))
@@ -96,7 +99,6 @@ export class OriginRemoteFacts {
     }
 
     clear(): void {
-        this.hostByRoot.clear();
-        this.keyByRoot.clear();
+        this.remoteByRoot.clear();
     }
 }

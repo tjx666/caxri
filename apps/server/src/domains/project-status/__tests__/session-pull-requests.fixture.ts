@@ -10,6 +10,7 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
+import type { GitHubRepoSlug } from '@caxri/utils';
 import { onTestFinished, vi } from 'vitest';
 
 import { claudeTranscriptPath } from '../../agents/providers/claude/paths';
@@ -96,6 +97,12 @@ export function pullRequestJson(overrides: Record<string, unknown> = {}): string
 export interface Harness {
     emitted: ServerEvent[];
     logger: StructuredLogger;
+    /**
+     * The cached `origin` lookup the sweep asks for each Session.
+     */
+    githubRepository: ReturnType<
+        typeof vi.fn<(rootPath: string) => Promise<GitHubRepoSlug | undefined>>
+    >;
     runner: ReturnType<typeof vi.fn<ExternalStatusRunner>>;
     service: SessionPullRequestService;
     setTranscript: (lines: string[]) => Promise<void>;
@@ -133,8 +140,10 @@ export async function harness(options: {
     } as unknown as TerminalRecord;
     const sessions = options.sessions ?? [session({ primaryAgentTerminalId: terminal.id })];
     const emitted: ServerEvent[] = [];
+    const githubRepo = vi.fn<(rootPath: string) => Promise<GitHubRepoSlug | undefined>>(() =>
+        Promise.resolve({ owner: 'example', repo: 'example' }),
+    );
     const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
-        if (command === 'git') return Promise.resolve('git@github.com:example/example.git\n');
         if (command === 'gh' && options.gh) return options.gh(arguments_);
         if (command === 'vc' && options.vc) return options.vc(arguments_);
         return Promise.reject(new ExternalStatusCliError('gh', 'other', 'no pull requests found'));
@@ -150,6 +159,7 @@ export async function harness(options: {
             listVisibleSessions: () => sessions,
         },
         {
+            originFacts: { githubRepository: githubRepo },
             summary:
                 options.summary ?? (() => Promise.resolve(gitSummary(options.branch ?? 'feat/x'))),
         },
@@ -166,7 +176,15 @@ export async function harness(options: {
     );
     const setTranscript = (lines: string[]): Promise<void> =>
         writeFile(transcriptPath, `${lines.join('\n')}\n`);
-    return { emitted, logger: structuredLogger, runner, service, setTranscript, terminal };
+    return {
+        emitted,
+        githubRepository: githubRepo,
+        logger: structuredLogger,
+        runner,
+        service,
+        setTranscript,
+        terminal,
+    };
 }
 
 export const createdPullRequestLines = [
