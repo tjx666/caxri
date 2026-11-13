@@ -74,6 +74,7 @@ export function useDelegatedChildren({
                     {
                         approvalPending: approvalSessionIds.has(child.id),
                         delegationFailed: failedSessionIds.has(child.id),
+                        nested: true,
                     },
                 );
                 if (status.kind !== 'default') activeSessionIds.add(child.id);

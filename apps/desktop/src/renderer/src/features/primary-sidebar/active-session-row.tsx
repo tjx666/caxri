@@ -306,6 +306,7 @@ export function ActiveSessionRow({
                 approvalPending={approvalPending}
                 className={HIDDEN_ON_ROW_HOVER}
                 delegationFailed={delegationFailed}
+                nested={nested}
                 pullRequest={pullRequestUnavailable ? undefined : pullRequest}
                 renaming={renaming}
                 renameSuggesting={renameSuggesting}
@@ -339,6 +340,7 @@ export function ActiveSessionRow({
                     delegatedBy={delegatedBy}
                     delegationFailed={delegationFailed}
                     inPinnedGroup={inPinnedGroup}
+                    nested={nested}
                     project={project}
                     pullRequest={pullRequest}
                     pullRequestUnavailable={pullRequestUnavailable}

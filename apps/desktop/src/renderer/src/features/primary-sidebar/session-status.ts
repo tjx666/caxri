@@ -85,6 +85,11 @@ type SessionStatusSource = Pick<
  * those rows alone. Live signals outrank it: a usage-limit wait, an approval the Agent is blocked on, and a running
  * turn (a follow-up after the failure). Below those, `failed` replaces an attention result and the settled default (a
  * detached Agent keeps its glyph), so a task that failed still shows it until a later task replaces the failure.
+ *
+ * `nested` marks a Session shown under the host that delegated it. Its finished result is the host Agent's to read, not
+ * the user's: the host gets the hand-back and reports in its own turn, which raises the host's own attention. So an
+ * unread `completed` result settles quietly there instead of lighting amber; a question it waits on, a failure, and an
+ * approval still do, since only the user can act on those.
  */
 export function sessionStatus(
     session: SessionStatusSource,
@@ -93,10 +98,15 @@ export function sessionStatus(
     {
         approvalPending = false,
         delegationFailed = false,
+        nested = false,
         pendingAttention = false,
     }: {
         approvalPending?: boolean;
         delegationFailed?: boolean;
+        /**
+         * The Session is nested under its delegating host, so a finished result raises no attention (see above).
+         */
+        nested?: boolean;
         /**
          * Keeps a read Session amber until it is marked Done. Only the Activity view passes it (see above).
          */
@@ -132,7 +142,9 @@ export function sessionStatus(
      * longer Caxri's to animate. Attention still wins: it was raised before the hand-over. A recorded delegation
      * failure does not replace the detached glyph either.
      */
-    const hasAttention = session.hasUnread || (pendingAttention && session.hasPendingAttention);
+    const hasAttention =
+        !(nested && session.lastAttentionKind === 'completed') &&
+        (session.hasUnread || (pendingAttention && session.hasPendingAttention));
     if (terminal.lastProcessState === 'detached') {
         if (hasAttention) return attentionStatus(session, t);
         return {
@@ -209,14 +221,22 @@ export interface SessionStatusSummary {
  * Folds a group of Sessions into the counts a collapsed Project heading shows, using the same projection as each row so
  * the heading can never report a state its expanded rows would not.
  */
-export function summarizeSessionStatuses<Session extends SessionStatusSource>(
+export function summarizeSessionStatuses<Session extends SessionStatusSource & { id: string }>(
     sessions: readonly Session[],
     terminalFor: (session: Session) => SessionStatusTerminal | undefined,
     t: Translate,
+    /**
+     * The Sessions among `sessions` that have an ordinary row. When given, every other Session is nested under a host
+     * and counts by its nested row's projection; when omitted, none is.
+     */
+    ownSessions?: readonly Session[],
 ): SessionStatusSummary {
     const summary: SessionStatusSummary = { attention: 0, running: 0 };
+    const ownSessionIds = ownSessions && new Set(ownSessions.map(({ id }) => id));
     for (const session of sessions) {
-        const { kind } = sessionStatus(session, terminalFor(session) ?? {}, t);
+        const { kind } = sessionStatus(session, terminalFor(session) ?? {}, t, {
+            nested: ownSessionIds !== undefined && !ownSessionIds.has(session.id),
+        });
         if (kind === 'attention') summary.attention += 1;
         else if (kind === 'running') summary.running += 1;
     }

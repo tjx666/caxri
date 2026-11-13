@@ -88,6 +88,7 @@ export function SessionActivityCard({
     delegatedBy,
     delegationFailed = false,
     inPinnedGroup,
+    nested = false,
     pendingAttention = false,
     project,
     pullRequest,
@@ -118,6 +119,11 @@ export function SessionActivityCard({
      * Session is pinned: the pin has no mark of its own.
      */
     inPinnedGroup?: boolean;
+    /**
+     * True for a Session nested under its delegating host, so the status line drops a finished result the row no longer
+     * shows (see `sessionStatus`).
+     */
+    nested?: boolean;
     /**
      * Restates read Pending Attention until Mark as Done, matching the row glyph (see `sessionStatus`). Only the
      * Activity view passes it.
@@ -172,6 +178,7 @@ export function SessionActivityCard({
     const statusLine = sessionCardStatusLine(session, terminal, t, {
         approvalPending,
         delegationFailed,
+        nested,
         pendingAttention,
     });
     // The list's status slot collapses every attention kind into one signal; the description names the exact one.

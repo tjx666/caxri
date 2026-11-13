@@ -44,6 +44,7 @@ export function SessionStatusIndicator({
     approvalPending,
     delegationFailed,
     fallback,
+    nested,
     pendingAttention,
     reserveSlot = false,
     session,
@@ -64,6 +65,11 @@ export function SessionStatusIndicator({
      */
     fallback?: ReactNode;
     /**
+     * True for a Session nested under its delegating host: a finished result stays quiet (see `sessionStatus`). Only
+     * nested rows pass it.
+     */
+    nested?: boolean;
+    /**
      * Keeps a read Session amber until it is marked Done (see `sessionStatus`). Only the Activity view passes it.
      */
     pendingAttention?: boolean;
@@ -80,6 +86,7 @@ export function SessionStatusIndicator({
     const status = sessionStatus(session, terminal ?? {}, t, {
         approvalPending,
         delegationFailed,
+        nested,
         pendingAttention,
     });
     if (status.kind === 'default')
