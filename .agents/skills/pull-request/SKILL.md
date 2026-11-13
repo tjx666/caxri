@@ -89,7 +89,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    specs (`runE2E: false`); a skipped `e2e` job is expected, so run them locally.
    Write every `--body-file` to a fresh quoted `mktemp` file and remove it after use; never a
    fixed path such as `/tmp/pr-body.md`, which two parallel sessions overwrote into each other's PR
-   body. A per-PR-number name still does not isolate concurrent updates of the same PR.
+   body. A per-PR-number name still does not isolate concurrent updates of the same PR. Keep the
+   template's Xs last (`mktemp -t pr-body` or `mktemp /tmp/pr-body.XXXXXX`) and use the path only
+   after `mktemp` succeeds: macOS `mktemp /tmp/pr-body-XXXXXX.md` returns that literal fixed path,
+   then fails with `File exists` on the next call.
    To edit an existing body, join the read, the edit, a `test -s "$body"` guard, and the update
    with `&&`, then read the body back: `gh pr view ... > "$body" && edit; gh pr edit --body-file`
    ran the update after a network timeout emptied the read and wiped a PR's validation record.
