@@ -3,7 +3,7 @@ import { formatCpuPercent } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 
-export interface SessionSignalLine {
+interface SessionSignalLine {
     /**
      * The short accessible name of the row's glyph (`High CPU`, `Keychain request`).
      */

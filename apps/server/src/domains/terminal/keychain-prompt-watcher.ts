@@ -37,7 +37,7 @@ const RESTART_MAX_MS = 5 * 60_000;
  */
 const HEALTHY_RUN_MS = 60_000;
 
-export interface KeychainPromptOwner {
+interface KeychainPromptOwner {
     provider?: string;
     sessionId: string;
 }
