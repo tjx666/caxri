@@ -20,6 +20,7 @@ export function SessionRowStatus({
     approvalPending,
     className,
     delegationFailed,
+    nested,
     pullRequest,
     renaming,
     renameSuggesting,
@@ -41,6 +42,10 @@ export function SessionRowStatus({
      * True for a nested Session whose delegation failed: the red X glyph (see `sessionStatus`).
      */
     delegationFailed?: boolean;
+    /**
+     * True for a Session nested under its delegating host: a finished result stays quiet (see `sessionStatus`).
+     */
+    nested?: boolean;
     pullRequest?: SessionPullRequest;
     renaming: boolean;
     /**
@@ -72,6 +77,7 @@ export function SessionRowStatus({
                 approvalPending={approvalPending}
                 delegationFailed={delegationFailed}
                 fallback={!renaming && <SessionPullRequestIndicator pullRequest={pullRequest} />}
+                nested={nested}
                 session={session}
                 terminal={terminal}
             />

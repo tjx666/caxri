@@ -6,7 +6,7 @@ import { sessionStatus, summarizeSessionStatuses } from '../session-status';
 
 type StatusSource = Pick<
     SessionRecord,
-    'hasUnread' | 'hasPendingAttention' | 'agentActivityState' | 'lastAttentionKind'
+    'id' | 'hasUnread' | 'hasPendingAttention' | 'agentActivityState' | 'lastAttentionKind'
 >;
 
 /**
@@ -18,6 +18,7 @@ function sessionSource(
     overrides: Partial<StatusSource> = {},
 ): StatusSource {
     return {
+        id: 'session',
         hasUnread: false,
         hasPendingAttention: overrides.hasUnread === true,
         agentActivityState,
@@ -400,6 +401,63 @@ describe('failed delegation status', () => {
                 translate,
             ),
         ).toEqual({ attention: 0, running: 1 });
+    });
+});
+
+describe('nested delegated Session status', () => {
+    const nested = { nested: true };
+    const finished = sessionSource('completed', {
+        hasUnread: true,
+        lastAttentionKind: 'completed',
+    });
+
+    it('settles a finished result quietly, since the host Agent reads it and reports in its own turn', () => {
+        expect(sessionStatus(finished, {}, translate, nested)).toEqual({ kind: 'default' });
+        expect(
+            sessionStatus(finished, { lastProcessState: 'detached' }, translate, nested),
+        ).toMatchObject({ kind: 'detached' });
+        // An ordinary row keeps the cue.
+        expect(sessionStatus(finished, {}, translate)).toMatchObject({ kind: 'attention' });
+    });
+
+    it('still lights amber for a question or a failed turn, which only the user can act on', () => {
+        expect(
+            sessionStatus(
+                sessionSource('waiting', { hasUnread: true, lastAttentionKind: 'waiting' }),
+                {},
+                translate,
+                nested,
+            ),
+        ).toMatchObject({ kind: 'attention', variant: 'waiting' });
+        expect(
+            sessionStatus(
+                sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+                {},
+                translate,
+                nested,
+            ),
+        ).toMatchObject({ kind: 'attention' });
+        expect(
+            sessionStatus(finished, {}, translate, { ...nested, approvalPending: true }),
+        ).toMatchObject({ kind: 'attention', isPending: true });
+        expect(
+            sessionStatus(finished, {}, translate, { ...nested, delegationFailed: true }),
+        ).toMatchObject({ kind: 'failed' });
+    });
+
+    it('leaves a nested finished result out of the Project heading counts', () => {
+        const ownFinished = { ...finished, id: 'own' };
+        const nestedFinished = { ...finished, id: 'nested' };
+        const sessions = [ownFinished, nestedFinished];
+        expect(summarizeSessionStatuses(sessions, () => {}, translate, [ownFinished])).toEqual({
+            attention: 1,
+            running: 0,
+        });
+        // Without the own-row list nothing is nested, as before.
+        expect(summarizeSessionStatuses(sessions, () => {}, translate)).toEqual({
+            attention: 2,
+            running: 0,
+        });
     });
 });
 

@@ -8,6 +8,7 @@ import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
@@ -118,6 +119,20 @@ interface ProjectGroupProperties {
      * marker. Resolved against the full Project list, which still contains the hidden worktree rows.
      */
     worktreeProjects?: Record<string, ProjectRecord>;
+}
+
+/**
+ * The collapsed heading's counts. Every Session in `statusSessions` without an ordinary row in `projectSessions` sits
+ * nested under a host, so it counts the way its nested row reads.
+ */
+function headingSummary(
+    statusSessions: readonly SessionRecord[],
+    projectSessions: readonly SessionRecord[],
+    terminals: readonly TerminalRecord[],
+    t: Translate,
+) {
+    const terminalFor = (session: SessionRecord) => sessionAgentTerminal(session, terminals);
+    return summarizeSessionStatuses(statusSessions, terminalFor, t, projectSessions);
 }
 
 /**
@@ -236,7 +251,7 @@ export function ProjectGroup({
      */
     const agentSummary = expanded
         ? undefined
-        : summarizeSessionStatuses(statusSessions, (s) => sessionAgentTerminal(s, terminals), t);
+        : headingSummary(statusSessions, projectSessions, terminals, t);
     return (
         <section
             data-project-id={project.id}
