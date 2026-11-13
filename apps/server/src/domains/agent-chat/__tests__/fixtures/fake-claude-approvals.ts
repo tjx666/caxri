@@ -22,6 +22,19 @@ const FAKE_CLAUDE_MARKDOWN_QUESTION = [
     '4. Remove the old columns',
 ].join('\n');
 
+/**
+ * One long paragraph, as an Agent writes when it needs a scope decision: far past the phone's three-line fold, so the
+ * Sessions list card must let the user read all of it.
+ */
+const FAKE_CLAUDE_LONG_QUESTION = [
+    'Acceptance found an existing server issue and I need you to set the scope.',
+    'Scenario: a Plus user has a $0 balance with auto top-up on; the confirm dialog says it charges $10.00 to bring the',
+    'balance to $10, but the server counts the free allowance and only charges $9.50.',
+    'Fixing the server changes how every plan computes its top-up, so it needs new tests; leaving it means the dialog',
+    'and the actual charge disagree by up to $0.50 until a follow-up lands.',
+    'END-OF-QUESTION',
+].join(' ');
+
 type Json = Record<string, unknown>;
 
 /**
@@ -228,6 +241,40 @@ export async function didRunApprovalScenario(
             },
         );
         if (!io.isInterrupted()) await io.didStreamFully(`Running ${chosen}.`, 0);
+        io.result(startedAt, 'done');
+        return true;
+    }
+    if (text.includes('ask long')) {
+        let chosen = 'nothing';
+        await wasToolAllowed(
+            io,
+            'AskUserQuestion',
+            {
+                questions: [
+                    {
+                        header: 'Balance scope',
+                        question: FAKE_CLAUDE_LONG_QUESTION,
+                        multiSelect: false,
+                        options: [
+                            {
+                                label: 'Fix the server here (Recommended)',
+                                description: 'Count only spendable balance; add tests',
+                            },
+                            {
+                                label: 'Fix the server separately',
+                                description: 'Disclose the $0.50 gap for now',
+                            },
+                        ],
+                    },
+                ],
+            },
+            (input) => {
+                const answers = (input.answers as Record<string, string> | undefined) ?? {};
+                chosen = Object.values(answers).join(' + ') || 'nothing';
+                return { content: `User has answered your questions: ${chosen}.` };
+            },
+        );
+        if (!io.isInterrupted()) await io.didStreamFully(`You chose ${chosen}.`, 0);
         io.result(startedAt, 'done');
         return true;
     }

@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useQuery } from '@tanstack/react-query';
@@ -24,8 +25,13 @@ import type { MobileTerminal } from '../session-model';
 export const SessionChatRequests = ({
     role,
     terminal,
+    source,
     theme,
 }: {
+    /**
+     * Shown first inside the card, naming the Project and Session the request belongs to.
+     */
+    source?: ReactNode;
     role: 'view' | 'reply' | 'control' | null;
     terminal: MobileTerminal;
     theme: MobileTheme;
@@ -67,6 +73,7 @@ export const SessionChatRequests = ({
                     }
                     provider={agentChatProviderName(terminal)}
                     request={current}
+                    source={source}
                     theme={theme}
                 />
             </View>

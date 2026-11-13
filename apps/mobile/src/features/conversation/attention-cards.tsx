@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
     AccessibilityInfo,
@@ -49,12 +50,14 @@ const AttentionCard = ({
     onOpenTerminal,
     request: item,
     role,
+    source,
     submit,
     theme,
 }: {
     onOpenTerminal?: () => void;
     request: Attention;
     role: 'view' | 'reply' | 'control' | null;
+    source?: ReactNode;
     submit: (
         requestId: string,
         answer: {
@@ -124,6 +127,7 @@ const AttentionCard = ({
     return (
         <View accessibilityLiveRegion={item.kind === 'permission' ? 'assertive' : 'polite'}>
             <Card testID={`attention-${item.id}`} theme={theme} tone="attention">
+                {source}
                 <AttentionCardChrome
                     item={item}
                     questionIndex={questionIndex}
@@ -241,9 +245,14 @@ export const AttentionCards = ({
     onOpenTerminal,
     sessionId,
     role,
+    source,
     theme,
 }: {
     fallbackToTerminal?: boolean;
+    /**
+     * Shown first inside each card; the Sessions list names the card's Project and Session with it.
+     */
+    source?: ReactNode;
     /**
      * Switches the parent Session view to its Terminal segment. Undefined where the caller has no Terminal segment to
      * switch to, so "Open Terminal" copy stays informational text instead of a dead-end control.
@@ -327,6 +336,7 @@ export const AttentionCards = ({
             onOpenTerminal={onOpenTerminal}
             request={item}
             role={role}
+            source={source}
             submit={submit}
             theme={theme}
         />
