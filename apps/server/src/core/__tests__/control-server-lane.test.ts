@@ -232,6 +232,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'mobile.project.reorder': 'ordered',
     'mobile.computer.rename': 'ordered',
     'mobile.pullRequest.merge': 'ordered',
+    'mobile.workbenchRoot.select': 'ordered',
     'mobile.session.archive': 'ordered',
     'mobile.session.conversationReference': 'ordered',
     'mobile.session.create': 'ordered',

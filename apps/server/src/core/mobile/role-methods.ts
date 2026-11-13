@@ -8,6 +8,7 @@ const mobileEveryRoleMethods = [
     'mobile.files.search',
     'mobile.attention.list',
     'mobile.pullRequest.read',
+    'mobile.workbenchRoot.list',
     /**
      * Plan limits and public status pages are account facts; the speed source is chosen among this device's Sessions.
      */
@@ -224,6 +225,11 @@ const mobileGatewayMethodsByRole = {
          * grant, like archiving the Session that produced it.
          */
         'mobile.pullRequest.merge',
+        /**
+         * Switching the Session's worktree moves what Desktop's Files, Changes, and editor show too, so it carries the
+         * control grant, like the other Session layout changes.
+         */
+        'mobile.workbenchRoot.select',
         /**
          * A tree row's inline action can be that same merge (the Status panel's per-repository `Merge`), so it carries
          * the same grant.

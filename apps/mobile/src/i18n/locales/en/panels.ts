@@ -32,4 +32,13 @@ export const panels = {
     'panels.upOneFolder': 'Up one folder',
     'panels.viewOnComputerOnly': '{{title}} is only available on your computer.',
     'panels.viewUnavailable': 'This view is not available on your phone. Choose another tab.',
+    'panels.worktree': 'Worktree',
+    'panels.worktreeClose': 'Close worktree list',
+    'panels.worktreeCurrent': 'Worktree {{name}}',
+    'panels.worktreeMain': 'Main worktree',
+    'panels.worktreeNeedsAuthorization': 'Authorize it on your computer first',
+    'panels.worktreeNeedsControl': 'Switching needs control access on this device.',
+    'panels.worktreeSwitchFailed': "Couldn't switch the worktree",
+    'panels.worktreeSwitching': 'Switching…',
+    'panels.worktreeUnknown': 'Unknown worktree',
 } as const;

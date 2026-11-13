@@ -16,6 +16,10 @@ export const panelsStyles = StyleSheet.create({
         paddingRight: mobileSpace.md,
     },
     crumbScroll: { flex: 1 },
+    /**
+     * The Files root's worktree picker, laid out like the breadcrumb row it stands in for.
+     */
+    worktreeRow: { paddingLeft: mobileSpace.lg },
     crumbTrail: { alignItems: 'center', gap: mobileSpace.xs, paddingRight: mobileSpace.xs },
     crumb: { alignItems: 'center', flexDirection: 'row', gap: mobileSpace.sm },
     crumbText: { ...mobileType.meta },

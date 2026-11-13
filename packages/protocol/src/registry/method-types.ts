@@ -186,6 +186,7 @@ export const effectfulCommandRecovery = {
     'mobile.session.takeBackFromBot': 'durable',
     'mobile.session.conversationReference': 'memory',
     'mobile.pullRequest.merge': 'durable',
+    'mobile.workbenchRoot.select': 'durable',
     'mobile.tree.executeCommand': 'durable',
     'mobile.agent.submit': 'none',
     'mobile.image.upload': 'memory',

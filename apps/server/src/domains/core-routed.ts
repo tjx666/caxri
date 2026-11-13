@@ -85,6 +85,8 @@ const CORE_ROUTED_METHODS = [
     'mobile.agentUsage.read',
     'mobile.pullRequest.read',
     'mobile.pullRequest.merge',
+    'mobile.workbenchRoot.list',
+    'mobile.workbenchRoot.select',
     'mobile.terminal.takeOver',
     'mobile.terminal.release',
     'mobile.terminal.input',

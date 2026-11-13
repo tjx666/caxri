@@ -35,4 +35,13 @@ export const panels: TranslatedNamespace<typeof source> = {
     'panels.upOneFolder': '返回上一级文件夹',
     'panels.viewOnComputerOnly': '{{title}} 仅能在电脑上查看。',
     'panels.viewUnavailable': '此视图在手机上不可用。请选择其他标签页。',
+    'panels.worktree': '工作树',
+    'panels.worktreeClose': '关闭工作树列表',
+    'panels.worktreeCurrent': '工作树 {{name}}',
+    'panels.worktreeMain': '主工作树',
+    'panels.worktreeNeedsAuthorization': '需先在电脑上授权',
+    'panels.worktreeNeedsControl': '切换需要此设备拥有控制权限。',
+    'panels.worktreeSwitchFailed': '无法切换工作树',
+    'panels.worktreeSwitching': '正在切换…',
+    'panels.worktreeUnknown': '未知工作树',
 };
