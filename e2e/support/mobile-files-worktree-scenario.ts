@@ -5,9 +5,10 @@ import type { BootstrapState, WorkbenchRootOption } from '@caxri/protocol';
 
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { hasCheck } from './mobile-agent-chat-helpers';
 import { mobileSemantics, tapMobileCheck, waitForMobile } from './mobile-android';
 import type { Environment } from './mobile-project-panels-scenarios';
-import { capture, finish, hasCheck } from './mobile-project-panels-scenarios';
+import { capture, finish } from './mobile-project-panels-scenarios';
 import { git } from './mobile-pull-request-scenario';
 import { openSessionSidePanel } from './mobile-session-panel';
 

@@ -7,6 +7,7 @@ import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { allowE2EErrors } from './fixtures';
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { hasCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -29,9 +30,6 @@ export interface Environment {
     scenarioReceiptPath: string;
     serial: string;
 }
-
-export const hasCheck = (nodes: Awaited<ReturnType<typeof mobileSemantics>>, id: string): boolean =>
-    nodes.some(({ checkId }) => checkId === id);
 
 export async function capture(
     environment: Environment,

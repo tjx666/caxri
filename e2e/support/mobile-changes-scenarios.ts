@@ -5,7 +5,7 @@ import process from 'node:process';
 import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { expect } from './fixtures';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
-import { waitForNoCheck } from './mobile-agent-chat-helpers';
+import { hasCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -182,9 +182,6 @@ async function captureUnreviewableDiffs(
     }
     return placeholders;
 }
-
-const hasCheck = (nodes: Awaited<ReturnType<typeof mobileSemantics>>, checkId: string) =>
-    nodes.some((node) => node.checkId === checkId);
 
 /**
  * Walks the Working Tree, Last Commit, and Pull Request modes over the standard fixture: three uncommitted files on top

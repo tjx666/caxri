@@ -1,6 +1,7 @@
+import { hasCheck } from './mobile-agent-chat-helpers';
 import { mobileSemantics, tapMobileCheck } from './mobile-android';
 import type { UiAuditScenarioEnvironment } from './mobile-ui-audit-support';
-import { assertStaysAbsent, capture, finish, hasCheck, waitFor } from './mobile-ui-audit-support';
+import { assertStaysAbsent, capture, finish, waitFor } from './mobile-ui-audit-support';
 
 /**
  * Settings' Computer section with the Acceptance update fixture armed on the paired Desktop: the computer's version and

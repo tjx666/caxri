@@ -6,6 +6,7 @@ import type { BootstrapState } from '@caxri/protocol';
 
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
+import { hasCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     androidBounds,
@@ -19,7 +20,7 @@ import {
 import type { GrayFrame } from './mobile-motion-analysis';
 import { departuresFromFinalPicture, readRecordingBand } from './mobile-motion-analysis';
 import type { Environment } from './mobile-project-panels-scenarios';
-import { addProjectFromPhone, capture, finish, hasCheck } from './mobile-project-panels-scenarios';
+import { addProjectFromPhone, capture, finish } from './mobile-project-panels-scenarios';
 
 const chipBounds = (nodes: Awaited<ReturnType<typeof mobileSemantics>>, projectId: string) => {
     const node = nodes.find(({ checkId }) => checkId === `project-filter-${projectId}`);
