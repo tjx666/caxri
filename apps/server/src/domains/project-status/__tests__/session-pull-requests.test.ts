@@ -310,18 +310,19 @@ describe('SessionPullRequestService', () => {
             expect(arguments_.slice(0, 3)).toEqual(['pr', 'view', '19024']);
             return Promise.resolve(pullRequestJson());
         });
-        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) =>
-            command === 'git'
-                ? Promise.resolve('git@github.com:example/example.git\n')
-                : gh(arguments_),
-        );
+        const runner = vi.fn<ExternalStatusRunner>((_command, arguments_) => gh(arguments_));
         const service = new SessionPullRequestService(
             {
                 getSession: () => session({ primaryAgentTerminalId: terminal.id }),
                 getTerminal: (id) => (id === terminal.id ? terminal : undefined),
                 listVisibleSessions: () => [session({ primaryAgentTerminalId: terminal.id })],
             },
-            { summary: () => Promise.resolve(gitSummary('main')) },
+            {
+                originFacts: {
+                    githubRepository: () => Promise.resolve({ owner: 'example', repo: 'example' }),
+                },
+                summary: () => Promise.resolve(gitSummary('main')),
+            },
             await testLogger(),
             runner,
             { agentEnvironment: { homeDirectory: home, variables: {} }, emit: () => {} },
@@ -482,16 +483,24 @@ describe('SessionPullRequestService', () => {
         expect(service.snapshot().pullRequests['session-1']?.checks).toBeUndefined();
     });
 
+    it('reads origin from the shared Git cache on every sweep instead of spawning git', async () => {
+        const { githubRepository, runner, service } = await harness({});
+        await service.refresh();
+        await service.refresh();
+        expect(githubRepository).toHaveBeenCalledWith('/project');
+        expect(runner.mock.calls.filter(([command]) => command === 'git')).toHaveLength(0);
+    });
+
     it('never queries an integration branch and skips archived Sessions', async () => {
         const gh = vi.fn(() => Promise.resolve(pullRequestJson()));
-        const { runner, service } = await harness({
+        const { githubRepository, service } = await harness({
             branch: 'main',
             gh,
             sessions: [session(), session({ id: 'session-2', archivedAt: 1 })],
         });
         await service.refresh();
         expect(gh).not.toHaveBeenCalled();
-        expect(runner.mock.calls.filter(([command]) => command === 'git')).toHaveLength(0);
+        expect(githubRepository).not.toHaveBeenCalled();
         expect(service.snapshot().pullRequests).toEqual({});
     });
 

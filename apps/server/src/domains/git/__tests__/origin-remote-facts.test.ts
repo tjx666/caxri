@@ -35,6 +35,25 @@ describe('OriginRemoteFacts', () => {
         expect(await facts.host('/work/caxri')).toBe('git.example.com');
     });
 
+    it('answers host, key, and GitHub repository from one read per root until revalidated', async () => {
+        let remote = 'git@github.com:tjx666/caxri.git\n';
+        const originRemote = vi.fn(() => Promise.resolve(remote));
+        const facts = new OriginRemoteFacts(originRemote);
+        const [repo] = await Promise.all([
+            facts.githubRepository('/work/caxri'),
+            facts.githubRepository('/work/caxri'),
+            facts.host('/work/caxri'),
+        ]);
+        expect(repo).toEqual({ owner: 'tjx666', repo: 'caxri' });
+        expect(await facts.repositoryKey('/work/caxri')).toContain('tjx666/caxri');
+        expect(originRemote).toHaveBeenCalledTimes(1);
+
+        remote = 'git@git.example.com:tjx666/caxri.git';
+        await facts.revalidate();
+        expect(await facts.githubRepository('/work/caxri')).toBeUndefined();
+        expect(originRemote).toHaveBeenCalledTimes(2);
+    });
+
     it('treats a root that lost its origin as changed to null', async () => {
         let remote = 'git@github.com:tjx666/caxri.git';
         const emit = vi.fn();
