@@ -58,6 +58,7 @@ export type TransientServerEvent = Extract<
             | 'terminal.outputRecovery'
             | 'terminal.ptyAlert'
             | 'terminal.resourceAlert'
+            | 'terminal.sessionSignalsChanged'
             | 'terminal.sizeOwnership'
             | 'viewContainers.catalogChanged'
             | 'viewContainers.treeChanged'
@@ -96,6 +97,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * Explorer's summary, and the next episode raises again.
      */
     'terminal.ptyAlert',
+    /**
+     * A full snapshot every time; a reconnecting client reads `terminal.sessionSignals` instead of a stale replay.
+     */
+    'terminal.sessionSignalsChanged',
     'terminal.sizeOwnership',
     'agent.messaging.changed',
     /**

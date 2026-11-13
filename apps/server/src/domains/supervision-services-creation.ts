@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 import type { AgentChatService } from './agent-chat';
 import { chatStateStore } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
@@ -11,7 +13,9 @@ import { ChatAwayRecap, ChatIdleCompaction } from './session';
 import type { TerminalManager } from './terminal';
 import {
     createTerminalHandlers,
+    KeychainPromptWatcher,
     PtyUsageMonitor,
+    SessionSignalsService,
     TerminalResourceMonitor,
     TerminalSuspensionService,
 } from './terminal';
@@ -114,14 +118,36 @@ export function createTerminalSupervision({
         watchHub,
     });
     suspensionState.service = terminalSuspension;
+    const sessionSignals = new SessionSignalsService({ logger, send });
     const resourceMonitor = new TerminalResourceMonitor({
         chatProcessGroups: () => chatStateStore(database).processGroups.list(),
         database,
         logger,
         send,
+        sessionHeat: sessionSignals,
         terminals,
         watchHub,
     });
+    /**
+     * MacOS only, and never under E2E: a hermetic run must not depend on the host's unified log.
+     */
+    const keychainPrompts =
+        process.platform === 'darwin' && process.env.CAXRI_E2E !== '1'
+            ? new KeychainPromptWatcher({
+                  logger,
+                  onChange: (prompts) => sessionSignals.updateKeychainPrompts(prompts),
+                  owners: () =>
+                      new Map(
+                          resourceMonitor.processes().map((entry) => [
+                              entry.processId,
+                              {
+                                  sessionId: entry.sessionId,
+                                  ...(entry.provider && { provider: entry.provider }),
+                              },
+                          ]),
+                      ),
+              })
+            : undefined;
     const ptyUsage = new PtyUsageMonitor({ logger, send, watchHub });
     return {
         handlers: createTerminalHandlers({
@@ -129,6 +155,7 @@ export function createTerminalSupervision({
             database,
             ptyUsage,
             resourceMonitor,
+            sessionSignals,
             terminals,
             terminalSuspension,
         }),
@@ -140,6 +167,7 @@ export function createTerminalSupervision({
             autoHandBack.start();
             agentChat.states.usageLimitWaits?.start(watchHub);
             resourceMonitor.start();
+            keychainPrompts?.start();
             ptyUsage.start();
         },
         close: async (): Promise<void> => {
@@ -148,6 +176,7 @@ export function createTerminalSupervision({
             await awayRecap.close();
             await autoHandBack.close();
             await agentChat.states.usageLimitWaits?.close();
+            keychainPrompts?.close();
             await resourceMonitor.close();
             await ptyUsage.close();
         },

@@ -40,6 +40,7 @@ export * from './project-path.js';
 export * from './project-status.js';
 export * from './pull-request-merge-readiness.js';
 export * from './session.js';
+export * from './session/live-signals.js';
 export * from './session/session-activity-group.js';
 export * from './session/session-airplane-mode.js';
 export * from './session/session-archive-worktree.js';

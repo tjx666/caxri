@@ -153,6 +153,13 @@ export const primarySidebar = {
     'primarySidebar.card.history.untitled': '{{agent}} conversation',
     'primarySidebar.card.history.reopenFailed': 'Could not reopen the conversation',
 
+    // Live Session signals (heat and Keychain markers)
+    'primarySidebar.signal.heat.label': 'High CPU',
+    'primarySidebar.signal.heat.sentence': 'High CPU for {{minutes}} min, now {{cpu}}',
+    'primarySidebar.signal.keychain.label': 'Keychain request',
+    'primarySidebar.signal.keychain.sentence': 'Asking for Keychain access: {{command}}',
+    'primarySidebar.signal.keychain.sentenceUnknown': 'Asking for Keychain access',
+
     // Session activity presentation
     'primarySidebar.activity.ariaLabel': '{{label}}. {{description}}',
     'primarySidebar.activity.completed.label': 'Finished',

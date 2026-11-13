@@ -33,7 +33,16 @@ const recorder = vi.hoisted(
 
 vi.mock('../terminal', () => ({
     createTerminalHandlers: () => ({}),
+    /**
+     * Platform-gated (macOS outside E2E), so it stays out of the recorded order the other pollers pin.
+     */
+    KeychainPromptWatcher: class {
+        start(): void {}
+
+        close(): void {}
+    },
     PtyUsageMonitor: recorder('ptyUsage'),
+    SessionSignalsService: class {},
     TerminalResourceMonitor: recorder('monitor'),
     TerminalSuspensionService: recorder('suspension'),
 }));

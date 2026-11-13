@@ -28,6 +28,7 @@ export const EVENT_AUDIENCE = {
     'terminal.outputRecovery': 'all',
     'terminal.resourceAlert': 'focused',
     'terminal.ptyAlert': 'focused',
+    'terminal.sessionSignalsChanged': 'all',
     'terminal.exit': 'all',
     'files.watchLimitAlert': 'focused',
     'files.changed': 'all',

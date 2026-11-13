@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { identifierSchema } from './identifiers.js';
+import { sessionSignalsSchema } from './session/live-signals.js';
 import { terminalPreviewSchema } from './terminal-preview.js';
 import { terminalSnapshotSchema } from './terminal-record.js';
 import {
@@ -51,6 +52,15 @@ export const terminalReadMethods = {
         ...serverRead,
         params: z.object({ sessionId: identifierSchema }),
         result: sessionResourceUsageSchema.nullable(),
+    },
+    /**
+     * The sidebar's live per-Session markers: which Sessions run hot and which have a macOS Keychain dialog open.
+     * `terminal.sessionSignalsChanged` pushes every later change.
+     */
+    'terminal.sessionSignals': {
+        ...serverRead,
+        params: z.object({}).default({}),
+        result: sessionSignalsSchema,
     },
     /**
      * Every running Terminal's PTY root PID with its Session, so a process inspector can group OS processes by the

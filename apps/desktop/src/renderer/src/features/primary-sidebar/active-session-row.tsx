@@ -22,6 +22,7 @@ import { sessionRowDetail } from './session-row-detail';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowStatus } from './session-row-status';
 import { SessionRowTrigger } from './session-row-trigger';
+import { SessionSignalMarkers } from './session-signal-markers';
 import { SessionSubagentRows } from './session-subagent-rows';
 
 interface ActiveSessionRowProperties {
@@ -292,10 +293,14 @@ export function ActiveSessionRow({
             )}
             {/*
              * Outside the title's span, whose overflow fade would hide a glyph after a long title. Absent for the
-             * ordinary Session Caxri Bot does not manage, so it costs no width there.
+             * ordinary Session Caxri Bot does not manage, so it costs no width there. The live signal glyphs (heat,
+             * Keychain) sit there for the same reason and render nothing while the Session has no signal.
              */}
             {!renaming && (
-                <BotSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+                <>
+                    <SessionSignalMarkers className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+                    <BotSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+                </>
             )}
             {/*
              * On pointer hover every glyph steps aside for Pin/Archive (~42px): its slot collapses entirely, because a

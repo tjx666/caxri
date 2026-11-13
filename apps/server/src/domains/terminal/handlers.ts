@@ -6,6 +6,7 @@ import { applyTerminalResourceOverride } from './e2e-resource-override';
 import type { TerminalManager } from './manager';
 import type { PtyUsageMonitor } from './pty-usage-monitor';
 import type { TerminalResourceMonitor } from './resource-monitor';
+import type { SessionSignalsService } from './session-signals';
 import type { TerminalSuspensionService } from './suspension';
 
 interface TerminalHandlerOptions {
@@ -21,6 +22,7 @@ interface TerminalHandlerOptions {
         TerminalResourceMonitor,
         'processes' | 'readingOverride' | 'sessionResources'
     >;
+    sessionSignals: Pick<SessionSignalsService, 'snapshot'>;
     terminals: Pick<
         TerminalManager,
         | 'attach'
@@ -45,6 +47,7 @@ export function createTerminalHandlers({
     database,
     ptyUsage,
     resourceMonitor,
+    sessionSignals,
     terminals,
     terminalSuspension,
 }: TerminalHandlerOptions): Pick<
@@ -59,6 +62,7 @@ export function createTerminalHandlers({
     | 'terminal.resources'
     | 'terminal.runningCount'
     | 'terminal.sessionResources'
+    | 'terminal.sessionSignals'
     | 'terminal.snapshot'
     | 'terminal.suspend'
 > {
@@ -96,6 +100,7 @@ export function createTerminalHandlers({
                 await resourceMonitor.readingOverride(terminalId),
             ),
         'terminal.sessionResources': ({ sessionId }) => resourceMonitor.sessionResources(sessionId),
+        'terminal.sessionSignals': () => sessionSignals.snapshot(),
         'terminal.processes': () => ({ terminals: resourceMonitor.processes() }),
         'terminal.ptyUsage': async () => ({ usage: (await ptyUsage.usage()) ?? null }),
         /**

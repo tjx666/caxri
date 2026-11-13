@@ -9,7 +9,6 @@ import { caxri } from '../lib/caxri';
 import { parentDirectoryPath } from '../lib/file-path';
 import { getBootstrap, getWorkbenchProjectSessionIds } from '../stores/selectors';
 import {
-    caxriQueryKey,
     CONTROLLED_VIEW_QUERY_METHOD,
     EXTENSION_TREE_CHILDREN_QUERY_METHOD,
     isQueryMethod,
@@ -27,10 +26,12 @@ import {
     PULL_REQUESTS_QUERY_KEY,
 } from './invalidation-delivery';
 import {
+    didWriteSnapshotEventRead,
     invalidateBotInboxQuery,
     invalidateGitReviewQueries,
     invalidatePermissionAutoAllowQuery,
     invalidateSessionExcerptQueries,
+    invalidateSnapshotEventReads,
 } from './invalidation-event-reads';
 import type { PendingFileChangeBatch, ViewChange } from './invalidation-hidden-window';
 import { createHiddenWindowDeferral } from './invalidation-hidden-window';
@@ -72,7 +73,6 @@ const BOT_STATUS_QUERY_KEY: readonly [CaxriMethod] = ['bot.status'];
 /**
  * The Airplane Mode dialog's read. Its event carries the whole state, so a change is written into the cache directly.
  */
-const AIRPLANE_MODE_QUERY_KEY = caxriQueryKey('session.airplaneModeStatus', {});
 /**
  * Reasons whose Session membership change must refresh the shared pull-request query at once. Typed from the event
  * contract so a renamed reason fails typecheck rather than silently never matching.
@@ -465,7 +465,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
              */
             invalidateAgentTranscriptQuery(queryClient);
             void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
-            void queryClient.invalidateQueries({ queryKey: AIRPLANE_MODE_QUERY_KEY });
+            invalidateSnapshotEventReads(queryClient);
             invalidateControlledViewQueries(queryClient);
             return;
         }
@@ -503,10 +503,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             invalidateProjectStatusQuery(queryClient, event.payload.sessionId);
             return;
         }
-        if (event.event === 'session.airplaneModeChanged') {
-            queryClient.setQueryData(AIRPLANE_MODE_QUERY_KEY, event.payload);
-            return;
-        }
+        if (didWriteSnapshotEventRead(queryClient, event)) return;
         if (event.event === 'agent.permissionAutoAllowChanged') {
             invalidatePermissionAutoAllowQuery(queryClient, event.payload.sessionId);
             return;

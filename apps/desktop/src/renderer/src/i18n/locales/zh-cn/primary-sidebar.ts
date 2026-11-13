@@ -155,6 +155,13 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.card.history.untitled': '{{agent}} 对话',
     'primarySidebar.card.history.reopenFailed': '无法重新打开对话',
 
+    // Live Session signals (heat and Keychain markers)
+    'primarySidebar.signal.heat.label': 'CPU 占用高',
+    'primarySidebar.signal.heat.sentence': 'CPU 占用已持续偏高 {{minutes}} 分钟，当前 {{cpu}}',
+    'primarySidebar.signal.keychain.label': '钥匙串请求',
+    'primarySidebar.signal.keychain.sentence': '正在请求钥匙串访问：{{command}}',
+    'primarySidebar.signal.keychain.sentenceUnknown': '正在请求钥匙串访问',
+
     // Session activity presentation
     'primarySidebar.activity.ariaLabel': '{{label}}。{{description}}',
     'primarySidebar.activity.completed.label': '已完成',

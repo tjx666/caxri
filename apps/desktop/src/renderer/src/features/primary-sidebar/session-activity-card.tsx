@@ -29,6 +29,7 @@ import { SessionCardMetrics, SessionCardMetricsDescription } from './session-car
 import { SessionCardPullRequest } from './session-card-pull-request';
 import { sessionCardStatusLine } from './session-card-status';
 import { sessionPullRequestPresentation } from './session-pull-request';
+import { SessionCardSignals, SessionSignalDescription } from './session-signal-markers';
 
 /**
  * The only subscriber to the shared relative-time clock on the card. The label is rendered here instead of in the card
@@ -215,6 +216,7 @@ export function SessionActivityCard({
                 <LastActiveText sentence timestamp={session.sessionActivityAt} />
                 {unreadSentence ? ` ${unreadSentence}` : undefined}
                 {visible && <SessionCardMetricsDescription sessionId={session.id} />}
+                <SessionSignalDescription sessionId={session.id} />
             </span>
             {/*
              * A glance, after the Codex app's thread list: which Session, which Agent, how recently, which Project, and
@@ -259,6 +261,7 @@ export function SessionActivityCard({
                 )}
                 {pullRequest && <SessionCardPullRequest pullRequest={pullRequest} />}
                 <SessionCardMetrics reserveSpace={agent !== 'shell'} sessionId={session.id} />
+                <SessionCardSignals sessionId={session.id} />
                 {statusLine && (
                     <p className="mt-1 mb-0 min-w-0 truncate text-[12px] text-muted">
                         {statusLine}
