@@ -33,16 +33,24 @@ export const clearedDraft = (
 };
 
 /**
- * Whether a native text change only hands back the text the app just cleared, so the field should stay empty.
+ * Whether a native text change only hands back the text the app just cleared, so the field should stay empty. The echo
+ * may also be the sent text short of its end: an IME still composing the last word (`keys` typed through a Chinese
+ * keyboard's English mode) hands back what the field held before that word's last keystroke, so the draft refilled with
+ * the message minus its final letter. A prefix counts only while it keeps at least half the sent text, so a different
+ * short message typed right after a send is never taken for one.
  */
 export const isClearedDraftEcho = (
     text: string,
     cleared: ClearedDraft | undefined,
     now: number,
-): boolean =>
-    cleared !== undefined &&
-    now - cleared.at <= CLEARED_DRAFT_ECHO_WINDOW_MS &&
-    text.trim() === cleared.text;
+): boolean => {
+    if (cleared === undefined || now - cleared.at > CLEARED_DRAFT_ECHO_WINDOW_MS) return false;
+    const echo = text.trim();
+    return (
+        echo === cleared.text ||
+        (echo !== '' && echo.length * 2 >= cleared.text.length && cleared.text.startsWith(echo))
+    );
+};
 
 /**
  * Keeps a controlled composer empty after the app clears it. React Native's Android field refuses a value from
@@ -53,7 +61,8 @@ export const isClearedDraftEcho = (
  * through `onChangeText`, which ignores that echo. The draft stays empty, and React Native's `TextInput` pushes the
  * empty value again with the newer event count, which the field accepts. The guard ends at the first field change that
  * differs from the cleared text or once `CLEARED_DRAFT_ECHO_WINDOW_MS` has passed, so the user's own typing is never
- * dropped; only the exact sent text arriving as one change right after the clear is.
+ * dropped; only the sent text (or most of it, see `isClearedDraftEcho`) arriving as one change right after the clear
+ * is.
  *
  * @see https://github.com/react/react-native/blob/v0.88.0/packages/react-native/Libraries/Components/TextInput/TextInput.js
  */

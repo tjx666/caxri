@@ -42,6 +42,26 @@ describe('isClearedDraftEcho', () => {
         ).toBe(false);
     });
 
+    it('treats the sent text short of the word the IME was still composing as an echo', () => {
+        expect(isClearedDraftEcho('最多读 key', { at: 1000, text: '最多读 keys' }, 1000 + 16)).toBe(
+            true,
+        );
+    });
+
+    it('keeps a short prefix of the sent text the user typed right after it', () => {
+        expect(isClearedDraftEcho('缓存', cleared, 1000)).toBe(false);
+    });
+
+    it('keeps a partial echo that arrives after the window', () => {
+        expect(
+            isClearedDraftEcho(
+                '最多读 key',
+                { at: 1000, text: '最多读 keys' },
+                1001 + CLEARED_DRAFT_ECHO_WINDOW_MS,
+            ),
+        ).toBe(false);
+    });
+
     it('keeps the user typing something new', () => {
         expect(isClearedDraftEcho('n', cleared, 1000)).toBe(false);
     });
