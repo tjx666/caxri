@@ -141,4 +141,9 @@ export const logEventNames = Object.values(logEventCatalog).flatMap((group) =>
     Object.values(group),
 ) as [LogEventName, ...LogEventName[]];
 
-export const logEventNameSchema = z.enum(logEventNames);
+/**
+ * Annotated with the named `LogEventName` type instead of inferred: inferred, the method registry's declaration spelled
+ * out every event name as a literal, so the catalog's growth pushed it past TypeScript's serialization limit (TS7056)
+ * and any new log event failed the build.
+ */
+export const logEventNameSchema: z.ZodType<LogEventName, LogEventName> = z.enum(logEventNames);
