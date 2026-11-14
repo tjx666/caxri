@@ -215,7 +215,11 @@ export class GitHubPullRequestStore {
         return (this.forgottenAt.get(recordKey) ?? 0) < query.sequence;
     }
 
-    private async fetch(slug: string, reference: string, cwd: string): Promise<string | undefined> {
+    private async readPullRequest(
+        slug: string,
+        reference: string,
+        cwd: string,
+    ): Promise<string | undefined> {
         try {
             const output = await this.runner(
                 'gh',
@@ -236,7 +240,7 @@ export class GitHubPullRequestStore {
         const startedAt = this.now();
         const promise = (async () => {
             try {
-                const json = await this.fetch(slug, reference, cwd);
+                const json = await this.readPullRequest(slug, reference, cwd);
                 this.remember(lookupKey, slug, json, { sequence, startedAt });
                 return json;
             } finally {
