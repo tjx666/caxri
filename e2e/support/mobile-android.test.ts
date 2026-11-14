@@ -87,16 +87,16 @@ const failWith = (stderr: string): Promise<string> =>
 describe('Android Acceptance device command failures', () => {
     it('names a UIAutomator dump that wrote no file', async () => {
         await expect(failWith('The Caxri screen never became idle\n')).rejects.toThrow(
-            'A mobile Acceptance device command failed (ui-not-idle)',
+            /device command failed: \S+ \(ui-not-idle\)$/u,
         );
         await expect(failWith('UIAutomator wrote no window dump\n')).rejects.toThrow(
-            'A mobile Acceptance device command failed (ui-dump-missing)',
+            /device command failed: \S+ \(ui-dump-missing\)$/u,
         );
     });
 
-    it('keeps unrecognized device output out of the failure', async () => {
+    it('keeps unrecognized device output and the script out of the failure', async () => {
         await expect(failWith('private Session name\n')).rejects.toThrow(
-            /^A mobile Acceptance device command failed \(driver-failed\)$/u,
+            /^A mobile Acceptance device command failed: [a-z]+ \(driver-failed\)$/u,
         );
     });
 });

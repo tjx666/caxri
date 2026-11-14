@@ -17,6 +17,7 @@ import {
 } from '../../scripts/mobile-android-display-state.ts';
 
 const execFileAsync = promisify(execFile);
+import { mobileDeviceCommandLabel } from './mobile-device-command-label';
 import { waitForMobile } from './mobile-wait';
 
 export { MobileWaitTimeoutError, waitForMobile } from './mobile-wait';
@@ -91,7 +92,9 @@ export async function runMobileDeviceCommand(
         ]);
         const reason = typeof stderr === 'string' ? reasons.get(stderr.trim()) : undefined;
         // eslint-disable-next-line preserve-caught-error -- Raw subprocess causes can expose device output and credentials.
-        throw new Error(`A mobile Acceptance device command failed (${reason ?? 'driver-failed'})`);
+        throw new Error(
+            `A mobile Acceptance device command failed: ${mobileDeviceCommandLabel(executable, arguments_)} (${reason ?? 'driver-failed'})`,
+        );
     }
 }
 
