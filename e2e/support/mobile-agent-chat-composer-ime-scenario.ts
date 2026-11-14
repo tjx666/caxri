@@ -24,9 +24,10 @@ import { broadcastMobileUnicode, insertMobileInputUnicode } from './mobile-unico
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * The lines typed under the image's placeholder, ending on a new empty line where the next item is typed.
+ * The lines typed under the image's placeholder, ending on the second item's committed marker. The field grows by a few
+ * dp, once, when an empty last line gets its first character, so the marker is in place before the reference frame.
  */
-const TYPED_LINES = '\n1. 这文件路径没法滚动\n';
+const TYPED_LINES = '\n1. 这文件路径没法滚动\n2. ';
 const DRAFT = `[Image #1] ${TYPED_LINES}`;
 /**
  * The composer's top padding and line height in dp (`sessionDetailStyles.composerExpanded`): the first two lines, the
@@ -35,16 +36,15 @@ const DRAFT = `[Image #1] ${TYPED_LINES}`;
  */
 const SETTLED_LINES_DP = 11 + 2 * 21 - 7;
 /**
- * The keys typed on the new line, each held as the open composition the way a Chinese IME holds a key while its
+ * The keys typed after the marker, each held as the open composition the way a Chinese IME holds a key while its
  * candidates show, and then committed. The reported jump lasted a frame or two after a key, so every key is sampled at
  * once.
  */
 const KEYS: ReadonlyArray<{ commit?: string; hold: readonly string[] }> = [
-    { commit: '2. ', hold: ['2', '2.', '2. '] },
     { commit: '第', hold: ['d', 'di'] },
     { commit: '二项', hold: ['e', 'er', 'erx', 'erxi', 'erxia', 'erxian', 'erxiang'] },
 ];
-const TYPED_ITEM = '2. 第二项';
+const TYPED_ITEM = '第二项';
 /**
  * Frames read right after each key.
  */
