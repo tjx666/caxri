@@ -3,7 +3,9 @@ import { AlertTriangle } from 'lucide-react';
 import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Button } from '../../../components/ui/button';
 import { useTranslation } from '../../../i18n';
+import type { ExtensionFailureReason } from '../extension-failure';
 import { describeExtensionFailureReason } from '../extension-failure';
+import { ExtensionTreeMessage } from './extension-tree-message';
 import type { VisiblePlaceholderRow } from './rows';
 import { loadingPlaceholderDepths } from './rows';
 
@@ -55,6 +57,38 @@ export function ExtensionTreePlaceholderRow({
     return (
         <div className="flex h-7 items-center text-muted" role="status" style={{ paddingLeft }}>
             {t('viewContainers.extensionTree.empty')}
+        </div>
+    );
+}
+
+/**
+ * A failed root has no rows to place a placeholder beside, so it takes the whole view as the shared message state
+ * (DESIGN.md: never a long error forced into a single data row). The caller renders it outside `role="tree"`, because
+ * its Retry is a focusable control that is not a row.
+ */
+export function ExtensionTreeRootFailure({
+    isRetrying,
+    onRetry,
+    reason,
+    title,
+}: {
+    isRetrying: boolean;
+    onRetry: () => void;
+    reason: ExtensionFailureReason;
+    title: string;
+}) {
+    const { t } = useTranslation();
+    return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto" role="status">
+            <ExtensionTreeMessage
+                isActionFocusable
+                actionLabel={t('common.retry')}
+                description={describeExtensionFailureReason(reason, t)}
+                disabled={isRetrying}
+                icon={<AlertTriangle className="text-danger" size={24} />}
+                title={t('viewContainers.extensionTree.loadFailed', { title })}
+                onAction={onRetry}
+            />
         </div>
     );
 }

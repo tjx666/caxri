@@ -3,7 +3,6 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { projectStatusErrorLogsSchema } from '@caxri/protocol';
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle } from 'lucide-react';
 
 import { executeCommand } from '../../../commands/execute';
 import { LoadingSkeletonScope } from '../../../components/loading-skeleton';
@@ -11,7 +10,6 @@ import { useScrollEdge } from '../../../hooks/use-scroll-edge';
 import { useTranslation } from '../../../i18n';
 import { useExtensionTreeViewState, useSessionViewScope } from '../../../stores/selectors';
 import { useLogPrefillStore } from '../../panel/views/logs/log-prefill';
-import { describeExtensionFailureReason } from '../extension-failure';
 import { useExtensionTreeChildren } from '../hooks/use-extension-tree-children';
 import { useExtensionTreeState } from '../hooks/use-extension-tree-state';
 import { runTreeItemCommand } from '../tree-item-actions';
@@ -21,8 +19,10 @@ import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
 import { ExtensionTreeItemRow } from './extension-tree-item-row';
-import { ExtensionTreeMessage } from './extension-tree-message';
-import { ExtensionTreePlaceholderRow } from './extension-tree-placeholder-row';
+import {
+    ExtensionTreePlaceholderRow,
+    ExtensionTreeRootFailure,
+} from './extension-tree-placeholder-row';
 import type { ExtensionTreeNavigationKey } from './navigation';
 import {
     extensionTreeHorizontalIntent,
@@ -379,11 +379,7 @@ function ExtensionTreeViewContent({
         onRowFocus: (row) => updateTreeState((current) => focusTreeItem(current, row.item)),
     });
 
-    /**
-     * A failed root has no rows to place a placeholder beside, so it takes the whole view as the shared message state
-     * (DESIGN.md: never a long error forced into a single data row). It sits outside `role="tree"` because its Retry is
-     * a focusable control that is not a row.
-     */
+    // A failed root replaces the tree with ExtensionTreeRootFailure, outside `role="tree"`.
     const rootFailure = rows.length === 1 && rows[0].kind === 'error' ? rows[0] : undefined;
 
     return (
@@ -394,19 +390,14 @@ function ExtensionTreeViewContent({
                 onRefresh={refreshAction ? refresh : undefined}
             />
             {rootFailure ? (
-                <div className="flex min-h-0 flex-1 flex-col overflow-auto" role="status">
-                    <ExtensionTreeMessage
-                        isActionFocusable
-                        actionLabel={t('common.retry')}
-                        description={describeExtensionFailureReason(rootFailure.reason, t)}
-                        disabled={isRootRefreshing}
-                        icon={<AlertTriangle className="text-danger" size={24} />}
-                        title={t('viewContainers.extensionTree.loadFailed', { title })}
-                        onAction={() => {
-                            void loadChildren(ROOT_HANDLE);
-                        }}
-                    />
-                </div>
+                <ExtensionTreeRootFailure
+                    isRetrying={isRootRefreshing}
+                    reason={rootFailure.reason}
+                    title={title}
+                    onRetry={() => {
+                        void loadChildren(ROOT_HANDLE);
+                    }}
+                />
             ) : (
                 <div className="scroll-edge-shell relative flex min-h-0 flex-1 flex-col">
                     <div
