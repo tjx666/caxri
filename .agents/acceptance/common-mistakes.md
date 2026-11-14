@@ -117,6 +117,21 @@ differ from the band's resting first frame, whatever their color. Prove the prob
 pre-fix build first. `bandDeparturePeak` in `e2e/support/mobile-motion-analysis.ts`, used by
 `executeMobileSessionRowSwipeHiddenScenario`, is the reference.
 
+## Taking a text field's reference frame while its last line is empty
+
+**Situation:** A case proves that typed lines stay in place by comparing a framebuffer region of a
+multiline Android field against a reference frame taken before typing.
+
+**Does not work:** Taking the reference while the line under test is still empty. The field grows
+about 3dp, once, when an empty last line gets its first character, so every later frame read as
+moved: `MOB-CHAT-COMPOSER-IME-01` reported 45 of 45 frames moved while its recording showed stable
+lines. A region that reaches the caret's line also changes with every key.
+
+**Works:** Put a committed character on the line under test, wait for two equal reads of the
+region and the field's top, then take the reference. Keep the region above the caret's line, and
+recompute it only after an expected height change, never between samples, or the re-baseline hides
+real jitter. `executeMobileChatComposerImeScenario` is the reference.
+
 ## Assuming a native Android Photo Picker thumbnail has a resource ID
 
 **Situation:** A disposable Android 36 emulator has exactly one fixture-owned JPEG in the system
