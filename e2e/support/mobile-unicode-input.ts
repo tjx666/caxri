@@ -17,10 +17,16 @@ const sdk = join(homedir(), 'Library', 'Android', 'sdk');
 const adb = join(sdk, 'platform-tools/adb');
 const fixtureImeReceiver = 'caxri.acceptance.ime/.FixtureInsertReceiver';
 
+/**
+ * How the fixture IME writes text: `commit` commits it, `compose` composes then finishes it, and `hold` leaves it as
+ * the open composition, as a Chinese IME holds a typed key while its candidates show.
+ */
+export type MobileFixtureImeMode = 'commit' | 'compose' | 'hold';
+
 export function mobileFixtureImeBroadcastArguments(
     serial: string,
     value: string,
-    mode: 'commit' | 'compose' = 'commit',
+    mode: MobileFixtureImeMode = 'commit',
 ): string[] {
     if (!/^emulator-\d+$/u.test(serial))
         throw new Error('Fixture Unicode input requires a disposable emulator');
@@ -35,7 +41,7 @@ export function mobileFixtureImeBroadcastArguments(
         '--es',
         'textBase64',
         Buffer.from(value, 'utf8').toString('base64'),
-        ...(mode === 'compose' ? ['--ez', 'compose', 'true'] : []),
+        ...(mode === 'commit' ? [] : ['--ez', mode, 'true']),
     ];
 }
 
@@ -43,7 +49,7 @@ export function mobileFixtureImeBroadcastArguments(
  * Focuses the resource-id owned by the React Native TextInput, then verifies native focus. Android 36's deprecated
  * `uiautomator runtest` can abort and still print `OK (1 test)`.
  */
-async function focusMobileInput(serial: string, checkId: string): Promise<void> {
+export async function focusMobileInput(serial: string, checkId: string): Promise<void> {
     const input = (await mobileSemantics(serial)).find((node) => node.checkId === checkId);
     const bounds = input && androidBounds(input.bounds);
     if (!input || !bounds || !input.enabled)
@@ -85,10 +91,10 @@ export async function insertMobileInputUnicode(
         throw new Error(`Android Unicode input ${checkId} did not match the expected draft`);
 }
 
-async function broadcastMobileUnicode(
+export async function broadcastMobileUnicode(
     serial: string,
     value: string,
-    mode: 'commit' | 'compose',
+    mode: MobileFixtureImeMode,
 ): Promise<void> {
     const arguments_ = mobileFixtureImeBroadcastArguments(serial, value, mode);
     let output: string;
@@ -98,7 +104,7 @@ async function broadcastMobileUnicode(
     } catch {
         throw new Error('Fixture Unicode input broadcast failed');
     }
-    const expectedResult = mode === 'compose' ? 'composed' : 'committed';
+    const expectedResult = { commit: 'committed', compose: 'composed', hold: 'held' }[mode];
     if (!/result=-1\b/u.test(output) || !new RegExp(`data="?${expectedResult}"?`, 'u').test(output))
         throw new Error('Fixture Unicode input was not committed');
 }

@@ -29,11 +29,18 @@ public final class FixtureIme extends InputMethodService {
         return false;
     }
 
-    boolean commitFixture(String base64, boolean compose) {
+    /**
+     * Writes the fixture text in one of three ways: `commit` commits it, `compose` composes and then finishes it, and
+     * `hold` leaves it as the open composition, as a Chinese IME holds a typed key while its candidates show. A later
+     * `hold` replaces that composition and a `commit` settles it.
+     */
+    boolean commitFixture(String base64, String mode) {
         InputConnection connection = getCurrentInputConnection();
         if (connection == null) return false;
         String text = new String(Base64.decode(base64, Base64.NO_WRAP), StandardCharsets.UTF_8);
-        if (!compose) return connection.commitText(text, 1);
-        return connection.setComposingText(text, 1) && connection.finishComposingText();
+        if ("hold".equals(mode)) return connection.setComposingText(text, 1);
+        if ("compose".equals(mode))
+            return connection.setComposingText(text, 1) && connection.finishComposingText();
+        return connection.commitText(text, 1);
     }
 }
