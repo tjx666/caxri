@@ -2,7 +2,6 @@ import { homedir } from 'node:os';
 
 import type {
     GitRepositorySummary as GitRepoSummary,
-    ProjectStatusError,
     ProjectStatusLinearIssue,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
@@ -19,12 +18,10 @@ import {
     AcceptanceStore,
     ExternalStatusCommandTelemetry,
     GitHubPullRequestStore,
-    isNoPullRequest,
     LinearIssueStore,
     runExternalStatusCommand,
 } from '../external-status';
 import type { GitService } from '../git';
-import { loadPullRequestAcceptances } from './acceptance';
 import type { BranchPublicationContext } from './branch';
 import {
     prepareStatusRepo,
@@ -36,13 +33,12 @@ import { summaryCacheTtlMs } from './cache-ttl';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-over';
 import { pendingSummaryEntry, preparedFingerprint } from './carry-over';
 import { EmptyCheckRollupTracker } from './empty-check-rollup';
-import { emptyGitHubLoad, failedGitHubLoad } from './github-load';
-import { loadPullRequestLinearIssues } from './linear';
+import type { GitHubLoad } from './github-load';
+import { loadRepoGitHub as loadRepoGitHub } from './github-load';
 import type { ProjectStatusMerge } from './merge-tracker';
 import type { ProjectStatusClock, ProjectStatusServiceOptions } from './options';
 import { projectStatusClock } from './options';
 import { loadProjectStatusOverview } from './overview';
-import { parseGitHubPullRequest } from './parse';
 import { PullRequestExtras } from './pull-request-extras';
 import { refreshLogRecord } from './refresh-log';
 import { ResidentPoll } from './resident-poll';
@@ -68,6 +64,15 @@ export class ProjectStatusService {
     private readonly summaries = new Map<string, SummaryCacheEntry>();
     private readonly sessionGenerations = new Map<string, number>();
     private nextSessionGeneration = 0;
+    /**
+     * Per-Session refresh epoch, advanced when a refresh must not reuse one already in flight: an explicit refresh, or
+     * a pull request lifecycle change the sidebar sweep saw. A refresh from an earlier epoch read GitHub before that
+     * moment, so it is neither joined nor allowed to write its answer over the newer one. Without it, a merge reported
+     * by the sweep, or clicked in the panel, joined an automatic refresh issued before the merge, and the panel then
+     * held the open pull request for a full settled TTL.
+     */
+    private readonly refreshEpochs = new Map<string, number>();
+    private nextRefreshEpoch = 0;
     /**
      * Shared Vercel reader. It owns the `owner/repo` → Vercel project map this panel's deployment tree needs, so the
      * expensive discovery is paid once per process even though the sidebar's delivery badge reads it too.
@@ -265,61 +270,29 @@ export class ProjectStatusService {
         };
     }
 
-    private async loadGitHub(
+    private loadGitHub(
         cwd: string,
         context: BranchPublicationContext,
         isForced: boolean,
         number: number | undefined,
-    ): Promise<
-        Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues' | 'acceptances'> & {
-            mergeCommit?: string;
-            errors: ProjectStatusError[];
-        }
-    > {
-        const empty = emptyGitHubLoad;
-        if (!context.owner || !context.repo || !context.branch) return empty();
-        try {
-            const { owner, repo } = context;
-            const target = number ? { number } : { branch: context.branch };
-            const parsed = await this.staleHeads.read(context, isForced, {
-                view: (maxAgeMs) => this.github.view({ ...target, cwd, maxAgeMs, owner, repo }),
-                parse: (output) => parseGitHubPullRequest(output, this.ignoredChecks()),
-            });
-            if (!parsed) return empty();
-            parsed.pullRequest = this.emptyCheckRollups.settle(parsed.pullRequest, this.now());
-            /**
-             * Both readers work from the same already-fetched body, and neither blocks the other: a Linear outage must
-             * not hide the acceptance verdict, and an `lh` that is not installed must not hide the linked issues.
-             */
-            const [linear, acceptance, pullRequest] = await Promise.all([
-                loadPullRequestLinearIssues(this.linear, cwd, parsed.body, {
-                    isForced,
-                    onParseFailure: (error) => this.logExternalParseFailure('linear', error),
-                }),
-                loadPullRequestAcceptances(this.acceptance, cwd, parsed.body, {
-                    isForced,
-                    onParseFailure: (error) => this.logExternalParseFailure('lh', error),
-                }),
-                this.extras.attach(cwd, context, parsed.pullRequest, {
-                    ignoredChecks: this.ignoredChecks(),
-                    isForced,
-                }),
-            ]);
-            return {
-                pullRequest,
-                mergeCommit: parsed.mergeCommit,
-                linearIssues: linear.issues,
-                acceptances: acceptance.acceptances,
-                errors: [
-                    ...(linear.error ? [linear.error] : []),
-                    ...(acceptance.error ? [acceptance.error] : []),
-                ],
-            };
-        } catch (error) {
-            if (isNoPullRequest(error)) return empty();
-            this.logExternalParseFailure('gh', error);
-            return failedGitHubLoad(error);
-        }
+    ): Promise<GitHubLoad> {
+        return loadRepoGitHub(
+            {
+                acceptance: this.acceptance,
+                emptyCheckRollups: this.emptyCheckRollups,
+                extras: this.extras,
+                github: this.github,
+                ignoredChecks: () => this.ignoredChecks(),
+                linear: this.linear,
+                now: () => this.now(),
+                onParseFailure: (command, error) => this.logExternalParseFailure(command, error),
+                staleHeads: this.staleHeads,
+            },
+            cwd,
+            context,
+            isForced,
+            number,
+        );
     }
 
     /**
@@ -360,6 +333,14 @@ export class ProjectStatusService {
         return generation;
     }
 
+    private refreshEpoch(sessionId: string): number {
+        return this.refreshEpochs.get(sessionId) ?? 0;
+    }
+
+    private advanceRefreshEpoch(sessionId: string): void {
+        this.refreshEpochs.set(sessionId, ++this.nextRefreshEpoch);
+    }
+
     private areAlertsEnabled(): boolean {
         return this.options.settings?.()['projectStatus.notifications.enabled'] === true;
     }
@@ -396,7 +377,8 @@ export class ProjectStatusService {
     ): Promise<void> {
         const fingerprint = prepared.fingerprint;
         if (!fingerprint || this.sessionGenerations.get(sessionId) !== sessionGeneration) return;
-        const refreshKey = `${sessionId}\0${sessionGeneration}\0${fingerprint}`;
+        const epoch = this.refreshEpoch(sessionId);
+        const refreshKey = `${sessionId}\0${sessionGeneration}\0${epoch}\0${fingerprint}`;
         try {
             await this.refreshes.run(refreshKey, async () => {
                 const startedAt = performance.now();
@@ -415,6 +397,7 @@ export class ProjectStatusService {
                 );
                 if (
                     this.sessionGenerations.get(sessionId) !== sessionGeneration ||
+                    this.refreshEpoch(sessionId) !== epoch ||
                     this.summaries.get(sessionId)?.fingerprint !== fingerprint
                 )
                     return;
@@ -472,8 +455,10 @@ export class ProjectStatusService {
         let source: 'carried' | 'fresh' | 'local' | 'stale' = 'local';
         if (isFingerprintChanged && cached.value) source = 'carried';
         else if (cached.value) source = cached.expiresAt > this.now() ? 'fresh' : 'stale';
-        if (isForceRefresh) await this.refreshSummary(sessionId, prepared, sessionGeneration, true);
-        else if (source !== 'fresh') {
+        if (isForceRefresh) {
+            this.advanceRefreshEpoch(sessionId);
+            await this.refreshSummary(sessionId, prepared, sessionGeneration, true);
+        } else if (source !== 'fresh') {
             // The cache event owns UI convergence for automatic stale-while-revalidate loads.
             void this.refreshSummary(sessionId, prepared, sessionGeneration, false);
         }
@@ -516,6 +501,7 @@ export class ProjectStatusService {
                 repo.pullRequest.lifecycle === pullRequest.state,
         );
         if (isCurrent) return;
+        this.advanceRefreshEpoch(sessionId);
         this.rememberSummary(sessionId, { ...entry, expiresAt: 0 });
         return this.rereadSummary(sessionId);
     }
@@ -559,6 +545,7 @@ export class ProjectStatusService {
     evictSessions(sessionIds: readonly string[]): void {
         for (const sessionId of sessionIds) {
             this.sessionGenerations.delete(sessionId);
+            this.refreshEpochs.delete(sessionId);
             this.summaries.delete(sessionId);
             this.residentPoll.remove(sessionId);
         }
@@ -567,8 +554,9 @@ export class ProjectStatusService {
     async summary(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary> {
         const generation = this.sessionGeneration(sessionId);
         try {
+            // The epoch keeps a re-read after a lifecycle change from joining a load whose refresh predates it.
             return await this.requests.run(
-                `${sessionId}\0${generation}\0${refreshToken ?? ''}`,
+                `${sessionId}\0${generation}\0${this.refreshEpoch(sessionId)}\0${refreshToken ?? ''}`,
                 () => this.loadSummary(sessionId, generation, refreshToken),
             );
         } catch (error) {

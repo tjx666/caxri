@@ -178,6 +178,68 @@ describe('GitHubPullRequestStore', () => {
         expect(runner).toHaveBeenCalledTimes(2);
     });
 
+    describe('a query that started before the pull request changed', () => {
+        /**
+         * A runner whose first `gh pr view` hangs until released and answers the pre-merge state, while every later
+         * call answers at once with the post-merge state.
+         */
+        function lateOpenRunner() {
+            const first = Promise.withResolvers<string>();
+            let calls = 0;
+            const runner = vi.fn<ExternalStatusRunner>(() =>
+                ++calls === 1 ? first.promise : Promise.resolve(pullRequest({ state: 'MERGED' })),
+            );
+            return { releaseOpen: () => first.resolve(pullRequest()), runner };
+        }
+        const lookup = { cwd: '/project', number: 19_024, owner: OWNER, repo: REPO };
+
+        it('is not joined by an explicit refresh that asks for a fresh answer', async () => {
+            const { releaseOpen, runner } = lateOpenRunner();
+            let now = 0;
+            const store = createStore(runner, () => now);
+
+            const automatic = store.view(lookup);
+            now += 1000;
+            const forced = store.view({ ...lookup, maxAgeMs: 0 });
+            releaseOpen();
+
+            await expect(automatic).resolves.toBe(pullRequest());
+            await expect(forced).resolves.toBe(pullRequest({ state: 'MERGED' }));
+            expect(runner).toHaveBeenCalledTimes(2);
+        });
+
+        it('does not write its pre-mutation answer back as fresh after Caxri forgot the record', async () => {
+            const { releaseOpen, runner } = lateOpenRunner();
+            const store = createStore(runner);
+
+            const automatic = store.view(lookup);
+            // Caxri merged the pull request while that query was still in flight.
+            store.forget(OWNER, REPO, 19_024);
+            releaseOpen();
+            await automatic;
+
+            await expect(store.view(lookup)).resolves.toBe(pullRequest({ state: 'MERGED' }));
+        });
+
+        it('does not overwrite a newer record when it settles last', async () => {
+            const { releaseOpen, runner } = lateOpenRunner();
+            let now = 0;
+            const store = createStore(runner, () => now);
+
+            const automatic = store.view(lookup);
+            now += 1000;
+            // The sidebar sweep saw the merge with its own forced read.
+            await store.view({ ...lookup, maxAgeMs: 0 });
+            releaseOpen();
+            await automatic;
+
+            await expect(store.view(lookup)).resolves.toBe(pullRequest({ state: 'MERGED' }));
+            await expect(
+                store.view({ ...lookup, number: undefined, branch: 'feat/search' }),
+            ).resolves.toBe(pullRequest({ state: 'MERGED' }));
+        });
+    });
+
     it('requests every field its consumers need in one query', async () => {
         const runner = vi.fn<ExternalStatusRunner>(() => Promise.resolve(pullRequest()));
         const store = createStore(runner);

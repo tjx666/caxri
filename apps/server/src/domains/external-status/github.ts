@@ -1,4 +1,3 @@
-import { SingleFlight } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
@@ -77,11 +76,24 @@ export interface GitHubPullRequestLookup {
 }
 
 interface StoredRecord {
+    /**
+     * When the query that produced this record was _issued_, not when it answered: the answer is at least that old.
+     */
     fetchedAt: number;
     /**
      * Raw `gh pr view` JSON, or `undefined` when GitHub reported no pull request for the reference.
      */
     json?: string;
+    /**
+     * Issue order of the producing query, so a slower, older query can never replace a newer answer.
+     */
+    sequence: number;
+}
+
+interface InFlightQuery {
+    promise: Promise<string | undefined>;
+    sequence: number;
+    startedAt: number;
 }
 
 export interface GitHubPullRequestStoreOptions {
@@ -101,7 +113,17 @@ export class GitHubPullRequestStore {
      * `owner/repo@branch` → `owner/repo#number`, so a branch-shaped lookup can reuse a number-shaped record.
      */
     private readonly refAliases = new Map<string, string>();
-    private readonly requests = new SingleFlight<string, string | undefined>();
+    /**
+     * One query per lookup key, shared only by callers it can still answer (see {@link joinable}). A plain single-flight
+     * let a forced read join a query issued before a merge, and the Status panel then kept a merged pull request open.
+     */
+    private readonly inFlight = new Map<string, InFlightQuery>();
+    /**
+     * Record key → the sequence at which Caxri last changed that pull request ({@link forget}). An answer from a query
+     * issued before then describes the pre-mutation state and is never stored.
+     */
+    private readonly forgottenAt = new Map<string, number>();
+    private sequence = 0;
 
     constructor(
         private readonly runner: ExternalStatusRunner,
@@ -133,7 +155,17 @@ export class GitHubPullRequestStore {
         return record;
     }
 
-    private remember(lookupKey: string, slug: string, json: string | undefined): void {
+    /**
+     * Stores the answer of the query issued as `query`, unless a newer answer for the same pull request is already
+     * stored or Caxri changed the pull request after the query was issued. Either way the late answer is stale: storing
+     * it with a fresh timestamp is how a pre-merge record outlived the merge for a whole TTL.
+     */
+    private remember(
+        lookupKey: string,
+        slug: string,
+        json: string | undefined,
+        query: Pick<InFlightQuery, 'sequence' | 'startedAt'>,
+    ): void {
         let identity: z.infer<typeof recordIdentitySchema> = {};
         if (json) {
             try {
@@ -145,7 +177,18 @@ export class GitHubPullRequestStore {
             }
         }
         const recordKey = identity.number === undefined ? lookupKey : `${slug}#${identity.number}`;
-        rememberBounded(this.records, recordKey, { fetchedAt: this.now(), json }, MAX_RECORDS);
+        const current = this.records.get(recordKey);
+        if (
+            (current && current.sequence > query.sequence) ||
+            (this.forgottenAt.get(recordKey) ?? 0) > query.sequence
+        )
+            return;
+        rememberBounded(
+            this.records,
+            recordKey,
+            { fetchedAt: query.startedAt, json, sequence: query.sequence },
+            MAX_RECORDS,
+        );
         if (recordKey !== lookupKey)
             rememberBounded(this.refAliases, lookupKey, recordKey, MAX_REF_ALIASES);
         if (identity.headRefName)
@@ -155,6 +198,53 @@ export class GitHubPullRequestStore {
                 recordKey,
                 MAX_REF_ALIASES,
             );
+    }
+
+    /**
+     * Whether a caller may share `query` instead of issuing its own: the query must satisfy the caller's `maxAgeMs` and
+     * must not predate a change Caxri made to the pull request it resolves to.
+     */
+    private joinable(
+        query: InFlightQuery | undefined,
+        lookupKey: string,
+        maxAgeMs: number | undefined,
+    ): query is InFlightQuery {
+        if (!query) return false;
+        if (maxAgeMs !== undefined && query.startedAt < this.now() - maxAgeMs) return false;
+        const recordKey = this.refAliases.get(lookupKey) ?? lookupKey;
+        return (this.forgottenAt.get(recordKey) ?? 0) < query.sequence;
+    }
+
+    private async fetch(slug: string, reference: string, cwd: string): Promise<string | undefined> {
+        try {
+            const output = await this.runner(
+                'gh',
+                ['pr', 'view', reference, '--repo', slug, '--json', PULL_REQUEST_FIELDS],
+                cwd,
+            );
+            return output.trim() || undefined;
+        } catch (error) {
+            // Only a confirmed "no pull request" is cacheable. A transport, auth, or quota failure must not be
+            // remembered as absence, or the surfaces would render "no PR" until the TTL expired.
+            if (!isNoPullRequest(error)) throw error;
+            return undefined;
+        }
+    }
+
+    private query(lookupKey: string, slug: string, reference: string, cwd: string): InFlightQuery {
+        const sequence = ++this.sequence;
+        const startedAt = this.now();
+        const promise = (async () => {
+            try {
+                const json = await this.fetch(slug, reference, cwd);
+                this.remember(lookupKey, slug, json, { sequence, startedAt });
+                return json;
+            } finally {
+                if (this.inFlight.get(lookupKey)?.sequence === sequence)
+                    this.inFlight.delete(lookupKey);
+            }
+        })();
+        return { promise, sequence, startedAt };
     }
 
     /**
@@ -177,32 +267,15 @@ export class GitHubPullRequestStore {
          * across Sessions. The miss costs one extra query and heals immediately: the answer registers a branch alias
          * onto the record, so every later lookup of either shape joins it.
          */
+        let query = this.inFlight.get(lookupKey);
+        if (!this.joinable(query, lookupKey, lookup.maxAgeMs)) {
+            query = this.query(lookupKey, slug, reference, lookup.cwd);
+            this.inFlight.set(lookupKey, query);
+        }
         try {
-            return await this.requests.run(lookupKey, async () => {
-                /**
-                 * A sibling-key lookup may have produced this record while this call was queued behind the
-                 * single-flight, so re-check before spending a query.
-                 */
-                const settled = this.cached(lookupKey, lookup.maxAgeMs);
-                if (settled) return settled.json;
-                let json: string | undefined;
-                try {
-                    const output = await this.runner(
-                        'gh',
-                        ['pr', 'view', reference, '--repo', slug, '--json', PULL_REQUEST_FIELDS],
-                        lookup.cwd,
-                    );
-                    json = output.trim() || undefined;
-                } catch (error) {
-                    // Only a confirmed "no pull request" is cacheable. A transport, auth, or quota failure must not be
-                    // remembered as absence, or the surfaces would render "no PR" until the TTL expired.
-                    if (!isNoPullRequest(error)) throw error;
-                }
-                this.remember(lookupKey, slug, json);
-                return json;
-            });
+            return await query.promise;
         } catch (error) {
-            // Apply the caller's policy after single-flight, so concurrent availability indicators can observe the
+            // Apply the caller's policy after sharing the query, so concurrent availability indicators can observe the
             // same failed request that other surfaces are allowed to serve from the last known record.
             if (lookup.allowStaleOnFailure !== false) {
                 const stale = this.stored(lookupKey);
@@ -214,14 +287,18 @@ export class GitHubPullRequestStore {
 
     /**
      * Drops one pull request's record after Caxri changed it on GitHub, so the next read of any shape refetches instead
-     * of serving the pre-mutation state. Branch aliases keep pointing at the key and simply miss.
+     * of serving the pre-mutation state. A query already in flight for it is neither joined nor stored afterwards.
+     * Branch aliases keep pointing at the key and simply miss.
      */
     forget(owner: string, repo: string, number: number): void {
-        this.records.delete(`${owner}/${repo}#${number}`);
+        const recordKey = `${owner}/${repo}#${number}`;
+        this.records.delete(recordKey);
+        rememberBounded(this.forgottenAt, recordKey, ++this.sequence, MAX_RECORDS);
     }
 
     clear(): void {
         this.records.clear();
         this.refAliases.clear();
+        this.forgottenAt.clear();
     }
 }
