@@ -2,6 +2,8 @@ import type { ExtensionTreeViewState, TreeItemDto } from '@caxri/protocol';
 import { MAX_VIEW_TREE_HANDLES, MAX_VIEW_TREE_PERSISTED_IDS } from '@caxri/protocol';
 import { collectTreeSubtree } from '@caxri/utils';
 
+import type { ExtensionFailureReason } from '../extension-failure';
+
 const STABLE_KEY_PREFIX = 'id\0';
 const TRANSIENT_KEY_PREFIX = 'handle\0';
 
@@ -24,7 +26,7 @@ export type TreeRowAction = 'none' | 'toggle' | 'toggle-recursive' | 'activate';
 export function treeSnapshotLoading(
     loading: ReadonlySet<string>,
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    errors: ReadonlyMap<string, string>,
+    errors: ReadonlyMap<string, ExtensionFailureReason>,
 ): ReadonlySet<string> {
     return new Set(
         loading.values().filter((handle) => !children.has(handle) || errors.has(handle)),
@@ -36,7 +38,7 @@ export function treeSnapshotLoading(
  */
 export interface TreeSnapshot {
     children: ReadonlyMap<string, readonly TreeItemDto[]>;
-    errors: ReadonlyMap<string, string>;
+    errors: ReadonlyMap<string, ExtensionFailureReason>;
     /**
      * Branches still loading when a first-load snapshot was taken, so their placeholders stay drawn; empty once
      * complete.
@@ -53,7 +55,7 @@ const NO_LOADING: ReadonlySet<string> = new Set();
 
 export function completeTreeSnapshot(
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    errors: ReadonlyMap<string, string>,
+    errors: ReadonlyMap<string, ExtensionFailureReason>,
 ): TreeSnapshot {
     return { children, errors, loading: NO_LOADING, isComplete: true };
 }
@@ -68,7 +70,7 @@ export function nextTreeSnapshot(
     current: TreeSnapshot | undefined,
     rootHandle: string,
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    errors: ReadonlyMap<string, string>,
+    errors: ReadonlyMap<string, ExtensionFailureReason>,
     loading: ReadonlySet<string>,
     isReady: boolean,
 ): TreeSnapshot | undefined {
@@ -102,7 +104,7 @@ export function visibleTreeLoading(
 export function isTreeSnapshotReady(
     rootHandle: string,
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    errors: ReadonlyMap<string, string>,
+    errors: ReadonlyMap<string, ExtensionFailureReason>,
     loading: ReadonlySet<string>,
     state: ExtensionTreeState,
 ): boolean {

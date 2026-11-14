@@ -19,7 +19,10 @@ import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
 import { ExtensionTreeItemRow } from './extension-tree-item-row';
-import { ExtensionTreePlaceholderRow } from './extension-tree-placeholder-row';
+import {
+    ExtensionTreePlaceholderRow,
+    ExtensionTreeRootFailure,
+} from './extension-tree-placeholder-row';
 import type { ExtensionTreeNavigationKey } from './navigation';
 import {
     extensionTreeHorizontalIntent,
@@ -63,7 +66,7 @@ function runTreeCommand(item: TreeItemDto): void {
 
 function unloadedExpandedHandles(
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
-    errors: ReadonlyMap<string, string>,
+    errors: ReadonlyMap<string, unknown>,
     loading: ReadonlySet<string>,
     activeRequests: ReadonlyMap<string, string>,
     isExpanded: (item: TreeItemDto) => boolean,
@@ -376,6 +379,9 @@ function ExtensionTreeViewContent({
         onRowFocus: (row) => updateTreeState((current) => focusTreeItem(current, row.item)),
     });
 
+    // A failed root replaces the tree with ExtensionTreeRootFailure, outside `role="tree"`.
+    const rootFailure = rows.length === 1 && rows[0].kind === 'error' ? rows[0] : undefined;
+
     return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <ExtensionTreeHeader
@@ -383,73 +389,85 @@ function ExtensionTreeViewContent({
                 title={title}
                 onRefresh={refreshAction ? refresh : undefined}
             />
-            <div className="scroll-edge-shell relative flex min-h-0 flex-1 flex-col">
-                <div
-                    ref={scrollElement}
-                    className="min-h-0 flex-1 overflow-auto"
-                    data-scrolled="false"
-                >
-                    <ul
-                        aria-label={title}
-                        className="relative"
-                        role="tree"
-                        style={{ height: `${virtualizer.getTotalSize()}px` }}
+            {rootFailure ? (
+                <ExtensionTreeRootFailure
+                    isRetrying={isRootRefreshing}
+                    reason={rootFailure.reason}
+                    title={title}
+                    onRetry={() => {
+                        void loadChildren(ROOT_HANDLE);
+                    }}
+                />
+            ) : (
+                <div className="scroll-edge-shell relative flex min-h-0 flex-1 flex-col">
+                    <div
+                        ref={scrollElement}
+                        className="min-h-0 flex-1 overflow-auto"
+                        data-scrolled="false"
                     >
-                        {virtualizer.getVirtualItems().map((virtualRow) => {
-                            const row = rows[virtualRow.index];
-                            /*
-                             * A real row puts `treeitem` on its own focusable element inside, so this wrapper steps out of
-                             * the accessibility tree. A placeholder has no such element, and `role="none"` would then hoist
-                             * its `status` div to be a direct child of `role="tree"`, which ARIA does not allow: a tree
-                             * owns `treeitem` and `group`, nothing else. So the wrapper becomes the row instead: disabled,
-                             * never focusable, with `isNavigableExtensionTreeRow` keeping arrow keys stepping over it.
-                             */
-                            const isPlaceholderRow = row.kind !== 'item';
-                            return (
-                                <li
-                                    key={visibleRowKey(row)}
-                                    aria-disabled={isPlaceholderRow || undefined}
-                                    aria-level={isPlaceholderRow ? row.depth + 1 : undefined}
-                                    className="absolute top-0 left-0 w-full"
-                                    data-index={
-                                        row.kind === 'item' && row.item.variant === 'message'
-                                            ? virtualRow.index
-                                            : undefined
-                                    }
-                                    ref={
-                                        row.kind === 'item' && row.item.variant === 'message'
-                                            ? virtualizer.measureElement
-                                            : undefined
-                                    }
-                                    role={isPlaceholderRow ? 'treeitem' : 'none'}
-                                    style={{ transform: `translateY(${virtualRow.start}px)` }}
-                                >
-                                    {isPlaceholderRow ? (
-                                        <ExtensionTreePlaceholderRow
-                                            row={row}
-                                            onRetry={() => {
-                                                void loadChildren(row.parentHandle);
-                                            }}
-                                        />
-                                    ) : (
-                                        <MemoizedExtensionTreeItemRow
-                                            active={virtualRow.index === tabStopIndex}
-                                            index={virtualRow.index}
-                                            isRefreshing={
-                                                row.item.variant === 'message' && isRootRefreshing
-                                            }
-                                            row={row}
-                                            onAction={rowHandlers.onRowAction}
-                                            onFocus={rowHandlers.onRowFocus}
-                                            onNavigate={rowHandlers.onNavigate}
-                                        />
-                                    )}
-                                </li>
-                            );
-                        })}
-                    </ul>
+                        <ul
+                            aria-label={title}
+                            className="relative"
+                            role="tree"
+                            style={{ height: `${virtualizer.getTotalSize()}px` }}
+                        >
+                            {virtualizer.getVirtualItems().map((virtualRow) => {
+                                const row = rows[virtualRow.index];
+                                /*
+                                 * A real row puts `treeitem` on its own focusable element inside, so this wrapper steps out of
+                                 * the accessibility tree. A placeholder has no such element, and `role="none"` would then hoist
+                                 * its `status` div to be a direct child of `role="tree"`, which ARIA does not allow: a tree
+                                 * owns `treeitem` and `group`, nothing else. So the wrapper becomes the row instead: disabled,
+                                 * never focusable, with `isNavigableExtensionTreeRow` keeping arrow keys stepping over it.
+                                 */
+                                const isPlaceholderRow = row.kind !== 'item';
+                                return (
+                                    <li
+                                        key={visibleRowKey(row)}
+                                        aria-disabled={isPlaceholderRow || undefined}
+                                        aria-level={isPlaceholderRow ? row.depth + 1 : undefined}
+                                        className="absolute top-0 left-0 w-full"
+                                        data-index={
+                                            row.kind === 'item' && row.item.variant === 'message'
+                                                ? virtualRow.index
+                                                : undefined
+                                        }
+                                        ref={
+                                            row.kind === 'item' && row.item.variant === 'message'
+                                                ? virtualizer.measureElement
+                                                : undefined
+                                        }
+                                        role={isPlaceholderRow ? 'treeitem' : 'none'}
+                                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                                    >
+                                        {isPlaceholderRow ? (
+                                            <ExtensionTreePlaceholderRow
+                                                row={row}
+                                                onRetry={() => {
+                                                    void loadChildren(row.parentHandle);
+                                                }}
+                                            />
+                                        ) : (
+                                            <MemoizedExtensionTreeItemRow
+                                                active={virtualRow.index === tabStopIndex}
+                                                index={virtualRow.index}
+                                                isRefreshing={
+                                                    row.item.variant === 'message' &&
+                                                    isRootRefreshing
+                                                }
+                                                row={row}
+                                                onAction={rowHandlers.onRowAction}
+                                                onFocus={rowHandlers.onRowFocus}
+                                                onNavigate={rowHandlers.onNavigate}
+                                            />
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }

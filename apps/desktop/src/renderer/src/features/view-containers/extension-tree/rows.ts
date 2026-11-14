@@ -1,6 +1,8 @@
 import type { TreeItemDto } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 
+import type { ExtensionFailureReason } from '../extension-failure';
+
 export interface VisibleItemRow {
     kind: 'item';
     depth: number;
@@ -33,7 +35,7 @@ interface VisibleLoadingRow {
 interface VisibleErrorRow {
     kind: 'error';
     depth: number;
-    message: string;
+    reason: ExtensionFailureReason;
     parentHandle: string;
 }
 
@@ -84,7 +86,7 @@ export function visibleRowKey(row: VisibleRow): string {
  */
 export function flattenVisibleRows(options: {
     children: ReadonlyMap<string, readonly TreeItemDto[]>;
-    errors: ReadonlyMap<string, string>;
+    errors: ReadonlyMap<string, ExtensionFailureReason>;
     isExpanded: (item: TreeItemDto) => boolean;
     loading: ReadonlySet<string>;
     previous?: readonly VisibleRow[];
@@ -102,9 +104,9 @@ export function flattenVisibleRows(options: {
             push({ kind: 'loading', depth, parentHandle });
             return;
         }
-        const error = errors.get(parentHandle);
-        if (error) {
-            push({ kind: 'error', depth, parentHandle, message: error });
+        const reason = errors.get(parentHandle);
+        if (reason) {
+            push({ kind: 'error', depth, parentHandle, reason });
             return;
         }
         const items = children.get(parentHandle) ?? [];

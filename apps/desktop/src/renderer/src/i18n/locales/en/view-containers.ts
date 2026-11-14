@@ -23,7 +23,7 @@ export const viewContainers = {
     'viewContainers.extensionTree.refresh': 'Refresh {{title}}',
     'viewContainers.extensionTree.noSession': 'Select a Session to load this view.',
     'viewContainers.extensionTree.loading': 'Loading view…',
-    'viewContainers.extensionTree.loadFailed': 'Unable to load view: {{message}}',
+    'viewContainers.extensionTree.loadFailed': 'Unable to load {{title}}',
     'viewContainers.extensionTree.empty': 'No items in this view.',
     'viewContainers.extensionTree.collapseItem': 'Collapse {{label}}',
     'viewContainers.extensionTree.expandItem': 'Expand {{label}}',

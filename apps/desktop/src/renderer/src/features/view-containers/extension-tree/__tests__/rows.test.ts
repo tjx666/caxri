@@ -1,6 +1,7 @@
 import type { TreeItemDto } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { ExtensionFailureReason } from '../../extension-failure';
 import { flattenVisibleRows, loadingPlaceholderDepths, loadingPlaceholderRowCount } from '../rows';
 
 const ROOT = 'root';
@@ -16,7 +17,10 @@ function flatten(
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
     expanded: ReadonlySet<string>,
     previous?: ReturnType<typeof flattenVisibleRows>,
-    options: { errors?: ReadonlyMap<string, string>; loading?: ReadonlySet<string> } = {},
+    options: {
+        errors?: ReadonlyMap<string, ExtensionFailureReason>;
+        loading?: ReadonlySet<string>;
+    } = {},
 ) {
     return flattenVisibleRows({
         children,
@@ -70,7 +74,7 @@ describe('flattenVisibleRows', () => {
             ['c', []],
         ]);
         const rows = flatten(children, new Set(['a', 'b', 'c']), undefined, {
-            errors: new Map([['b', 'boom']]),
+            errors: new Map([['b', 'timeout' as const]]),
             loading: new Set(['a']),
         });
         expect(rows.map((row) => row.kind)).toEqual([
@@ -81,7 +85,7 @@ describe('flattenVisibleRows', () => {
             'item',
             'empty',
         ]);
-        expect(rows[3]).toMatchObject({ depth: 1, parentHandle: 'b', message: 'boom' });
+        expect(rows[3]).toMatchObject({ depth: 1, parentHandle: 'b', reason: 'timeout' });
     });
 
     it('reuses previous row objects when a refresh yields equal items', () => {

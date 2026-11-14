@@ -2,6 +2,7 @@ import type { TreeItemDto } from '@caxri/protocol';
 import { MAX_VIEW_TREE_PERSISTED_IDS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { ExtensionFailureReason } from '../../extension-failure';
 import {
     createExtensionTreeState,
     focusTreeItem,
@@ -72,7 +73,7 @@ describe('extension tree snapshot', () => {
             ['root', [repo]],
             ['repo', [item({ handle: 'check' })]],
         ]);
-        const errors = new Map<string, string>();
+        const errors = new Map<string, ExtensionFailureReason>();
         const settled = nextTreeSnapshot(undefined, 'root', complete, errors, new Set(), true);
         expect(settled?.isComplete).toBe(true);
         expect(
@@ -98,7 +99,7 @@ describe('extension tree state', () => {
                     ['healthy', []],
                     ['retry', []],
                 ]),
-                new Map([['retry', 'Unavailable']]),
+                new Map([['retry', 'interrupted' as const]]),
             ),
         ).toEqual(new Set(['new-branch', 'retry']));
     });
@@ -122,7 +123,7 @@ describe('extension tree state', () => {
             isTreeSnapshotReady(
                 'root',
                 children,
-                new Map([['repo', 'Unavailable']]),
+                new Map([['repo', 'interrupted' as const]]),
                 new Set(),
                 state,
             ),
