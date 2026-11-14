@@ -3,8 +3,14 @@ import type { ReactNode } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../../components/ui/empty';
 
+/**
+ * The quiet full-surface state DESIGN.md prescribes for a tree that has nothing to list. Inside `role="tree"` it is a
+ * `message` row whose focus belongs to the row, so its action stays out of the Tab order; a root load failure renders
+ * it outside the tree instead, where the action must be focusable to stay reachable.
+ */
 export function ExtensionTreeMessage({
     actionLabel,
+    isActionFocusable = false,
     description,
     disabled,
     icon,
@@ -12,6 +18,7 @@ export function ExtensionTreeMessage({
     title,
 }: {
     actionLabel?: string;
+    isActionFocusable?: boolean;
     description?: string;
     disabled: boolean;
     icon: ReactNode;
@@ -35,7 +42,7 @@ export function ExtensionTreeMessage({
                     aria-busy={disabled || undefined}
                     disabled={disabled}
                     size="sm"
-                    tabIndex={-1}
+                    tabIndex={isActionFocusable ? undefined : -1}
                     variant="secondary"
                     onClick={() => {
                         onAction();

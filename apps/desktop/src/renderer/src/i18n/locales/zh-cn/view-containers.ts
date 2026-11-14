@@ -18,7 +18,7 @@ export const viewContainers: TranslatedNamespace<typeof source> = {
     'viewContainers.extensionTree.refresh': '刷新 {{title}}',
     'viewContainers.extensionTree.noSession': '选择一个会话以加载此视图。',
     'viewContainers.extensionTree.loading': '正在加载视图…',
-    'viewContainers.extensionTree.loadFailed': '无法加载视图：{{message}}',
+    'viewContainers.extensionTree.loadFailed': '无法加载{{title}}',
     'viewContainers.extensionTree.empty': '此视图中没有内容。',
     'viewContainers.extensionTree.collapseItem': '折叠 {{label}}',
     'viewContainers.extensionTree.expandItem': '展开 {{label}}',

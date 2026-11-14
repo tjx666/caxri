@@ -6,6 +6,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
 import { isCancelledRequest } from '../../../stores/toasts';
+import type { ExtensionFailureReason } from '../extension-failure';
+import { extensionRequestFailureReason } from '../extension-failure';
 import type { ExtensionTreeScope } from '../extension-tree/extension-tree-client';
 import {
     cacheTreeChildren,
@@ -45,13 +47,13 @@ export function useExtensionTreeChildren(
     treeState: ExtensionTreeState,
 ): {
     children: ReadonlyMap<string, readonly TreeItemDto[]>;
-    errors: ReadonlyMap<string, string>;
+    errors: ReadonlyMap<string, ExtensionFailureReason>;
     loading: ReadonlySet<string>;
     loadChildren: (parentHandle: string) => Promise<void>;
     requests: RefObject<Map<string, string>>;
     rootLoads: RootLoadProgress;
     visibleChildren: ReadonlyMap<string, readonly TreeItemDto[]>;
-    visibleErrors: ReadonlyMap<string, string>;
+    visibleErrors: ReadonlyMap<string, ExtensionFailureReason>;
     visibleLoading: ReadonlySet<string>;
 } {
     const queryClient = useQueryClient();
@@ -69,12 +71,12 @@ export function useExtensionTreeChildren(
     const [children, setChildren] =
         useState<ReadonlyMap<string, readonly TreeItemDto[]>>(restoredChildren);
     const [rootLoads, setRootLoads] = useState<RootLoadProgress>({ completed: 0, started: 0 });
-    const [errors, setErrors] = useState<ReadonlyMap<string, string>>(() => new Map());
+    const [errors, setErrors] = useState<ReadonlyMap<string, ExtensionFailureReason>>(
+        () => new Map(),
+    );
     const [loading, setLoading] = useState<ReadonlySet<string>>(() => new Set([ROOT_HANDLE]));
     const [snapshot, setSnapshot] = useState<TreeSnapshot | undefined>(() =>
-        restoredChildren.size > 0
-            ? completeTreeSnapshot(restoredChildren, new Map<string, string>())
-            : undefined,
+        restoredChildren.size > 0 ? completeTreeSnapshot(restoredChildren, new Map()) : undefined,
     );
     const snapshotReady = isTreeSnapshotReady(ROOT_HANDLE, children, errors, loading, treeState);
     /**
@@ -200,13 +202,8 @@ export function useExtensionTreeChildren(
                      * being retired, so the read is superseded rather than failed and must not paint an error into the
                      * branch.
                      */
-                    const { error } = outcome;
-                    setErrors((current) =>
-                        new Map(current).set(
-                            parentHandle,
-                            error instanceof Error ? error.message : String(error),
-                        ),
-                    );
+                    const reason = extensionRequestFailureReason(outcome.error);
+                    setErrors((current) => new Map(current).set(parentHandle, reason));
                 }
             }
             if (requests.current.get(parentHandle) === requestId) {

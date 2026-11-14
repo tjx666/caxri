@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { LoadingSkeleton } from '../../../components/loading-skeleton';
 import { Button } from '../../../components/ui/button';
 import { useTranslation } from '../../../i18n';
+import { describeExtensionFailureReason } from '../extension-failure';
 import type { VisiblePlaceholderRow } from './rows';
 import { loadingPlaceholderDepths } from './rows';
 
@@ -33,22 +34,24 @@ export function ExtensionTreePlaceholderRow({
             />
         );
     const paddingLeft = `${8 + row.depth * 14}px`;
-    if (row.kind === 'error')
+    if (row.kind === 'error') {
+        // A failed root renders as the view-wide ExtensionTreeMessage instead; this row is a nested branch's failure, so
+        // it stays one line: the closed reason in the muted tone, with the danger tone kept to the icon.
+        const reason = describeExtensionFailureReason(row.reason, t);
         return (
             <div
-                className="flex h-7 items-center gap-2 text-danger"
+                className="flex h-7 items-center gap-2 pr-1 text-muted"
                 role="status"
                 style={{ paddingLeft }}
             >
-                <AlertTriangle size={14} />
-                <span className="min-w-0 flex-1 truncate">
-                    {t('viewContainers.extensionTree.loadFailed', { message: row.message })}
-                </span>
+                <AlertTriangle className="shrink-0 text-danger" size={14} />
+                <span className="min-w-0 flex-1 truncate">{reason}</span>
                 <Button size="sm" variant="ghost" onClick={onRetry}>
                     {t('common.retry')}
                 </Button>
             </div>
         );
+    }
     return (
         <div className="flex h-7 items-center text-muted" role="status" style={{ paddingLeft }}>
             {t('viewContainers.extensionTree.empty')}

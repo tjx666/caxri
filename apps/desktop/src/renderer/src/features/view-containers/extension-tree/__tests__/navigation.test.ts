@@ -2,6 +2,7 @@ import type { TreeItemDto } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
+import type { ExtensionFailureReason } from '../../extension-failure';
 import {
     extensionTreeActionsHint,
     extensionTreeHorizontalIntent,
@@ -26,7 +27,10 @@ function item(
 function rowsFor(
     children: ReadonlyMap<string, readonly TreeItemDto[]>,
     expanded: ReadonlySet<string>,
-    options: { errors?: ReadonlyMap<string, string>; loading?: ReadonlySet<string> } = {},
+    options: {
+        errors?: ReadonlyMap<string, ExtensionFailureReason>;
+        loading?: ReadonlySet<string>;
+    } = {},
 ) {
     return flattenVisibleRows({
         children,
@@ -47,7 +51,7 @@ function rowsAroundPlaceholder(kind: 'loading' | 'error' | 'empty') {
     ]);
     if (kind === 'empty') children.set('a', []);
     return rowsFor(children, new Set(['a']), {
-        errors: kind === 'error' ? new Map([['a', 'boom']]) : undefined,
+        errors: kind === 'error' ? new Map([['a', 'timeout' as const]]) : undefined,
         loading: kind === 'loading' ? new Set(['a']) : undefined,
     });
 }
