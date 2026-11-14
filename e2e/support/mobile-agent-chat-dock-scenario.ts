@@ -180,12 +180,14 @@ export async function executeMobileChatDockKeyboardScenario(
             const startedAt = Date.now();
             await pause(SETTLE_MS);
             await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-            const nodes = await waitForLiftedComposer(serial, composerDown);
+            await waitForLiftedComposer(serial, composerDown);
+            await pause(SETTLE_MS);
+            // Read after the settle: a goal bar still sliding would otherwise shrink the band to its midway frame.
+            const nodes = await mobileSemantics(serial);
             const goal = checkBounds(nodes, 'agent-chat-goal');
             const composer = checkBounds(nodes, 'agent-chat-composer-input');
             if (!goal || !composer) throw new Error('The lifted dock is not laid out');
             lifted.band = { bottom: composer.bottom, top: goal.top };
-            await pause(SETTLE_MS);
             // Halfway through the still keyboard-up stretch, between the show and the hide.
             lifted.splitMs = Date.now() - startedAt - SETTLE_MS / 2;
             await capture(environment, 'keyboard-up', artifacts);
