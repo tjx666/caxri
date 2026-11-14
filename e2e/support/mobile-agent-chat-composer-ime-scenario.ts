@@ -159,21 +159,23 @@ export async function executeMobileChatComposerImeScenario(
             kind: 'equals',
             value: `${DRAFT}${TYPED_ITEM}`,
         });
-        if (!draft.exists || draft.textMatches !== true) {
+        // Both outcomes are reported together: a field that drops the composition can also move the lines above it.
+        const failures = [
+            ...(draft.exists && draft.textMatches === true
+                ? []
+                : ['the composer does not hold the typed draft']),
+            ...(moved.length === 0
+                ? []
+                : [
+                      `the lines above the caret moved in ${moved.length} of ${frames} frames (${moved.join(', ')})`,
+                  ]),
+        ];
+        if (failures.length > 0) {
             await writeJsonAtomic(environment.artifactManifestPath, {
                 artifacts,
                 schemaVersion: 1,
             });
-            throw new Error('The composer does not hold the typed draft');
-        }
-        if (moved.length > 0) {
-            await writeJsonAtomic(environment.artifactManifestPath, {
-                artifacts,
-                schemaVersion: 1,
-            });
-            throw new Error(
-                `The lines above the caret moved during the IME composition in ${moved.length} of ${frames} frames: ${moved.join(', ')}`,
-            );
+            throw new Error(`IME composition failed: ${failures.join('; ')}`);
         }
         await finish(environment, artifacts, {
             framesSampled: frames,

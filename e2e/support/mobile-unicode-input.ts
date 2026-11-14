@@ -49,7 +49,7 @@ export function mobileFixtureImeBroadcastArguments(
  * Focuses the resource-id owned by the React Native TextInput, then verifies native focus. Android 36's deprecated
  * `uiautomator runtest` can abort and still print `OK (1 test)`.
  */
-export async function focusMobileInput(serial: string, checkId: string): Promise<void> {
+async function focusMobileInput(serial: string, checkId: string): Promise<void> {
     const input = (await mobileSemantics(serial)).find((node) => node.checkId === checkId);
     const bounds = input && androidBounds(input.bounds);
     if (!input || !bounds || !input.enabled)

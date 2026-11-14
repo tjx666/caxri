@@ -401,3 +401,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## dianjiang (owner's own CLI)
 
 - **Delegation types**: The four most-used presets (`second-opinion`, `review`, `operate-desktop`, `search-twitter`) as built-in asks, their cross-vendor bindings, the independent-evaluator briefing, and the computer-use rules (stop before irreversible actions, notify and wait on sign-in, never handle secrets, return final screenshots), and the X search rules (cite each post's URL and date, findings only). Evidence: `apps/server/src/domains/agent-delegation/delegation-types.ts`; `docs/agent-delegation.md` (Delegation types).
+
+## react-native-live-markdown (MIT)
+
+- **Android Chat composer live Markdown without rewriting the field**: Styling a React Native text field by adding spans to the text it already holds instead of re-sending its text, so an IME composition stays intact (ideas only, no code copied). Evidence: `apps/mobile/modules/caxri-composer-spans/android/src/main/java/expo/modules/caxricomposerspans/CaxriComposerSpansModule.kt`; `apps/mobile/src/features/agent-chat/use-agent-chat-composer-native-spans.ts`.

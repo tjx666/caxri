@@ -85,7 +85,11 @@ composer marks a file older than 55 minutes as expired, and Retry uploads the ph
 **Chat draft.** The Agent Chat composer renders its draft the way Desktop's composer does while it is
 typed: the native field holds the exact text and draws it as styled runs from the same live-preview
 marks (`@caxri/markdown/live-preview-marks`), so bold, inline code, headings, and quotes take their
-look and their markers fade away from the caret, while the message sent is what was typed. An image
+look and their markers fade away from the caret, while the message sent is what was typed. iOS draws
+the runs as the field's `<Text>` children. Android keeps the draft as the field's plain `value` and
+the local module `caxri-composer-spans` adds the runs as spans to the text the field already holds:
+React Native's Android field rewrites its whole text whenever its children change, which broke a
+Chinese IME's open composition on every key and made the lines above the caret jump. An image
 attached in a Chat is written into the draft as `[Image #N]` where the caret was and drawn as a
 pill; deleting the pill removes the image, removing the image deletes the pill, and Backspace takes
 a pill out whole. The numbers stay fixed while the draft is written and are renumbered by send
