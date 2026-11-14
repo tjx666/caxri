@@ -30,9 +30,10 @@ const TYPED_LINES = '\n1. 这文件路径没法滚动\n';
 const DRAFT = `[Image #1] ${TYPED_LINES}`;
 /**
  * The composer's top padding and line height in dp (`sessionDetailStyles.composerExpanded`): the first two lines, the
- * pill and the first item, sit inside `11 + 2 * 21` dp below the field's top.
+ * pill and the first item, sit inside `11 + 2 * 21` dp below the field's top. The region stops 7dp short of that,
+ * because the caret on the typed line reaches up to the line's top edge and moves with every key.
  */
-const SETTLED_LINES_DP = 11 + 2 * 21;
+const SETTLED_LINES_DP = 11 + 2 * 21 - 7;
 /**
  * The keys typed on the new line, each held as the open composition the way a Chinese IME holds a key while its
  * candidates show, and then committed. The reported jump lasted a frame or two after a key, so every key is sampled at
