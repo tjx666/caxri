@@ -34,10 +34,20 @@ const DRAFT = `[Image #1] ${TYPED_LINES}`;
  */
 const SETTLED_LINES_DP = 11 + 2 * 21;
 /**
- * Frames sampled while each composition is held: a Chinese IME holds a typed key while its candidates show, and the
- * reported jitter lasted about a second.
+ * The keys typed on the new line, each held as the open composition the way a Chinese IME holds a key while its
+ * candidates show, and then committed. The reported jump lasted a frame or two after a key, so every key is sampled at
+ * once.
  */
-const SAMPLES = 10;
+const KEYS: ReadonlyArray<{ commit?: string; hold: readonly string[] }> = [
+    { commit: '2. ', hold: ['2', '2.', '2. '] },
+    { commit: '第', hold: ['d', 'di'] },
+    { commit: '二项', hold: ['e', 'er', 'erx', 'erxi', 'erxia', 'erxian', 'erxiang'] },
+];
+const TYPED_ITEM = '2. 第二项';
+/**
+ * Frames read right after each key.
+ */
+const SAMPLES = 3;
 
 async function settledLinesBounds(serial: string) {
     const input = (await mobileSemantics(serial)).find(
@@ -92,10 +102,30 @@ export async function executeMobileChatComposerImeScenario(
             120_000,
         );
         await insertMobileInputUnicode(serial, 'agent-chat-composer-input', TYPED_LINES, DRAFT);
-        const region = await settledLinesBounds(serial);
-        const settled = await mobileRegionFingerprint(serial, region);
+        // The capsule eases to its new height after the new line, so read the region once two reads agree.
+        let region = await settledLinesBounds(serial);
+        let settled = await mobileRegionFingerprint(serial, region);
+        for (let attempt = 0; ; attempt += 1) {
+            if (attempt === 20) throw new Error('The Chat composer did not settle');
+            // eslint-disable-next-line no-await-in-loop -- each read compares with the previous one.
+            await pause(400);
+            // eslint-disable-next-line no-await-in-loop -- see above.
+            const nextRegion = await settledLinesBounds(serial);
+            // eslint-disable-next-line no-await-in-loop -- see above.
+            const next = await mobileRegionFingerprint(serial, nextRegion);
+            const isSame = next === settled && nextRegion.top === region.top;
+            region = nextRegion;
+            settled = next;
+            if (isSame) break;
+        }
 
         const moved: string[] = [];
+        const frames =
+            SAMPLES *
+            KEYS.reduce(
+                (count, key) => count + key.hold.length + (key.commit === undefined ? 0 : 1),
+                0,
+            );
         const sample = async (label: string) => {
             for (let index = 0; index < SAMPLES; index += 1) {
                 // eslint-disable-next-line no-await-in-loop -- each frame is read after the previous one, in time order.
@@ -106,12 +136,20 @@ export async function executeMobileChatComposerImeScenario(
         const recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         try {
             await pause(800);
-            await broadcastMobileUnicode(serial, '2', 'hold');
-            await sample('hold-2');
-            await broadcastMobileUnicode(serial, '2.', 'hold');
-            await sample('hold-2.');
-            await broadcastMobileUnicode(serial, '2.', 'commit');
-            await sample('commit-2.');
+            for (const key of KEYS) {
+                for (const held of key.hold) {
+                    // eslint-disable-next-line no-await-in-loop -- keys arrive one at a time, as typed.
+                    await broadcastMobileUnicode(serial, held, 'hold');
+                    // eslint-disable-next-line no-await-in-loop -- see above.
+                    await sample(`hold-${held}`);
+                }
+                if (key.commit !== undefined) {
+                    // eslint-disable-next-line no-await-in-loop -- see above.
+                    await broadcastMobileUnicode(serial, key.commit, 'commit');
+                    // eslint-disable-next-line no-await-in-loop -- see above.
+                    await sample(`commit-${key.commit}`);
+                }
+            }
             await pause(800);
         } finally {
             await recording.stop();
@@ -119,7 +157,7 @@ export async function executeMobileChatComposerImeScenario(
         await capture(environment, 'composer-ime-settled', artifacts);
         const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
             kind: 'equals',
-            value: `${DRAFT}2.`,
+            value: `${DRAFT}${TYPED_ITEM}`,
         });
         if (!draft.exists || draft.textMatches !== true) {
             await writeJsonAtomic(environment.artifactManifestPath, {
@@ -134,11 +172,11 @@ export async function executeMobileChatComposerImeScenario(
                 schemaVersion: 1,
             });
             throw new Error(
-                `The lines above the caret moved during the IME composition in ${moved.length} of ${3 * SAMPLES} frames: ${moved.join(', ')}`,
+                `The lines above the caret moved during the IME composition in ${moved.length} of ${frames} frames: ${moved.join(', ')}`,
             );
         }
         await finish(environment, artifacts, {
-            framesSampled: 3 * SAMPLES,
+            framesSampled: frames,
             imeInput: 'setComposingText-held',
             motion: 'live',
             status: 'passed',
