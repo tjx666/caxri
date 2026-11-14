@@ -247,6 +247,7 @@ const WorkflowMember = ({
                 content={content}
                 isError={isError}
                 isLoading={isLoading}
+                isRunning={task.status === 'running'}
                 theme={theme}
             />
         </View>

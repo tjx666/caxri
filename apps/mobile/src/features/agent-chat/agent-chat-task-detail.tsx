@@ -12,6 +12,7 @@ import {
 import { Square } from 'lucide-react-native';
 
 import { ConfirmSheet } from '../../components/confirm-sheet';
+import { HighlightedCode } from '../../components/highlighted-code';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
@@ -190,7 +191,7 @@ export const AgentChatTaskDetailBody = ({
                     selectable
                     style={[styles.command, { backgroundColor: theme.elevated, color: theme.text }]}
                 >
-                    {command}
+                    <HighlightedCode code={command} language="bash" />
                 </Text>
             ) : null}
             {workflow ? (
@@ -212,6 +213,7 @@ export const AgentChatTaskDetailBody = ({
                         content={content}
                         isError={isError}
                         isLoading={isLoading}
+                        isRunning={task.status === 'running'}
                         theme={theme}
                     />
                 </>
