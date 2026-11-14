@@ -55,3 +55,36 @@ describe('logging contract selection', () => {
         ).not.toContain(LOGGING_CONTRACT);
     });
 });
+
+const NETWORK_EGRESS_INVENTORY = 'scripts/__tests__/network-egress-inventory.test.ts';
+
+describe('network egress inventory selection', () => {
+    it('selects the inventory for a changed or removed scanned source and for security.md', () => {
+        expect(
+            contractTestCandidates(['apps/server/src/domains/external-status/github.ts'], []),
+        ).toContain(NETWORK_EGRESS_INVENTORY);
+        expect(contractTestCandidates([], ['apps/desktop/src/main/link-favicons.ts'])).toContain(
+            NETWORK_EGRESS_INVENTORY,
+        );
+        expect(
+            contractTestCandidates(
+                ['.agents/skills/project-architecture/references/security.md'],
+                [],
+            ),
+        ).toContain(NETWORK_EGRESS_INVENTORY);
+    });
+
+    it('skips tests and sources outside the scanned roots', () => {
+        expect(
+            contractTestCandidates(
+                [
+                    'apps/server/src/domains/external-status/__tests__/github.test.ts',
+                    'apps/desktop/src/renderer/components/app.tsx',
+                    'apps/desktop/src/preload/index.ts',
+                    'packages/protocol/src/index.ts',
+                ],
+                [],
+            ),
+        ).not.toContain(NETWORK_EGRESS_INVENTORY);
+    });
+});

@@ -310,6 +310,7 @@ describe('direct import test selection', () => {
             'scripts/__tests__/ci-e2e-log-safety.test.ts',
             'scripts/__tests__/flat-family-ratchet.test.ts',
             'scripts/__tests__/logging-contract.test.ts',
+            'scripts/__tests__/network-egress-inventory.test.ts',
         ]);
         expect(selected.filter((test) => !scans.has(test))).toEqual(direct);
         expect(selected).not.toContain(
