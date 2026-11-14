@@ -16,9 +16,11 @@ public final class FixtureInsertReceiver extends BroadcastReceiver {
             setResultData("no-active-input");
             return;
         }
+        String mode = intent.getBooleanExtra("hold", false)
+                ? "hold"
+                : intent.getBooleanExtra("compose", false) ? "compose" : "commit";
         try {
-            boolean compose = intent.getBooleanExtra("compose", false);
-            if (!ime.commitFixture(base64, compose)) {
+            if (!ime.commitFixture(base64, mode)) {
                 setResultCode(Activity.RESULT_CANCELED);
                 setResultData("commit-failed");
                 return;
@@ -29,6 +31,6 @@ public final class FixtureInsertReceiver extends BroadcastReceiver {
             return;
         }
         setResultCode(Activity.RESULT_OK);
-        setResultData(intent.getBooleanExtra("compose", false) ? "composed" : "committed");
+        setResultData("commit".equals(mode) ? "committed" : "hold".equals(mode) ? "held" : "composed");
     }
 }

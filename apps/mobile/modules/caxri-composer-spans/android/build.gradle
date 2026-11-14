@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.caxri.mobile'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.caxricomposerspans"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // UIManagerHelper resolves the composer's field from its React view tag.
+  implementation 'com.facebook.react:react-android'
+}

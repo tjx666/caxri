@@ -8,11 +8,17 @@ import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { AgentChatComposerDraft } from './agent-chat-composer-draft';
 import { agentChatComposerSpans } from './agent-chat-composer-spans';
+import {
+    isNativeComposerStyling,
+    useAgentChatComposerNativeSpans,
+} from './use-agent-chat-composer-native-spans';
 
 /**
  * The Chat's message field: Return inserts a new line, and the placeholder says whether a message starts a turn or
  * joins the running one. The draft renders its Markdown as it is typed, as Desktop's composer does: the field holds the
- * exact text and draws it as styled runs (`agentChatComposerSpans`), so the message sent is what was typed.
+ * exact text and draws it as styled runs (`agentChatComposerSpans`), so the message sent is what was typed. Android
+ * holds the draft as a plain `value` and styles it natively, because children there rewrite the field's text on every
+ * key and break a Chinese IME's composition (`useAgentChatComposerNativeSpans`).
  */
 export const AgentChatComposerInput = ({
     draft,
@@ -60,6 +66,7 @@ export const AgentChatComposerInput = ({
         () => agentChatComposerSpans(draft, selection, imagePlaceholders.owned),
         [draft, imagePlaceholders.owned, selection],
     );
+    useAgentChatComposerNativeSpans({ draft, inputReference, spans, theme });
     return (
         <TextInput
             accessibilityHint={t(
@@ -97,8 +104,11 @@ export const AgentChatComposerInput = ({
             ]}
             testID="agent-chat-composer-input"
             textAlignVertical="top"
+            value={isNativeComposerStyling ? draft : undefined}
         >
-            <AgentChatComposerDraft spans={spans} theme={theme} />
+            {isNativeComposerStyling ? undefined : (
+                <AgentChatComposerDraft spans={spans} theme={theme} />
+            )}
         </TextInput>
     );
 };
