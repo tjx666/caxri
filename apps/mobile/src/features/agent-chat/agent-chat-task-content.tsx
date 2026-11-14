@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import type { AgentChatTask } from '@caxri/protocol';
 import { Bot, Check, CircleSlash, Network, SquareTerminal, X } from 'lucide-react-native';
 
+import { HighlightedCode } from '../../components/highlighted-code';
 import { Spinner } from '../../components/spinner';
 import { useTranslation } from '../../i18n';
 import { MONOSPACE_FONT } from '../../theme/monospace';
@@ -72,8 +73,18 @@ export const AgentChatTaskStatusGlyph = ({
  * stays at the bottom. Only the reader's own scrolls decide whether they left the bottom: `onScroll` also fires while
  * new lines grow the content, measured against the old offset, so a burst taller than the slack (the last lines and the
  * exit line arriving as a task ends) used to read as the reader scrolling away and the box stopped short of them.
+ * Settled output is painted as shell, as Desktop's task tab does; a running tail stays plain, as there, so each new
+ * chunk does not re-tokenize the whole tail.
  */
-const TaskOutput = ({ text, theme }: { text: string; theme: MobileTheme }) => {
+const TaskOutput = ({
+    isRunning,
+    text,
+    theme,
+}: {
+    isRunning: boolean;
+    text: string;
+    theme: MobileTheme;
+}) => {
     const scroll = useRef<ScrollViewInstance>(null);
     const isAtBottom = useRef(true);
     const onReaderScrolled = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -101,7 +112,7 @@ const TaskOutput = ({ text, theme }: { text: string; theme: MobileTheme }) => {
                 style={[styles.outputText, { color: theme.text }]}
                 testID="agent-chat-task-output-text"
             >
-                {text}
+                {isRunning ? text : <HighlightedCode code={text} language="bash" />}
             </Text>
         </ScrollView>
     );
@@ -115,11 +126,16 @@ export const AgentChatTaskReadContent = ({
     content,
     isError,
     isLoading,
+    isRunning,
     theme,
 }: {
     content: AgentChatTaskDetailContent | undefined;
     isError: boolean;
     isLoading: boolean;
+    /**
+     * Whether the task still runs, which keeps its output tail plain until it settles.
+     */
+    isRunning: boolean;
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
@@ -135,7 +151,7 @@ export const AgentChatTaskReadContent = ({
     return (
         <>
             {content.kind === 'output' ? (
-                <TaskOutput text={content.text} theme={theme} />
+                <TaskOutput isRunning={isRunning} text={content.text} theme={theme} />
             ) : content.kind === 'transcript' ? (
                 <AgentChatTaskTranscript entries={content.entries} theme={theme} />
             ) : (
