@@ -95,6 +95,9 @@ if (process.argv.includes('app-server')) {
         // expanded, and reveals that subagent's row in place instead of opening a tab (issue caxri#1952). Like the
         // row's other figures, the count shows only while the row is pointed at, even while the subagent runs.
         const fold = bot.getByRole('button', { name: /^Worked(?: for |$)/u }).first();
+        // The turn ended on a one-line reply, so its fold starts open; fold it to read the row alone.
+        await expect(fold).toHaveAttribute('aria-expanded', 'true');
+        await fold.click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
         await fold.hover();
         const reveal = bot.getByRole('button', {

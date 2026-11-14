@@ -108,10 +108,10 @@ async function scrollDraftToTop(serial: string): Promise<void> {
 
 /**
  * `MOB-CHAT-10`: the phone's Codex Chat composer and timeline. It covers the permission trigger and sheet, fenced code
- * highlighted by language with Copy shown on a tap on the block, a finished multi-step turn folded behind `Worked for`
- * with a failed command's exit code, following the user's own send to the latest message, slash commands, the visible
- * Queue button, editing a long queued message, editing a queued message that cites a file in place, a message shown as
- * `Sending…` before Server Core accepts it, and a draft taller than the composer.
+ * highlighted by language with Copy shown on a tap on the block, a finished multi-step turn whose one-line reply leaves
+ * `Worked for` open with a failed command's exit code, following the user's own send to the latest message, slash
+ * commands, the visible Queue button, editing a long queued message, editing a queued message that cites a file in
+ * place, a message shown as `Sending…` before Server Core accepts it, and a draft taller than the composer.
  */
 export async function executeMobileChatComposerScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -276,9 +276,16 @@ export async function executeMobileChatComposerScenario(
         const isWork = ({ checkId }: { checkId: string }): boolean =>
             checkId.startsWith('agent-chat-work-group-') ||
             checkId === `agent-chat-work-${failedCommand.id}`;
-        const collapsed = await mobileSemantics(serial);
-        if (collapsed.some(isWork))
-            throw new Error('A finished turn must fold its work behind Worked for');
+        // The one-line final reply cannot summarize the turn, so its work starts open (#3993); folding stays available.
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => nodes.some(isWork),
+        );
+        await tapMobileCheckByBounds(serial, fold);
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !nodes.some(isWork),
+        );
         await capture(environment, 'turn-collapsed', artifacts);
         await tapMobileCheckByBounds(serial, fold);
         // A settled lone command is its own row; with other work it sits in the run's summary.
@@ -316,16 +323,8 @@ export async function executeMobileChatComposerScenario(
         if (!jsonCommand || !jsonReply?.turnId)
             throw new Error('The JSON command turn is incomplete');
         const commandRow = `agent-chat-work-${jsonCommand.id}`;
-        const shown = await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) =>
-                hasCheck(nodes, commandRow) ||
-                hasCheck(nodes, `agent-chat-turn-${jsonReply.turnId}`),
-        );
-        if (!hasCheck(shown, commandRow)) {
-            await tapMobileCheckByBounds(serial, `agent-chat-turn-${jsonReply.turnId}`);
-            await waitForCheck(serial, commandRow);
-        }
+        // The one-line reply leaves the turn's work open (#3993), so the command row shows without unfolding.
+        await waitForCheck(serial, commandRow);
         await tapMobileCheckByBounds(serial, commandRow);
         await waitForCheck(serial, 'agent-chat-work-copy');
         await capture(environment, 'command-json-detail', artifacts);
@@ -379,7 +378,8 @@ export async function executeMobileChatComposerScenario(
         if (!steeredTurnId) throw new Error('The steered turn is incomplete');
         await waitForCheck(serial, `agent-chat-turn-${steeredTurnId}:1`);
         await capture(environment, 'steered-segments', artifacts);
-        // The steer's segment ran one settled command, so unfolding it shows that call as its own row, not a summary.
+        // The steer's segment ran one settled command and closes the turn with a one-line reply, so it starts open
+        // (#3993) and shows that call as its own row, not a summary.
         const answerCommand = findItem(
             steered,
             (item) =>
@@ -388,7 +388,6 @@ export async function executeMobileChatComposerScenario(
                 item.command.includes('git status --short'),
         );
         if (!answerCommand) throw new Error('The steered segment ran no command');
-        await tapMobileCheckByBounds(serial, `agent-chat-turn-${steeredTurnId}:1`);
         const unfolded = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) => hasCheck(nodes, `agent-chat-work-${answerCommand.id}`),
@@ -564,7 +563,7 @@ export async function executeMobileChatComposerScenario(
             status: 'passed',
             steeredFold: 'per-segment',
             tallDraft: 'top-and-bottom-captured',
-            turnFold: 'collapsed-then-expanded',
+            turnFold: 'open-then-folded-then-expanded',
         });
     } finally {
         await recording?.stop();

@@ -88,10 +88,10 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
         await message.fill('use a subagent');
         await message.press('Enter');
         await expect(chat.getByText('The helper finished.')).toBeVisible();
-        await chat
-            .getByRole('button', { name: /^Worked(?: for |$)/u })
-            .last()
-            .click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(
+            chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last(),
+        ).toHaveAttribute('aria-expanded', 'true');
         await expect(
             chat.getByRole('button', { name: 'Waited for Inspect the fixtures' }),
         ).toBeVisible();
@@ -316,8 +316,10 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await message.press('Enter');
         await expect(chat.getByText('The subagent finished.')).toBeVisible();
         // A finished subagent leaves the strip; pointing at the folded turn's row reveals its count, which still opens
-        // it without expanding the fold.
+        // it without expanding the fold. The turn ended on a one-line reply, so its fold starts open; fold it first.
         const fold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).first();
+        await expect(fold).toHaveAttribute('aria-expanded', 'true');
+        await fold.click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
         await fold.hover();
         await page.screenshot({ path: testInfo.outputPath('claude-turn-subagent-entry.png') });
@@ -337,7 +339,8 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await message.press('Enter');
         const folds = chat.getByRole('button', { name: /^Worked(?: for |$)/u });
         await expect(folds).toHaveCount(2);
-        await folds.last().click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(folds.last()).toHaveAttribute('aria-expanded', 'true');
         await expect(
             chat.getByRole('button', { name: /^Running agent Watch the build/u }),
         ).toBeVisible();

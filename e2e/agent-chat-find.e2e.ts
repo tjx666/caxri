@@ -36,6 +36,9 @@ test('Cmd+F finds text in a Chat, steps through matches, and opens a folded turn
         await send('alpha two', 'You said: alpha two');
         await send('explore the project', 'Explored the project.');
         const fold = session.getByRole('button', { name: /^Worked(?: for |$)/u }).last();
+        // The turn ended on a one-line reply, so its fold starts open; fold it so a find has to open it.
+        await expect(fold).toHaveAttribute('aria-expanded', 'true');
+        await fold.click();
         await expect(fold).toHaveAttribute('aria-expanded', 'false');
 
         await message.focus();

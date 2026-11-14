@@ -129,10 +129,10 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.fill('explore the project');
         await message.press('Enter');
         await expect(chat.getByText('Explored the project.')).toBeVisible();
-        await chat
-            .getByRole('button', { name: /^Worked(?: for |$)/u })
-            .last()
-            .click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(
+            chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last(),
+        ).toHaveAttribute('aria-expanded', 'true');
         /**
          * Only the reply that ends each turn carries Copy, so commentary between tool calls reserves no action row.
          * Copy mounts only while the reply is hovered.
@@ -345,8 +345,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(fileApproval).toHaveCount(0);
         await expect(chat.getByText('The files were changed.')).toBeVisible();
 
-        // The finished turn folds its work behind its duration, keeping the prompt and the reply in view.
+        // The finished turn folds its work behind its duration, keeping the prompt and the reply in view. It ended on
+        // a one-line reply, so the fold starts open until the user folds it.
         const turnFold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last();
+        await expect(turnFold).toHaveAttribute('aria-expanded', 'true');
+        await turnFold.click();
         await expect(turnFold).toHaveAttribute('aria-expanded', 'false');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-turn-folded.png') });
         await turnFold.click();
@@ -368,10 +371,10 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.fill('write a bigdiff');
         await message.press('Enter');
         await expect(chat.getByText('Generated a large file.')).toBeVisible();
-        await chat
-            .getByRole('button', { name: /^Worked(?: for |$)/u })
-            .last()
-            .click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(
+            chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last(),
+        ).toHaveAttribute('aria-expanded', 'true');
         await chat.getByRole('button', { name: /^Edited generated\.txt ?, / }).click();
         // The header says so up front; the note at the cut is a scroll away in a long diff.
         await expect(chat.getByText('Truncated', { exact: true })).toBeVisible();

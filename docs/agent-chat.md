@@ -1061,7 +1061,7 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   a transient retry in view. A message steered into the running turn starts a new segment there:
   each segment folds its own work behind a row timed from its first item to the next segment's, and
   keeps its own last reply in view, so every steered message stays above the answer it got. Only the
-  closing segment's row carries the turn's outcome; a stopped turn whose closing segment folded nothing still gets that row before its reply. A retry reads as a `--warning` row whose icon and words name the cause
+  closing segment's row carries the turn's outcome; a stopped turn whose closing segment folded nothing still gets that row before its reply. When the turn ended on a one-line final reply or none (`CI passed, all done.`), that reply does not stand in for the work: the closing segment keeps its last Agent message of several lines in view as the answer, as when the Agent answered and then woke for a background task, and without one its fold starts open (`isOpenByDefault`) until the user folds it. Desktop and the phone share the rule. A retry reads as a `--warning` row whose icon and words name the cause
   from a closed set (`retry.cause`: a lost connection shows Wi-Fi off, then rate limit, overload,
   server error, other) with the attempt against the provider's limit (`Connection lost, retrying
 (2/10)`), and the provider's detail muted beneath. Claude Code's `api_retry` gives the cause through

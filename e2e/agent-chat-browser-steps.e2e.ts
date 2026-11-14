@@ -43,10 +43,10 @@ test('a Claude Code Chrome call reads as a titled browser step', async ({}, test
         await message.fill('use chrome');
         await message.press('Enter');
         await expect(chat.getByText('Checked the settings page.')).toBeVisible();
-        await chat
-            .getByRole('button', { name: /^Worked(?: for |$)/u })
-            .last()
-            .click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(
+            chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last(),
+        ).toHaveAttribute('aria-expanded', 'true');
         await chat.getByRole('button', { name: /^Ran 3 browser steps, 1 failed/u }).click();
         await expect(chat.getByText(/claude-in-chrome/u)).toHaveCount(0);
         await expect(chat.getByRole('button', { name: /^Click ref_12/u })).toBeVisible();

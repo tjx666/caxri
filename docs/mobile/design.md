@@ -442,8 +442,8 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   request, issue, or acceptance report the Agent filed that opens it in the in-app browser. Its work and
   commentary fold behind a `Worked for X`, `Failed after X` (danger), or `Stopped after X`
   (warning) row over a hairline, placed where the work began; a tap anywhere on its full-width,
-  `48dp` row shows or hides them, and a
-  running turn never folds. The final reply of a finished turn ends with an action bar: `Copy`,
+  `48dp` row shows or hides them, a turn that ended on a one-line reply or none keeps its earlier
+  answer of several lines in view, or else starts with its work shown, as on Desktop, and a running turn never folds. The final reply of a finished turn ends with an action bar: `Copy`,
   `Share` (the system share sheet), and a More button whose menu heads itself with when the reply
   was sent (`Today 17:59`, `Yesterday 09:12`, or the date) and offers `Fork in New Chat` (control
   devices; it forks the conversation through this turn), `Retry` (sends the turn's message again

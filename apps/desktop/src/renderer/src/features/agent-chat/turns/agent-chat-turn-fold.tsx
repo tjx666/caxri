@@ -217,8 +217,9 @@ function useTurnFoldFindExpansion(entry: TurnEntry, isExpandedByUser: boolean) {
  * ran. A subagent the turn started stays counted on the row itself, one click from its tab or its row, since it may
  * have left the Background work strip by the time the turn folds. A row the user opened while the turn ran keeps the
  * fold open when the turn ends, so finishing never hides what they were reading; hovering the row says when the turn
- * finished. A finished turn's steps, tokens, estimated cost, and output rate sit at the row's end in the status row's
- * figures, shown on hover.
+ * finished. A turn that ended on a one-line reply or none starts open (`isOpenByDefault`), since that reply does not
+ * summarize the work. A finished turn's steps, tokens, estimated cost, and output rate sit at the row's end in the
+ * status row's figures, shown on hover.
  */
 export function AgentChatTurnFold({
     entry,
@@ -230,6 +231,7 @@ export function AgentChatTurnFold({
     const containedItems = useMemo(() => agentChatTurnWorkItems(entry), [entry]);
     const expansion = useAgentChatExpansion(agentChatTurnExpansionKey(entry.id), {
         containedItems,
+        isDefaultExpanded: entry.isOpenByDefault === true,
     });
     const find = useTurnFoldFindExpansion(entry, expansion.isExpanded);
     const isExpanded = expansion.isExpanded || find.isOpen;

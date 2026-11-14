@@ -110,7 +110,13 @@ describe('agentChatWorkEntries', () => {
         const finished = buildAgentChatTimeline({
             items: [
                 ...items.slice(0, -1),
-                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Done.', streaming: false },
+                {
+                    id: 'a1',
+                    turnId: 't1',
+                    type: 'agentMessage',
+                    text: 'Done.\n\nThe tests pass.',
+                    streaming: false,
+                },
             ],
             turns: [{ id: 't1', status: 'completed' }],
         });
