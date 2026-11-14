@@ -329,7 +329,8 @@ export async function executeMobileClaudeModelScenario(
         await waitForNoCheck(serial, 'agent-chat-activity');
         const command = ran.items.find((item) => item.type === 'command');
         if (!command?.turnId) throw new Error('The approved command is missing');
-        await tapMobileCheckByBounds(serial, `agent-chat-turn-${command.turnId}`);
+        // The one-line reply leaves the turn's work open (#3993), so the command shows without unfolding.
+        await waitForCheck(serial, `agent-chat-turn-${command.turnId}`);
         const unfolded = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
