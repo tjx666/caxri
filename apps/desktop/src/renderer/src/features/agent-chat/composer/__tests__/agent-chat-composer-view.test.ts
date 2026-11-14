@@ -39,6 +39,17 @@ describe('agentChatDraftTransaction', () => {
         );
     });
 
+    it('scrolls a focused editor to the appended text and leaves an unfocused one where it is', () => {
+        const long = 'line\n'.repeat(30);
+        expect(
+            agentChatDraftTransaction(long, `${long}\n> quoted\n\n`, { isFocused: true })
+                ?.scrollIntoView,
+        ).toBe(true);
+        expect(agentChatDraftTransaction(long, `${long}\n> quoted\n\n`)?.scrollIntoView).toBe(
+            false,
+        );
+    });
+
     it('lets an insertion into the draft be undone on its own, apart from the typing it replaced', () => {
         let state = EditorState.create({ doc: '', extensions: [history()] });
         const dispatch = (transaction: TransactionType) => {

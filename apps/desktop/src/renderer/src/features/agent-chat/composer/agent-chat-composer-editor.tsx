@@ -282,7 +282,9 @@ export function AgentChatComposerEditor({
     useLayoutEffect(() => {
         const view = viewReference.current;
         if (!view) return;
-        const transaction = agentChatDraftTransaction(view.state.doc.toString(), draft);
+        const transaction = agentChatDraftTransaction(view.state.doc.toString(), draft, {
+            isFocused: view.hasFocus,
+        });
         if (!transaction) return;
         view.dispatch({
             ...transaction,
