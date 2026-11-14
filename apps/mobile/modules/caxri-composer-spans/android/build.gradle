@@ -13,3 +13,8 @@ android {
     versionName '1.0.0'
   }
 }
+
+dependencies {
+  // UIManagerHelper resolves the composer's field from its React view tag.
+  implementation 'com.facebook.react:react-android'
+}
