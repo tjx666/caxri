@@ -14,6 +14,10 @@ import {
 } from '../../../../scripts/directory-density-baseline';
 import { FLAT_FAMILY_TEST, isFlatFamilyPath } from '../../../../scripts/flat-family-scan';
 import {
+    isNetworkEgressScanPath,
+    NETWORK_EGRESS_INVENTORY_TEST,
+} from '../../../../scripts/network-egress-inventory-scope';
+import {
     CI_E2E_LOG_SAFETY_TEST,
     isCiE2ELogSafetyScanPath,
 } from '../../../../scripts/reporters/ci-e2e-log-safety-scope';
@@ -37,7 +41,23 @@ export function contractTestCandidates(
         ...ciLogSafetyContractTestCandidates(files, removedFiles),
         ...atomicWriteContractTestCandidates(files, removedFiles),
         ...loggingContractTestCandidates(files),
+        ...networkEgressContractTestCandidates(files, removedFiles),
     ];
+}
+
+/**
+ * The network egress inventory lists request call sites by scanning Main, Server Core, and system sources at runtime,
+ * and also reads `security.md`. A removed path is included because the inventory's allowlist rejects a stale row.
+ */
+function networkEgressContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return [...files, ...removedFiles].some((file) =>
+        isNetworkEgressScanPath(file.replaceAll('\\', '/')),
+    )
+        ? [NETWORK_EGRESS_INVENTORY_TEST]
+        : [];
 }
 
 /**

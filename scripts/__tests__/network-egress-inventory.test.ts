@@ -4,6 +4,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import {
+    isNetworkEgressTestPath,
+    NETWORK_EGRESS_SCANNED_ROOTS,
+    NETWORK_EGRESS_SECURITY_DOC,
+} from '../network-egress-inventory-scope';
+
 /**
  * Keeps the outbound-network inventory in `security.md` from drifting silently. Electron Main, Server Core, and the
  * shared system package may only open a network request from a file listed below, and each listed file names the
@@ -15,8 +21,6 @@ import { describe, expect, it } from 'vitest';
  * defaults to the global (for example the Model price list in `usage/pricing.ts`) is reviewed by hand, not detected.
  */
 const REPOSITORY_ROOT = join(import.meta.dirname, '..', '..');
-const SECURITY_DOC = '.agents/skills/project-architecture/references/security.md';
-const SCANNED_ROOTS = ['apps/desktop/src/main', 'apps/server/src', 'packages/system/src'];
 
 const REQUEST_CALL =
     /(?<![\w.$])fetch\(|\bnet\.(?:fetch|request)\(|\bhttps?\.request\(|\bnew WebSocket\(/;
@@ -42,10 +46,6 @@ const ALLOWED_REQUEST_SITES: Record<string, string[]> = {
     'packages/system/src/network/codex-global-reset.ts': ['Codex global reset forecast'],
 };
 
-function isTestFile(path: string): boolean {
-    return /(?:^|\/)__tests__\/|\.test\.tsx?$/.test(path);
-}
-
 function isCommentLine(line: string): boolean {
     return /^\s*(?:\/\/|\/?\*)/.test(line);
 }
@@ -53,11 +53,18 @@ function isCommentLine(line: string): boolean {
 function filesWithRequestCalls(): string[] {
     const tracked = execFileSync(
         'git',
-        ['ls-files', '--cached', '--others', '--exclude-standard', '--', ...SCANNED_ROOTS],
+        [
+            'ls-files',
+            '--cached',
+            '--others',
+            '--exclude-standard',
+            '--',
+            ...NETWORK_EGRESS_SCANNED_ROOTS,
+        ],
         { cwd: REPOSITORY_ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
     )
         .split('\n')
-        .filter((path) => /\.tsx?$/.test(path) && !isTestFile(path));
+        .filter((path) => /\.tsx?$/.test(path) && !isNetworkEgressTestPath(path));
     return tracked
         .filter((path) =>
             readFileSync(join(REPOSITORY_ROOT, path), 'utf8')
@@ -72,7 +79,7 @@ describe('network egress inventory', () => {
         const unlisted = filesWithRequestCalls().filter((path) => !(path in ALLOWED_REQUEST_SITES));
         expect(
             unlisted,
-            `Add a "Main outbound requests" or "Server outbound requests" entry to ${SECURITY_DOC}, then list the file in ALLOWED_REQUEST_SITES.`,
+            `Add a "Main outbound requests" or "Server outbound requests" entry to ${NETWORK_EGRESS_SECURITY_DOC}, then list the file in ALLOWED_REQUEST_SITES.`,
         ).toEqual([]);
     });
 
@@ -82,7 +89,7 @@ describe('network egress inventory', () => {
     });
 
     it('documents every allowlisted entry in security.md', () => {
-        const document_ = readFileSync(join(REPOSITORY_ROOT, SECURITY_DOC), 'utf8');
+        const document_ = readFileSync(join(REPOSITORY_ROOT, NETWORK_EGRESS_SECURITY_DOC), 'utf8');
         const entries = new Set(Object.values(ALLOWED_REQUEST_SITES).flat());
         const missing = [...entries].filter((name) => !document_.includes(`- **${name}**`));
         expect(missing).toEqual([]);

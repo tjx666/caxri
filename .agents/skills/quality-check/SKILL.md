@@ -78,7 +78,10 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   `scripts/__tests__/ci-e2e-log-safety.test.ts`, which scans every launcher for Playwright configs
   and reporters.
 - `contract-test-candidates.ts` selects `scripts/__tests__/logging-contract.test.ts` for any
-  changed production source under `{apps,packages,extensions}/*/src/`.
+  changed production source under `{apps,packages,extensions}/*/src/`, and
+  `scripts/__tests__/network-egress-inventory.test.ts` for a changed or removed path in the scope
+  `scripts/network-egress-inventory-scope.ts` defines (Main, Server Core, and system sources plus
+  `security.md`), which scans for request call sites at runtime.
 - `--type` runs the repository-wide TypeScript check (`bun check` per project, about 4 seconds)
   because TypeScript cannot safely validate one file in isolation. `bun check` keeps no incremental
   state, so every run is a full check.
