@@ -178,10 +178,15 @@ export function agentChatDraftChange(
  * into existing text, such as a picked mention, can be undone like typing. It is its own undo step: CodeMirror would
  * otherwise join it with typing less than half a second away, and undoing a cited Session that was ready quickly would
  * also remove the `@word` it replaced.
+ *
+ * A focused editor also scrolls to that caret, so text appended below a draft taller than the composer (Add to message
+ * on a long draft) is in view where the user continues typing. An unfocused one keeps its scroll, as
+ * `setSelectionRange` does, since CodeMirror's scroll request also moves the editor's scrollable ancestors.
  */
 export function agentChatDraftTransaction(
     current: string,
     next: string,
+    { isFocused = false }: { isFocused?: boolean } = {},
 ): TransactionSpec | undefined {
     const change = agentChatDraftChange(current, next);
     if (!change) return undefined;
@@ -190,6 +195,7 @@ export function agentChatDraftTransaction(
     return {
         changes,
         selection: EditorSelection.cursor(next.length),
+        scrollIntoView: isFocused,
         annotations: isReplaced ? Transaction.addToHistory.of(false) : isolateHistory.of('full'),
     };
 }

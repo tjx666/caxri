@@ -40,6 +40,17 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
         await message.press('Enter');
         const reply = chat.getByText('Hello from fake Codex. You said: hi there', { exact: true });
         await expect(reply).toBeVisible();
+        // A draft taller than the composer, scrolled back to its top: the quote lands below what the composer shows,
+        // so Add to message must bring it into view.
+        const earlierDraft = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`).join(
+            '\n',
+        );
+        await message.fill(earlierDraft);
+        const scroller = chat.locator('.cm-scroller');
+        await scroller.evaluate((element) => {
+            element.scrollTop = 0;
+        });
+        await message.blur();
         // The reply's action row, chrome under the reply text that a selectable transcript would take along. It mounts
         // only while the reply is hovered.
         await reply.hover();
@@ -95,18 +106,29 @@ test('a Chat selects only message text and offers Copy and Add to message', asyn
         await toolbar.getByRole('button', { name: 'Add to message' }).click();
         await expect(toolbar).toBeHidden();
         await expect(message).toBeFocused();
-        // Every line of the selection is quoted, ending with the reply's text, and the caret waits on a new paragraph.
+        // Every line of the selection is quoted after the earlier draft, ending with the reply's text, and the caret
+        // waits on a new paragraph.
         const draft = await composerValue(message);
-        expect(draft.endsWith('\n\n')).toBe(true);
+        expect(draft.startsWith(`${earlierDraft}\n\n`)).toBe(true);
+        const quoted = draft.slice(earlierDraft.length + 2);
+        expect(quoted.endsWith('\n\n')).toBe(true);
         expect(
-            draft
+            quoted
                 .trimEnd()
                 .split('\n')
                 .every((line) => line.startsWith('>')),
         ).toBe(true);
-        expect(draft).toMatch(/^> (hi )?there\n/);
-        expect(draft).toMatch(/> Hello from fake Codex\. You said: hi there\n\n$/);
+        expect(quoted).toMatch(/^> (hi )?there\n/);
+        expect(quoted).toMatch(/> Hello from fake Codex\. You said: hi there\n\n$/);
         expect((await composerSelection(message)).start).toBe(draft.length);
+        // The composer scrolled to its end, so the quote and the caret after it are in view.
+        await expect
+            .poll(() =>
+                scroller.evaluate(
+                    (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+                ),
+            )
+            .toBeLessThan(2);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-selection-quoted.png') });
     } finally {
         await closeAppQuietly(running.app);
