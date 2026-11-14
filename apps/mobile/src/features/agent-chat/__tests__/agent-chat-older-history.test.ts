@@ -151,7 +151,17 @@ describe('phone Chat older history', () => {
     it('folds a turn that spans the page and the window as one turn', () => {
         const window: AgentChatSnapshot = {
             ...snapshot([]),
-            items: [item('b', 'turn-1'), item('c', 'turn-1')],
+            // A multi-line final reply, so the work before it folds.
+            items: [
+                item('b', 'turn-1'),
+                {
+                    id: 'c',
+                    type: 'agentMessage',
+                    text: 'c\n\nd',
+                    streaming: false,
+                    turnId: 'turn-1',
+                },
+            ],
             turns: [{ id: 'turn-1', status: 'completed' }],
         };
         const history = prependAgentChatHistoryPage(

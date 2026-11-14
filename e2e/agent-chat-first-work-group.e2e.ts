@@ -46,7 +46,13 @@ test('ordinary tools share one summary from their first visible frame', async ({
                         element.getBoundingClientRect().height > 0 &&
                         !element.closest('[data-disclosure="agent-chat-work-group"]'),
                 ).length;
-                if (groups.length > 0 || standalone > 0)
+                // Once the turn ends its work moves under the turn's fold row, which the turn's one-line reply leaves
+                // open; this check covers the running turn only.
+                const isEnded =
+                    document.querySelector(
+                        '.workbench-session:not([hidden]) [data-disclosure="agent-chat-turn"]',
+                    ) !== null;
+                if (!isEnded && (groups.length > 0 || standalone > 0))
                     state.frames.push({ groups: groups.map(({ id }) => id), standalone });
                 if (state.running) requestAnimationFrame(sample);
             };
@@ -87,7 +93,10 @@ test('ordinary tools share one summary from their first visible frame', async ({
         await session.getByRole('textbox', { name: 'Message' }).press('Enter');
         await expect(session.getByText('One test fails in', { exact: false })).toBeVisible();
         await expect(session.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
-        await session.getByRole('button', { name: 'Worked', exact: true }).last().click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(
+            session.getByRole('button', { name: 'Worked', exact: true }).last(),
+        ).toHaveAttribute('aria-expanded', 'true');
         await summary.last().locator('..').getByRole('button').first().click();
         await expect(summary.last()).toHaveAttribute('data-expanded', 'true');
         await expect(summary.last().getByText('npm test', { exact: false })).toBeVisible();

@@ -79,7 +79,13 @@ describe('buildAgentChatTimeline', () => {
                     streaming: false,
                 },
                 command('c1', 'completed'),
-                { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Done.', streaming: false },
+                {
+                    id: 'a1',
+                    turnId: 't1',
+                    type: 'agentMessage',
+                    text: 'Done.\n\nThe tests pass.',
+                    streaming: false,
+                },
                 { id: 'n1', turnId: 't1', type: 'notice', kind: 'compacted' },
             ],
             turns: [{ id: 't1', status: 'completed', durationMs: 65_000 }],
@@ -137,7 +143,7 @@ describe('buildAgentChatTimeline', () => {
                     id: 'a1',
                     turnId: 't1',
                     type: 'agentMessage',
-                    text: 'Started.',
+                    text: 'Started.\n\nIt reports back when the build ends.',
                     streaming: false,
                 },
             ],
@@ -158,7 +164,13 @@ describe('buildAgentChatTimeline', () => {
         const turn = (id: string): AgentChatItem[] => [
             { id: `u-${id}`, turnId: id, type: 'userMessage', text: 'Go' },
             command(`c-${id}`, 'completed', id),
-            { id: `a-${id}`, turnId: id, type: 'agentMessage', text: 'Done', streaming: false },
+            {
+                id: `a-${id}`,
+                turnId: id,
+                type: 'agentMessage',
+                text: 'Done.\n\nThe tests pass.',
+                streaming: false,
+            },
         ];
         expect(
             buildAgentChatTimeline(
@@ -217,7 +229,13 @@ describe('buildAgentChatTimeline', () => {
                 { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'One', streaming: false },
                 { id: 'u2', turnId: 't1', type: 'userMessage', text: 'Also', createdAt: 60_000 },
                 command('c2', 'completed'),
-                { id: 'a2', turnId: 't1', type: 'agentMessage', text: 'Two', streaming: false },
+                {
+                    id: 'a2',
+                    turnId: 't1',
+                    type: 'agentMessage',
+                    text: 'Two\n\nThree',
+                    streaming: false,
+                },
             ],
             turns: [{ id: 't1', status: 'interrupted', startedAt: 0, durationMs: 90_000 }],
         };
@@ -378,7 +396,8 @@ describe('buildAgentChatTimeline', () => {
                 ],
                 turns: [{ id: 't1', status: 'interrupted', durationMs: 4000 }],
             }),
-        ).toEqual(['turn:t1', 'artifacts:t1']);
+            // With no reply to stand in for it, the work stays in view under the row.
+        ).toEqual(['turn:t1', 'work:f1', 'artifacts:t1']);
     });
 
     it('keeps the artifacts of the oldest turn when the window cut its start', () => {
@@ -396,10 +415,18 @@ describe('buildAgentChatTimeline', () => {
                 { id: 't2', status: 'completed' },
             ],
         };
-        expect(ids(timeline)).toEqual(['turn:t1', 'artifacts:t1', 'turn:t2', 'artifacts:t2']);
+        const expected = [
+            'turn:t1',
+            'work:f1',
+            'artifacts:t1',
+            'turn:t2',
+            'work:f2',
+            'artifacts:t2',
+        ];
+        expect(ids(timeline)).toEqual(expected);
         expect(
             buildAgentChatTimeline({ ...timeline, truncated: true }).map((entry) => entry.id),
-        ).toEqual(['turn:t1', 'artifacts:t1', 'turn:t2', 'artifacts:t2']);
+        ).toEqual(expected);
     });
 
     it('gives a running or active turn neither artifacts nor a footer', () => {

@@ -94,6 +94,11 @@ export type AgentChatTimelineEntry =
            */
           metrics?: AgentChatTurnMetrics;
           /**
+           * Shows the fold open until the user folds it: the turn ended on a single-line reply or none, which does not
+           * summarize the work (`isOpenByDefault` from `foldAgentChatTurn`).
+           */
+          isOpenByDefault?: true;
+          /**
            * The folded work. Empty for a stopped turn that did no work: its row then only says how it ended.
            */
           entries: ReadonlyArray<Exclude<AgentChatTimelineEntry, { kind: 'turn' }>>;
@@ -189,6 +194,7 @@ function turnEntry(
     entries: Extract<AgentChatTimelineEntry, { kind: 'turn' }>['entries'],
     segment: AgentChatTurnFoldSegment = WHOLE_TURN,
     hasOutcome = true,
+    isOpenByDefault = false,
 ): AgentChatTimelineEntry {
     const timing = agentChatFoldTiming(segment, turn);
     return {
@@ -198,6 +204,7 @@ function turnEntry(
         ...(hasOutcome && turn.stoppedBy && { stoppedBy: turn.stoppedBy }),
         ...timing,
         ...(hasOutcome && turn.metrics && { metrics: turn.metrics }),
+        ...(isOpenByDefault && { isOpenByDefault: true as const }),
         entries,
     };
 }
@@ -229,6 +236,7 @@ function foldTurn(
                             groupWork(part.items, undefined, false, steerReplies),
                             part.segment,
                             part.segment.closesTurn,
+                            part.isOpenByDefault,
                         ),
                     ],
           );
@@ -565,6 +573,7 @@ function reuseAgentChatTimelineEntry(entry: AgentChatTimelineEntry): AgentChatTi
                 previous.durationMs === next.durationMs &&
                 previous.startedAt === next.startedAt &&
                 previous.endedAt === next.endedAt &&
+                previous.isOpenByDefault === next.isOpenByDefault &&
                 isSameTurnMetrics(previous.metrics, next.metrics) &&
                 areSameEntries(previous.entries, next.entries)
             )

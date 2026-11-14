@@ -1,4 +1,5 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
+import { agentChatFinalReplyId, foldAgentChatTurn, isAgentChatItemVisible } from '@caxri/protocol';
 
 /**
  * The expansion key of a finished turn's fold: the turn id for its first, suffixed by the segment index for each fold a
@@ -9,7 +10,8 @@ export function agentChatFoldKey(turnId: string, segmentIndex: number): string {
 }
 
 /**
- * The expanded set after the user taps a turn's `Worked for` row or a delegated task's Show instruction.
+ * The expanded set after the user taps a turn's `Worked for` row or a delegated task's Show instruction. A turn fold's
+ * key in the set flips its default, so it folds a fold that starts open (`isOpenByDefault`).
  */
 export function toggleAgentChatExpansion(
     expandedIds: ReadonlySet<string>,
@@ -53,6 +55,17 @@ export function holdEndedTurnsOpen(
             .map((turn) => turn.id),
     );
     // Every fold of the turn stays open, including those its steered messages started; a key past its last fold is inert.
+    // A fold already open by default is left out: its key would fold it instead.
+    const openByDefault = new Set<string>();
+    for (const turnId of ended) {
+        const visible = snapshot.items.filter(
+            (item) => item.turnId === turnId && isAgentChatItemVisible(item),
+        );
+        const parts = foldAgentChatTurn(visible, agentChatFinalReplyId(visible));
+        for (const part of parts)
+            if (part.kind === 'fold' && part.isOpenByDefault)
+                openByDefault.add(agentChatFoldKey(turnId, part.segment.index));
+    }
     const keys = [...ended].map((turnId) => agentChatFoldKey(turnId, 0));
     const segments = new Map<string, number>();
     for (const item of snapshot.items) {
@@ -62,7 +75,7 @@ export function holdEndedTurnsOpen(
         segments.set(item.turnId, index);
         keys.push(agentChatFoldKey(item.turnId, index));
     }
-    const added = keys.filter((key) => !expandedIds.has(key));
+    const added = keys.filter((key) => !expandedIds.has(key) && !openByDefault.has(key));
     if (added.length === 0) return expandedIds;
     return new Set([...expandedIds, ...added]);
 }

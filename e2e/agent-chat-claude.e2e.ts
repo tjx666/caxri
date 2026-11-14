@@ -106,10 +106,10 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(approval).toHaveCount(0);
         await expect(chat.getByText('The command ran.')).toBeVisible();
         // The row reads the Agent's description of the command, and expanded shows the command and how it ended.
-        await chat
-            .getByRole('button', { name: /^Worked(?: for |$)/u })
-            .last()
-            .click();
+        // The turn ended on a one-line reply, so its work stays in view without expanding the fold.
+        await expect(
+            chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last(),
+        ).toHaveAttribute('aria-expanded', 'true');
         // A settled run of one command is that command's own row, not a `Ran 1 command` summary over it.
         await expect(chat.getByRole('button', { name: 'Ran 1 command', exact: true })).toHaveCount(
             0,

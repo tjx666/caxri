@@ -368,7 +368,9 @@ function finishedTurnEntries(
     const entries: AgentChatTimelineEntry[] = [];
     for (const part of parts) {
         if (part.kind === 'fold') {
-            const isExpanded = expandedIds.has(foldKey(part.segment));
+            // A fold open by default (the turn ended on a one-line reply or none) closes when the user toggles it.
+            const isExpanded =
+                expandedIds.has(foldKey(part.segment)) !== (part.isOpenByDefault === true);
             const subagents = isExpanded
                 ? []
                 : part.items.filter(
@@ -403,10 +405,11 @@ function finishedTurnEntries(
  * Builds the phone's Chat timeline from the projection. Items arrive in order and each turn's items are contiguous, so
  * a run of items sharing a `turnId` is one turn. Only a finished turn (not running and not the active one) folds and
  * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedIds` names the
- * finished turns and delegated task pointers the user unfolded, and the answered question lists the user folded; the
- * list owns it rather than a row, so a recycled row never carries another turn's state. When the window cut older items
- * (`truncated`), the oldest turn may be missing its start; it still shows the artifacts of what remains, as Desktop
- * does, because withholding them made the cards pop in mid-list once a fuller window or an older page arrived.
+ * finished turns and delegated task pointers the user unfolded, the turns open by default the user folded (one that
+ * ended on a one-line reply or none), and the answered question lists the user folded; the list owns it rather than a
+ * row, so a recycled row never carries another turn's state. When the window cut older items (`truncated`), the oldest
+ * turn may be missing its start; it still shows the artifacts of what remains, as Desktop does, because withholding
+ * them made the cards pop in mid-list once a fuller window or an older page arrived.
  */
 export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'> &

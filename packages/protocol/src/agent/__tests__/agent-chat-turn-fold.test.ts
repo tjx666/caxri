@@ -179,6 +179,66 @@ describe('foldAgentChatTurn', () => {
     });
 });
 
+describe('isOpenByDefault', () => {
+    const openFolds = (parts: ReturnType<typeof foldAgentChatTurn>) =>
+        parts.flatMap((part) =>
+            part.kind === 'fold'
+                ? [{ index: part.segment.index, isOpen: part.isOpenByDefault }]
+                : [],
+        );
+    const longReply: AgentChatItem = { ...reply, text: 'Done.\n\nThe tests pass.' };
+
+    it('opens the closing fold of a turn that ended on a one-line reply or none', () => {
+        expect(openFolds(foldAgentChatTurn([user, command, reply], 'a2'))).toEqual([
+            { index: 0, isOpen: true },
+        ]);
+        expect(openFolds(foldAgentChatTurn([user, command], undefined))).toEqual([
+            { index: 0, isOpen: true },
+        ]);
+        // Surrounding blank lines do not make a reply longer.
+        const padded: AgentChatItem = { ...reply, text: '\nDone.\n' };
+        expect(openFolds(foldAgentChatTurn([user, command, padded], 'a2'))).toEqual([
+            { index: 0, isOpen: true },
+        ]);
+    });
+
+    it('keeps the fold closed behind a reply of several lines', () => {
+        expect(openFolds(foldAgentChatTurn([user, command, longReply], 'a2'))).toEqual([
+            { index: 0, isOpen: undefined },
+        ]);
+    });
+
+    it('keeps an earlier answer of several lines in view before a one-line final reply, and folds the rest', () => {
+        const answer: AgentChatItem = { ...commentary, text: 'Merged.\n\nThe issue is closed.' };
+        const parts = foldAgentChatTurn(
+            [user, command, answer, { ...command, id: 'c2' }, reply],
+            'a2',
+        );
+        expect(shape(parts)).toEqual(['u1', 'fold(c1,c2)', 'a1', 'a2']);
+        expect(openFolds(parts)).toEqual([{ index: 0, isOpen: undefined }]);
+        // A final reply of several lines is the answer itself, so the commentary before it folds.
+        expect(shape(foldAgentChatTurn([user, command, answer, longReply], 'a2'))).toEqual([
+            'u1',
+            'fold(c1,a1)',
+            'a2',
+        ]);
+    });
+
+    it('opens only the closing fold of a steered turn', () => {
+        const steer: AgentChatItem = {
+            id: 'u2',
+            type: 'userMessage',
+            text: 'Also',
+            delivery: 'steered',
+        };
+        const items = [user, command, commentary, steer, { ...command, id: 'c2' }, reply];
+        expect(openFolds(foldAgentChatTurn(items, 'a2'))).toEqual([
+            { index: 0, isOpen: undefined },
+            { index: 1, isOpen: true },
+        ]);
+    });
+});
+
 describe('agentChatFoldTiming', () => {
     const turn = { startedAt: 1_000, durationMs: 9_000 };
     const steer: AgentChatItem = {

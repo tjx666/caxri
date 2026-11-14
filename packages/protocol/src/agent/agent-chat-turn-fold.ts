@@ -20,10 +20,44 @@ export interface AgentChatTurnFoldSegment {
  * One piece of a finished turn as every Chat client folds it: an item that stays in view (`kept`), or one segment's
  * work and commentary gathered behind its `Worked for` row (`fold`). A turn has at most one `fold` per segment. Every
  * part names its segment, so a client can still place the turn's outcome when the closing segment folded nothing.
+ *
+ * `isOpenByDefault` marks the closing fold of a turn whose final reply is a single line or missing and that kept no
+ * earlier answer in view (see `foldAgentChatTurn`): such a reply ("CI passed, all done.") does not summarize the work,
+ * so the work stays in view until the user folds it.
  */
 export type AgentChatTurnFoldPart =
     | { kind: 'kept'; item: AgentChatItem; segment: AgentChatTurnFoldSegment }
-    | { kind: 'fold'; items: readonly AgentChatItem[]; segment: AgentChatTurnFoldSegment };
+    | {
+          kind: 'fold';
+          items: readonly AgentChatItem[];
+          segment: AgentChatTurnFoldSegment;
+          isOpenByDefault?: true;
+      };
+
+/**
+ * Whether an Agent message spans several lines. A long single paragraph still counts as one line, since the source has
+ * no break to measure wrapping by.
+ */
+function isMultiLineMessage(item: AgentChatItem | undefined): boolean {
+    return item?.type === 'agentMessage' && item.text.trim().includes('\n');
+}
+
+/**
+ * The answer a turn gave before its brief final reply: the closing segment's last Agent message of several lines. An
+ * Agent that answered, then woke for a background task and closed with one line ("CI on main passed too."), otherwise
+ * hid the answer behind the fold, leaving only the one-liner, as T3 Code keeps a superseded attempt's finished reply in
+ * view.
+ */
+function earlierAnswerId(
+    items: readonly AgentChatItem[],
+    finalReplyId: string | undefined,
+): string | undefined {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+        const item = items[index];
+        if (item.id !== finalReplyId && isMultiLineMessage(item)) return item.id;
+    }
+    return undefined;
+}
 
 /**
  * The id of a turn's final reply: its last visible Agent message. A loop rather than `findLast`, which the phone's
@@ -121,6 +155,10 @@ function turnSegments(
  * A steer the Agent answered only in its thinking (`agentChatSteerReplyThoughtIds`) keeps that thought in view too:
  * folding it once the turn ended hid the only answer the steer got, which then read as ignored.
  *
+ * A turn that ended on a one-line reply or none says little about what it did ("CI passed, all done."). Its closing
+ * segment keeps its last Agent message of several lines in view as the answer (`earlierAnswerId`); without one, its
+ * fold is marked `isOpenByDefault` so the work shows until the user folds it.
+ *
  * `isAlsoKept` names further items a Client keeps in view; Desktop keeps the commands that created a delegation so the
  * record of delegated work survives the fold. The phone passes nothing and folds exactly as before.
  */
@@ -131,6 +169,7 @@ export function foldAgentChatTurn(
 ): AgentChatTurnFoldPart[] {
     const segments = turnSegments(visible, finalReplyId);
     const steerReplies = agentChatSteerReplyThoughtIds(visible);
+    const isReplyBrief = !isMultiLineMessage(visible.find((item) => item.id === finalReplyId));
     return segments.flatMap((items, index) => {
         const isClosesTurn = index === segments.length - 1;
         const next = isClosesTurn ? undefined : segments[index + 1][0];
@@ -139,8 +178,11 @@ export function foldAgentChatTurn(
             : next?.type === 'userMessage'
               ? agentChatFinalReplyId(items)
               : undefined;
+        const answerId =
+            isClosesTurn && isReplyBrief ? earlierAnswerId(items, finalReplyId) : undefined;
         const isKept = (item: AgentChatItem): boolean =>
             item.type === 'userMessage' ||
+            (answerId !== undefined && item.id === answerId) ||
             steerReplies.has(item.id) ||
             (replyId !== undefined && item.id === replyId) ||
             (finalReplyId !== undefined && item.id === finalReplyId) ||
@@ -164,7 +206,14 @@ export function foldAgentChatTurn(
             }
             if (hasFold) continue;
             hasFold = true;
-            parts.push({ kind: 'fold', items: folded, segment });
+            parts.push({
+                kind: 'fold',
+                items: folded,
+                segment,
+                ...(isClosesTurn &&
+                    isReplyBrief &&
+                    answerId === undefined && { isOpenByDefault: true as const }),
+            });
         }
         return parts;
     });

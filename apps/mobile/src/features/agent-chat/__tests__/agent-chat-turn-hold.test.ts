@@ -43,7 +43,8 @@ describe('holdEndedTurnsOpen', () => {
             command('c2'),
         ];
         const held = holdEndedTurnsOpen(none, new Set(['t1']), { ...ended, items }, false);
-        expect([...held]).toEqual(['t1', 't1:1', 't1:2']);
+        // The closing fold has no reply, so it is already open by default and needs no key.
+        expect([...held]).toEqual(['t1', 't1:2']);
         expect(
             buildAgentChatTimeline({ items, turns: [turn('completed')] }, held).map(
                 (entry) => entry.id,
