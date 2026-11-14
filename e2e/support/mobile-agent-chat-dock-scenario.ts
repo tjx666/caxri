@@ -149,7 +149,7 @@ export async function executeMobileChatDockFoldScenario(
  * jump there in one layout pass, so a dock that moves with them draws at most a frame or two while the pass lands; a
  * goal bar on its own 180ms transition draws one per frame for the whole slide.
  */
-const MAX_DOCK_IN_BETWEEN_FRAMES = 3;
+const MAX_DOCK_IN_BETWEEN_FRAMES = 2;
 
 /**
  * `MOB-CHAT-DOCK-KEYBOARD-01`: the same goal dock, recorded with live motion while the keyboard shows and hides. The
@@ -157,8 +157,10 @@ const MAX_DOCK_IN_BETWEEN_FRAMES = 3;
  * slide over the composer or the keyboard.
  *
  * UIAutomator cannot read a screen while it moves, so the recording is analysed instead, in the band the lifted dock
- * occupies from the goal bar's top to the composer's bottom. The keyboard stays below that band, so on the way up the
- * band changes from timeline to dock and on the way down back to timeline; each change must land at once.
+ * occupies from the goal bar's top to the `2 Background work` row's bottom. The keyboard stays below that band, so on
+ * the way up the band changes from timeline to dock and on the way down back to timeline; each change must land at
+ * once. The band stops above the composer, whose capsule grows into its two-row layout on focus by its own intended
+ * transition and only ever from below its settled top.
  */
 export async function executeMobileChatDockKeyboardScenario(
     environment: MobileAndroidCaseEnvironment,
@@ -185,9 +187,9 @@ export async function executeMobileChatDockKeyboardScenario(
             // Read after the settle: a goal bar still sliding would otherwise shrink the band to its midway frame.
             const nodes = await mobileSemantics(serial);
             const goal = checkBounds(nodes, 'agent-chat-goal');
-            const composer = checkBounds(nodes, 'agent-chat-composer-input');
-            if (!goal || !composer) throw new Error('The lifted dock is not laid out');
-            lifted.band = { bottom: composer.bottom, top: goal.top };
+            const tasks = checkBounds(nodes, 'agent-chat-tasks');
+            if (!goal || !tasks) throw new Error('The lifted dock is not laid out');
+            lifted.band = { bottom: tasks.bottom, top: goal.top };
             // Halfway through the still keyboard-up stretch, between the show and the hide.
             lifted.splitMs = Date.now() - startedAt - SETTLE_MS / 2;
             await capture(environment, 'keyboard-up', artifacts);
