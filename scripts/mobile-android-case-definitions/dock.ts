@@ -12,4 +12,13 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-dock-fold',
     },
+    'MOB-CHAT-DOCK-KEYBOARD-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        // The dock's transition is off under reduced motion, which would hide the motion this case records.
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-dock-keyboard',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

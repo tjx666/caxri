@@ -1,19 +1,37 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
+import Animated, {
+    Easing,
+    LinearTransition,
+    ReduceMotion,
+    useReducedMotion,
+} from 'react-native-reanimated';
 
 import { mobileSpace } from '../../theme/scale';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles } from '../sessions/components/session-detail-styles';
+import { anchoredLayoutTransition } from './anchored-layout-transition';
+
+const CAPSULE_RESIZE_MS = 160;
+/**
+ * Desktop's enter curve (`--motion-ease-enter`), so the field answers each keystroke at once and still settles softly.
+ */
+const capsuleEasing = Easing.bezier(0.23, 1, 0.32, 1);
 
 /**
- * The capsule's height change as the draft gains or loses a line, or the capsule expands: short, on Desktop's enter
- * curve (`--motion-ease-enter`), so the field answers each keystroke at once and still settles softly.
+ * The rows' frame change inside the capsule as the draft gains or loses a line, or the capsule expands.
  */
-const capsuleResize = LinearTransition.duration(160)
-    .easing(Easing.bezier(0.23, 1, 0.32, 1))
+const capsuleResize = LinearTransition.duration(CAPSULE_RESIZE_MS)
+    .easing(capsuleEasing)
     .reduceMotion(ReduceMotion.System);
+
+/**
+ * The capsule's own frame change on the same curve, anchored to its bottom edge: focusing the field expands the capsule
+ * in the same frame the keyboard moves it, and a plain frame transition would slide the whole capsule after the dock
+ * above it (`anchoredLayoutTransition`).
+ */
+const capsuleFrame = anchoredLayoutTransition(CAPSULE_RESIZE_MS, capsuleEasing);
 
 /**
  * The Chat composer's capsule in its two layouts (`agentChatComposerLayout`). Collapsed, it is one row: `+`, the input,
@@ -51,37 +69,40 @@ export const AgentChatComposerCapsule = ({
      */
     settings: ReactNode;
     theme: MobileTheme;
-}) => (
-    <Animated.View
-        layout={capsuleResize}
-        style={[
-            sessionDetailStyles.capsule,
-            styles.clip,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-        ]}
-        testID="agent-chat-composer-capsule"
-    >
+}) => {
+    const isReducedMotion = useReducedMotion();
+    return (
         <Animated.View
-            layout={capsuleResize}
-            style={[styles.clip, isExpanded ? null : sessionDetailStyles.composerRow]}
+            layout={isReducedMotion ? undefined : capsuleFrame}
+            style={[
+                sessionDetailStyles.capsule,
+                styles.clip,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            testID="agent-chat-composer-capsule"
         >
-            {isExpanded ? null : add}
-            {input}
-            {isExpanded ? null : send}
-        </Animated.View>
-        {isExpanded ? (
             <Animated.View
                 layout={capsuleResize}
-                style={sessionDetailStyles.composerRow}
-                testID="agent-chat-composer-actions"
+                style={[styles.clip, isExpanded ? null : sessionDetailStyles.composerRow]}
             >
-                {add}
-                <View style={styles.settings}>{settings}</View>
-                {send}
+                {isExpanded ? null : add}
+                {input}
+                {isExpanded ? null : send}
             </Animated.View>
-        ) : null}
-    </Animated.View>
-);
+            {isExpanded ? (
+                <Animated.View
+                    layout={capsuleResize}
+                    style={sessionDetailStyles.composerRow}
+                    testID="agent-chat-composer-actions"
+                >
+                    {add}
+                    <View style={styles.settings}>{settings}</View>
+                    {send}
+                </Animated.View>
+            ) : null}
+        </Animated.View>
+    );
+};
 
 const styles = StyleSheet.create({
     clip: { overflow: 'hidden' },
