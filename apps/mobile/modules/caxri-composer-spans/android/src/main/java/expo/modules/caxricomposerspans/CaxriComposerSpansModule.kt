@@ -10,6 +10,7 @@ import android.text.style.StyleSpan
 import android.text.style.TypefaceSpan
 import android.util.TypedValue
 import android.widget.EditText
+import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.UIManagerHelper
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
@@ -58,7 +59,7 @@ class CaxriComposerSpansModule : Module() {
    * arrived) is skipped: the render that follows that keystroke sends runs for the new text.
    */
   private fun apply(viewTag: Int, text: String, runs: List<ComposerRun>): Boolean {
-    val context = appContext.reactContext ?: return false
+    val context = appContext.reactContext as? ReactContext ?: return false
     val field = UIManagerHelper.getUIManagerForReactTag(context, viewTag)?.resolveView(viewTag) as? EditText
       ?: return false
     val editable = field.text ?: return false
