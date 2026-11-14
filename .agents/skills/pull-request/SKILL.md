@@ -111,10 +111,14 @@ or cancels the delivery, or a concrete blocker requires their input.
    how existing content renders (a path becoming a pill, a long message clamped behind "Show more")
    breaks text assertions the same way: search `e2e/` for specs reading that content and run them.
    Rendering sent paths as pills left `agent-chat-handoff.e2e.ts` matching the full path on `main`.
-   A diff that adds, removes, or reorders rows in a menu or list breaks positional locators whose
-   text and test IDs never changed: search `e2e/` for that list's row IDs (`agent-chat-command-0`)
-   and run every match, an Android `MOB-*` scenario through the mobile Acceptance runner. Putting
-   `/new-session` first left MOB-CHAT-10 picking it instead of `/compact` on `main`.
+   A diff that adds, removes, or reorders rows in a menu or list, or changes a control's default
+   expanded or collapsed state, breaks positional locators, initial-visibility assertions, and
+   click or tap toggles whose text and test IDs never changed. Search `e2e/`, including
+   `e2e/support/mobile-*-scenario.ts`, for the affected IDs or their stable prefixes
+   (`agent-chat-command-0`, `agent-chat-turn-`); run every affected spec, and every Android `MOB-*`
+   scenario through the mobile Acceptance runner, recording those in the PR's validation notes
+   rather than `CI-E2E-Tests`. Putting `/new-session` first left MOB-CHAT-10 picking it instead of
+   `/compact` on `main`; opening a brief reply's turn fold by default made MOB-CHAT-10's tap close it.
    A change to a shared fixture under `e2e/support/` (profile defaults, launch helpers) reaches
    every spec that relies on what it changed: search `e2e/` for specs reading that value or helper
    and list them too. Changing `e2e/support/e2e-profile.ts` defaults while listing only
