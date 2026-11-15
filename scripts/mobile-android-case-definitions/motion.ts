@@ -1,18 +1,21 @@
 import type { MobileAndroidCaseDefinition } from '../mobile-android-cases';
 
 /**
- * Motion recordings of navigation transitions. Handlers live in `e2e/support/mobile-android-case-handlers/motion.ts`.
+ * Motion recordings of navigation transitions. They record live animation, which the runner otherwise turns off for a
+ * whole batch (#3785). Handlers live in `e2e/support/mobile-android-case-handlers/motion.ts`.
  */
 export const cases = {
     'MOB-MOTION-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
+        motion: 'live',
         recordingOwner: 'scenario',
         scenario: 'motion-tab-switch',
     },
     'MOB-MOTION-03': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
+        motion: 'live',
         recordingOwner: 'scenario',
         scenario: 'motion-tool-detail-sheet',
     },
