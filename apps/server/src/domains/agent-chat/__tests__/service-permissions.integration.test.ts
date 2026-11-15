@@ -211,11 +211,19 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
 });
 
 describe('Agent Chat permission level and plan mode with a fake Claude Code CLI', () => {
+    /**
+     * Claude Code reports the models before it reads back the applied settings, and only then the permission level
+     * (`providers/claude/chat-session.ts`), so a start is complete once both arrived. Waiting on the models alone read
+     * the level before it landed on a slow CI runner (issues #3960 and #3985).
+     */
+    const isStarted = (snapshot: { models?: unknown; permissionMode?: unknown }): boolean =>
+        snapshot.models !== undefined && snapshot.permissionMode !== undefined;
+
     it('switches in place and returns to the chosen level after an approved plan', async () => {
         const { database, fakeLog, service, terminal, until } = await fixture({
             provider: 'claude',
         });
-        expect(await until((snapshot) => snapshot.models !== undefined)).toMatchObject({
+        expect(await until(isStarted)).toMatchObject({
             permissionMode: 'ask',
             planMode: false,
         });
@@ -268,7 +276,7 @@ describe('Agent Chat permission level and plan mode with a fake Claude Code CLI'
 
     it('leaves an inherited level unstored when an approved plan ends plan mode', async () => {
         const { database, service, terminal, until } = await fixture({ provider: 'claude' });
-        await until((snapshot) => snapshot.models !== undefined);
+        await until(isStarted);
         await service.setPermission(terminal.id, { planMode: true });
         await until((snapshot) => snapshot.planMode === true);
         await service.send(terminal.id, { text: 'planmode' });
