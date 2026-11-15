@@ -227,6 +227,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.image.waitUploading': '正在等待图片上传…',
     'sessions.list.attention': '待处理',
     'sessions.list.attentionSource': '打开「{{project}}」中的「{{title}}」',
+    'sessions.list.attentionSourceSessionOnly': '打开「{{title}}」',
     'sessions.list.collapseHint': '收起这一组的会话。',
     'sessions.list.expandHint': '展开这一组的会话。',
     'sessions.list.groupLabel': '{{label}}，{{count}} 个会话',

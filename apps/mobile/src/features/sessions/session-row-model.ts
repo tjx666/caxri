@@ -18,6 +18,25 @@ import type { MobileSessionItem } from './session-model';
 export const sessionTitleForDisplay = (title: string, t: Translate = translate): string =>
     title === DEFAULT_SESSION_TITLE ? t('sessions.untitled') : title;
 
+/**
+ * The source line of a request card in the Sessions list: the visible Project prefix (null when the Project has no
+ * name, so no orphan separator shows) and the screen-reader label.
+ */
+export const sessionAttentionSourceText = (
+    session: Pick<MobileSessionItem, 'projectTitle' | 'title'>,
+    t: Translate = translate,
+): { label: string; project: string | null; title: string } => {
+    const title = sessionTitleForDisplay(session.title, t);
+    const project = session.projectTitle.trim() || null;
+    return {
+        label: project
+            ? t('sessions.list.attentionSource', { project, title })
+            : t('sessions.list.attentionSourceSessionOnly', { title }),
+        project,
+        title,
+    };
+};
+
 export const sessionAgentLabel = (session: MobileSessionItem, t: Translate = translate): string => {
     const kind = session.primaryTerminal?.kind;
     return kind ? mobileAgentDisplayName(kind) : t('sessions.noAgent');

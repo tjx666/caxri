@@ -238,6 +238,7 @@ export const sessions = {
     'sessions.image.waitUploading': 'Waiting for images to upload…',
     'sessions.list.attention': 'Needs attention',
     'sessions.list.attentionSource': 'Open {{title}} in {{project}}',
+    'sessions.list.attentionSourceSessionOnly': 'Open {{title}}',
     'sessions.list.collapseHint': 'Hides the Sessions in this group.',
     'sessions.list.expandHint': 'Shows the Sessions in this group.',
     'sessions.list.groupLabel': '{{label}}, {{count}}',
