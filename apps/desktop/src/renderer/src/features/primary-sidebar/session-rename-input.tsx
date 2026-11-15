@@ -117,11 +117,16 @@ export function SessionRenameInput({
                     </button>
                 </Tooltip>
             )}
+            {/*
+             * Floats below the row so the row keeps its height, which means it covers the next row. It carries the
+             * tooltip's surface so it covers that row cleanly: a bare line of text let the next title show through
+             * and the two read as one jumbled line. VS Code's Explorer rename shows its validation the same way.
+             */}
             {error && (
                 <span
                     id={errorId}
                     role="alert"
-                    className="session-rename-error absolute inset-x-0 top-full z-10 mt-0.5 text-[11px] wrap-break-word text-danger"
+                    className="session-rename-error absolute inset-x-0 top-full z-10 mt-0.5 rounded-md bg-elevated px-2 py-1 text-[11px] wrap-break-word text-danger shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]"
                 >
                     {error}
                 </span>
