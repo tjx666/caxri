@@ -5,23 +5,19 @@ import type { AgentChatRailMark } from '../agent-chat-rail-marks';
 import {
     agentChatActiveRailIndex,
     agentChatRailActiveTick,
-    agentChatRailCaption,
-    agentChatRailCardText,
     agentChatRailFocusStep,
     agentChatRailMarks,
     agentChatRailPreview,
-    agentChatRailPreviewParts,
     agentChatRailSampleIndices,
     agentChatRailTickCapacity,
-    agentChatRailTimeFormatOptions,
+    agentChatRailTickWidth,
     isAgentChatMessageRailShown,
-    isAgentChatRailGutter,
     MAX_AGENT_CHAT_RAIL_MARKS,
     sampleAgentChatRailMarks,
 } from '../agent-chat-rail-marks';
 
 function railMark(id: string): AgentChatRailMark {
-    return { id, preview: id, title: id, summary: '', kind: 'message', isReady: true };
+    return { id, preview: id, width: 6, isReady: true };
 }
 
 /**
@@ -52,26 +48,12 @@ describe('agentChatRailMarks', () => {
                 translate,
             ),
         ).toEqual([
-            {
-                id: 'u1',
-                preview: 'first line',
-                title: 'first',
-                summary: 'line',
-                kind: 'message',
-                isReady: true,
-            },
-            {
-                id: 'u2',
-                preview: '2 images',
-                title: '2 images',
-                summary: 'Images only, no text',
-                kind: 'images',
-                isReady: true,
-            },
+            { id: 'u1', preview: 'first line', width: 10, isReady: true },
+            { id: 'u2', preview: '2 images', width: 6, isReady: true },
         ]);
     });
 
-    it('names a steered message and previews a delegated task by what its caller asked', () => {
+    it('previews a delegated task by what its caller asked', () => {
         expect(
             agentChatRailMarks(
                 [
@@ -95,11 +77,8 @@ describe('agentChatRailMarks', () => {
                     },
                 ],
                 translate,
-            ).map(({ kind, title }) => ({ kind, title })),
-        ).toEqual([
-            { kind: 'steered', title: 'also this' },
-            { kind: 'delegated', title: 'Fix the build' },
-        ]);
+            ).map(({ preview }) => preview),
+        ).toEqual(['also this', 'Fix the build']);
     });
 
     it('holds the skeleton only for a message with nothing to show yet', () => {
@@ -107,7 +86,7 @@ describe('agentChatRailMarks', () => {
             [{ kind: 'item', item: { id: 'u1', type: 'userMessage', text: '  ' } }],
             translate,
         );
-        expect(mark).toMatchObject({ isReady: false, title: '', summary: '' });
+        expect(mark).toMatchObject({ isReady: false, preview: '' });
     });
 
     it('previews a message by its words, or by the folders it cites when it has none', () => {
@@ -123,8 +102,8 @@ describe('agentChatRailMarks', () => {
                 translate,
             ),
         ).toMatchObject([
-            { id: 'u1', preview: 'tidy it', title: 'tidy it' },
-            { id: 'u2', preview: 'prettier-config', title: 'prettier-config' },
+            { id: 'u1', preview: 'tidy it' },
+            { id: 'u2', preview: 'prettier-config' },
         ]);
     });
 
@@ -135,65 +114,19 @@ describe('agentChatRailMarks', () => {
     });
 });
 
-describe('agentChatRailPreviewParts', () => {
-    it('titles a message by its first line and keeps the rest as lines of summary', () => {
-        expect(
-            agentChatRailPreviewParts(
-                'Fix the  build\n\n  then run   tests\nand ship',
-                0,
-                translate,
-            ),
-        ).toEqual({
-            title: 'Fix the build',
-            summary: 'then run tests\nand ship',
-        });
+describe('agentChatRailTickWidth', () => {
+    it('grows with the message on a curve and stops at its full length', () => {
+        expect(agentChatRailTickWidth('')).toBe(6);
+        expect(agentChatRailTickWidth('ok')).toBe(8);
+        expect(agentChatRailTickWidth('a'.repeat(20))).toBe(11);
+        expect(agentChatRailTickWidth('a'.repeat(80))).toBe(16);
+        expect(agentChatRailTickWidth('a'.repeat(500))).toBe(16);
     });
 
-    it('ends a long first line at its first sentence when that fits', () => {
-        expect(
-            agentChatRailPreviewParts(
-                'Please fix the flaky test. It fails on CI about once in ten runs and blocks every merge queue.',
-                0,
-                translate,
-            ),
-        ).toEqual({
-            title: 'Please fix the flaky test.',
-            summary: 'It fails on CI about once in ten runs and blocks every merge queue.',
-        });
-    });
-
-    it('leaves the title empty and keeps a long line whole in the summary when no first sentence fits', () => {
-        const line = 'Open /work/project/src/very/deeply/nested/module/index.ts please';
-        expect(agentChatRailPreviewParts(`${line}\nthen tidy`, 0, translate)).toEqual({
-            title: '',
-            summary: `${line}\nthen tidy`,
-        });
-    });
-
-    it('measures full-width text at double width and splits it at its own sentence end', () => {
-        expect(
-            agentChatRailPreviewParts(
-                '修复构建。它在持续集成里大约每十次失败一次，先从缓存步骤查起。',
-                0,
-                translate,
-            ),
-        ).toEqual({
-            title: '修复构建。',
-            summary: '它在持续集成里大约每十次失败一次，先从缓存步骤查起。',
-        });
-    });
-
-    it('bounds the summary it hands the card', () => {
-        const { summary } = agentChatRailPreviewParts(`title\n${'b'.repeat(2000)}`, 0, translate);
-        expect(summary).toHaveLength(400);
-        expect(summary.endsWith('…')).toBe(true);
-    });
-
-    it('names a message of one image', () => {
-        expect(agentChatRailPreviewParts('', 1, translate)).toEqual({
-            title: 'Image',
-            summary: 'Images only, no text',
-        });
+    it('counts full-width text at double width', () => {
+        expect(agentChatRailTickWidth('修'.repeat(10))).toBe(
+            agentChatRailTickWidth('a'.repeat(20)),
+        );
     });
 });
 
@@ -263,77 +196,5 @@ describe('agentChatRailFocusStep', () => {
         expect(agentChatRailFocusStep(2, 5, 'Home')).toBe(0);
         expect(agentChatRailFocusStep(2, 5, 'End')).toBe(4);
         expect(agentChatRailFocusStep(2, 5, 'Enter')).toBeUndefined();
-    });
-});
-
-describe('agentChatRailCardText', () => {
-    const caption = agentChatRailCaption(3, 12, 12, '17:59', translate);
-
-    it('words the caption with position and time, or position alone', () => {
-        expect(caption).toBe('Message 3 of 12 · 17:59');
-        expect(agentChatRailCaption(3, 12, 12, undefined, translate)).toBe('Message 3 of 12');
-    });
-
-    it('does not claim a total while earlier history is unloaded', () => {
-        expect(agentChatRailCaption(3, undefined, 8, '17:59', translate)).toBe('Sent at 17:59');
-        expect(agentChatRailCaption(3, undefined, 8, undefined, translate)).toBe(
-            'Message 3 of 8 loaded',
-        );
-    });
-
-    it('fills an otherwise empty body with the caption', () => {
-        expect(agentChatRailCardText({ title: 'table', summary: '' }, caption)).toEqual({
-            title: 'table',
-            body: caption,
-            isBodyCaption: true,
-        });
-    });
-
-    it('heads a title-less message with the caption and shows its full text once', () => {
-        const parts = agentChatRailPreviewParts('word '.repeat(60), 0, translate);
-        const text = agentChatRailCardText(parts, caption);
-        expect(text.title).toBe(caption);
-        expect(text.body).toBe(parts.summary);
-        expect(text.body).not.toContain(text.title);
-    });
-
-    it('keeps a title and its remainder as they are', () => {
-        expect(
-            agentChatRailCardText({ title: 'Fix the build', summary: 'then ship' }, caption),
-        ).toEqual({
-            title: 'Fix the build',
-            body: 'then ship',
-            isBodyCaption: false,
-        });
-    });
-});
-
-describe('agentChatRailTimeFormatOptions', () => {
-    const now = new Date(2026, 9, 26, 21, 15).getTime();
-
-    it('shows the clock alone for a message sent today', () => {
-        expect(agentChatRailTimeFormatOptions(new Date(2026, 9, 26, 0, 5).getTime(), now)).toEqual({
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    });
-
-    it('adds the date for a message sent on an earlier day', () => {
-        expect(
-            agentChatRailTimeFormatOptions(new Date(2026, 9, 25, 23, 59).getTime(), now),
-        ).toMatchObject({
-            month: 'short',
-            day: 'numeric',
-        });
-    });
-});
-
-describe('isAgentChatRailGutter', () => {
-    it("reveals the rail only while the pointer is within the area's left gutter", () => {
-        expect(isAgentChatRailGutter(100, 100)).toBe(true);
-        expect(isAgentChatRailGutter(140, 100)).toBe(true);
-        expect(isAgentChatRailGutter(141, 100)).toBe(false);
-        // Left of the area: another pane or the sidebar.
-        expect(isAgentChatRailGutter(99, 100)).toBe(false);
     });
 });
