@@ -50,13 +50,24 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         // enters the tab bar. Only that color changes, so the track and thumb keep full contrast.
         const pressedSegment = chat.locator('.agent-surface-toggle [data-pressed]');
         const surfaceToggle = chat.locator('.agent-surface-toggle');
+        // The color transitions, so a single read can land mid-fade: assert the resolved theme colors instead, which the
+        // retrying `toHaveCSS` waits for once the transition settles.
+        const [restColor, hoverColor] = await pressedSegment.evaluate((element) =>
+            ['--muted', '--foreground'].map((token) => {
+                const probe = document.createElement('span');
+                probe.style.color = `var(${token})`;
+                element.append(probe);
+                const { color } = getComputedStyle(probe);
+                probe.remove();
+                return color;
+            }),
+        );
+        expect(restColor).not.toBe(hoverColor);
         await message.hover();
         await expect(surfaceToggle).toHaveCSS('opacity', '1');
-        const restColor = await pressedSegment.evaluate(
-            (element) => getComputedStyle(element).color,
-        );
+        await expect(pressedSegment).toHaveCSS('color', restColor);
         await chat.locator('.work-tabs').first().hover();
-        await expect(pressedSegment).not.toHaveCSS('color', restColor);
+        await expect(pressedSegment).toHaveCSS('color', hoverColor);
         await page.screenshot({ path: testInfo.outputPath('claude-chat-tab-hover.png') });
         await message.hover();
         await expect(pressedSegment).toHaveCSS('color', restColor);
