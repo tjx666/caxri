@@ -1151,25 +1151,20 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   paint. Items the live projection evicts while the reader is scrolled back are kept below the
   pages read, so nothing goes missing between them. Earlier messages are read-only: they offer
   no Edit, Fork, or Restore, because those act on the projection.
-- From the second user message, a message rail sits at the pane's left edge: one tick per user
-  message, the one being read longer and brighter. The rail stays hidden until the pointer reaches
-  that left gutter or keyboard focus enters it, so it never competes with the reply being read
-  (`rail/hooks/use-is-agent-chat-rail-gutter-hovered.ts`). Hovering a tick, or focusing it from the
-  keyboard, opens one fixed-size preview card beside it: the message's first line (or first
-  sentence) as the title, up to three lines of what follows, and a corner badge naming the kind of
-  message (sent by you, steered, a delegated task, or images only). The title and body never repeat
-  each other: a first line too long for any title is shown whole in the body under a caption
-  (`Message 3 of 12 · 17:59`), and a message with nothing after its title fills the body with that
-  caption instead of blank lines. While earlier history is unloaded the rail only knows the loaded
-  messages, so the caption names the send time (or the position among the loaded messages) rather
-  than a total. A message with no content yet
-  shows a skeleton of the same size; content already in the timeline never waits behind it. An open
-  card moves to the next tick at once, and only the current tick's content is ever rendered, so a
-  sweep never flashes a passed message (`rail/agent-chat-rail-preview.ts`). Clicking a tick stops
-  following new output and jumps there. The rail is a single tab stop: ArrowUp,
-  ArrowDown, Home, and End move among its ticks and Enter jumps. Ticks shrink together, down to a
-  6px target each, rather than scroll when a long conversation would overflow the view; past 120 messages each tick stands for an even
-  stretch of the conversation, so ticks stay apart
+- From the second user message, a message rail sits at the pane's right edge, after LobeHub's chat
+  minimap: one faint tick per user message, each as long as its message is long (a square-root
+  curve from 6px to 16px), so the rail sketches the conversation's shape; the tick for the message
+  being read is dark. Resting the pointer on the rail (100ms), or Tabbing into it, replaces the ticks
+  with one list of every message: each row is the message's first words right-aligned beside a dash
+  as long as its tick, and the message being read is in medium weight with a dark dash. The list
+  opens scrolled to that row, scrolls itself in a long conversation, and closes 120ms after the
+  pointer leaves (`rail/hooks/use-agent-chat-rail-panel.ts`). A message with no content yet shows a
+  skeleton bar in its row. Clicking a row stops following new output, jumps there, and closes the
+  list. The list is a single tab stop: ArrowUp, ArrowDown, Home, and End move among its rows, Enter
+  jumps and keeps the list open, and Escape closes it. Ticks shrink together, down to 6px each,
+  rather than scroll when a long conversation would overflow the view, and past that each tick
+  stands for an even stretch of the conversation; past 120 messages the rail and list both keep an
+  even sample from first to last
   (`apps/desktop/src/renderer/src/features/agent-chat/rail/agent-chat-rail-marks.ts`).
 - Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
   Jump to latest. It takes its own strip above the conversation rather than floating over it, so it
