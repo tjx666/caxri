@@ -78,7 +78,7 @@ export function worktreeIdentityId(
  * The linked worktree's .git pointer is created by Git even when the checkout directory existed beforehand. Unknown
  * birth times remain unknown: mtime would reorder entries after repair/move operations.
  */
-async function worktreeCreatedAt(rootPath: string): Promise<number | undefined> {
+export async function worktreeCreatedAt(rootPath: string): Promise<number | undefined> {
     try {
         const stats = await lstat(join(rootPath, '.git'));
         return stats.isFile() && Number.isFinite(stats.birthtimeMs) && stats.birthtimeMs > 0
