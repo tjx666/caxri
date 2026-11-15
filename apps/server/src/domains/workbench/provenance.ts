@@ -324,7 +324,7 @@ export class AgentWorktreeAttribution {
             ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>
         >,
     ): Promise<void> {
-        const { baseline, key, pending, rootPaths } = entry;
+        const { baseline, key, pending } = entry;
         const isClaimed = [...this.pendingCreations].some(
             ([otherKey, other]) =>
                 otherKey !== key &&
@@ -334,7 +334,7 @@ export class AgentWorktreeAttribution {
         );
         const selected = isClaimed
             ? { reason: 'concurrent_creations' as const }
-            : await selectAddition(topology, rootPaths, pending.declaredPath);
+            : await selectAddition(topology, entry, this.options.logger);
         if ('reason' in selected) this.logUnavailable(selected.reason, baseline.terminalId);
         else await this.follow(topology, entry, selected.rootPath, initiatingBindings);
     }

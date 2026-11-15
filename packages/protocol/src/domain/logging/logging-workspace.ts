@@ -108,6 +108,7 @@ export const workbenchSnapshotLogEvents = {
 export const workbenchRootLogEvents = {
     fallback: 'workbench_root.fallback',
     provenancePrimed: 'workbench_root.provenance_primed',
+    provenanceLateSnapshot: 'workbench_root.provenance_late_snapshot',
     provenanceUnavailable: 'workbench_root.provenance_unavailable',
     rebound: 'workbench_root.rebound',
     selected: 'workbench_root.selected',

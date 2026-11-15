@@ -21,8 +21,9 @@ const MAX_TOOL_USE_ID_LENGTH = 256;
  * Neither protocol can hold a command back, so the before-snapshot of a `git worktree add` is captured when the command
  * is first seen. Both providers report the command before they ask for its approval, so with approvals on the snapshot
  * lands while the command waits; under Full access it races the command. A snapshot that already holds the new worktree
- * proves no addition and follows nothing, so the race mostly costs a missed follow. The outcome is sent as soon as it
- * is reported, so the signals keep their order relative to the turn's end; the Workbench Root's attribution pairs an
+ * proves no addition; the Workbench Root's attribution then recovers only a declared path whose `.git` file was born
+ * around the start (`selectAddition` in `workbench/provenance-support.ts`). The outcome is sent as soon as it is
+ * reported, so the signals keep their order relative to the turn's end; the Workbench Root's attribution pairs an
  * outcome that overtakes its start's snapshot once that snapshot lands.
  *
  * Only the classification and the opaque command id leave the provider; the command and its output do not.

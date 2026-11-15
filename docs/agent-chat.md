@@ -2261,9 +2261,12 @@ phases from protocol notifications: a Codex `commandExecution` item and an ACP `
 start the command when first seen, and its `completed` (exit code 0) or `failed`/`declined` outcome
 ends it. Both providers report a command before they ask for its approval, so with approvals on the
 before-snapshot is captured while the command waits; under Full access it races the command. A
-late snapshot already holds the new worktree and proves no unique addition, so the race costs a
-missed follow rather than a wrong root, and the user can still pick the worktree from "From this
-conversation". Server Core holds an outcome that overtakes its start's priming or snapshot until
+late snapshot already holds the new worktree and proves no addition. When the successful command
+named its target path, Server Core still follows that worktree if Git lists it and its `.git` file
+was born no earlier than five seconds before the start was seen (`LATE_SNAPSHOT_GRACE_MS`), and logs
+`workbench_root.provenance_late_snapshot`. A command without a path, or an older worktree at that
+path, still follows nothing, and the user can pick the worktree from "From this conversation".
+Server Core holds an outcome that overtakes its start's priming or snapshot until
 that start lands (`AgentWorktreeAttribution.afterStart`), so the Chat never delays a signal. Only a
 command started in the running turn reports an outcome: a Codex background terminal that finishes
 after its turn would otherwise read as a running turn. A `session/load` replay reports nothing. The
