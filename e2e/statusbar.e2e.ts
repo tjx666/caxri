@@ -132,7 +132,7 @@ exec /bin/zsh -l
         // The card names where the pull request merges, as the Status panel's card does.
         await pullRequest.hover();
         await expect(running.page.locator('.tooltip-popup')).toContainText(
-            'Basefeature/local-picker',
+            'Merges intofeature/local-picker',
         );
         await running.page.mouse.move(0, 0);
         await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
@@ -185,12 +185,17 @@ exec /bin/zsh -l
 
         /**
          * One pull-request read per Session, not one per poll: the status bar follows the Session's own projection,
-         * which finds #11 through `pr list` and then shares one record by number with the sidebar row.
+         * which finds #11 through `pr list` and then shares one record by number with the sidebar row. The window's
+         * first focus may add one more read of each kind: `DeliveryFocusRefresh` deliberately re-resolves the selected
+         * Session past every cache, and whether it lands before or after the startup sweep's lookup is
+         * timing-dependent.
          */
         const ghArguments = (await readFile(ghCalls, 'utf8')).trim().split('\n');
-        expect(ghArguments.filter((line) => line.startsWith('pr list'))).toHaveLength(1);
-        expect(ghArguments.filter((line) => line.startsWith('pr view'))).toHaveLength(1);
-        expect(ghArguments.filter((line) => line.startsWith('api graphql -f'))).toHaveLength(1);
+        for (const prefix of ['pr list', 'pr view', 'api graphql -f']) {
+            const calls = ghArguments.filter((line) => line.startsWith(prefix)).length;
+            expect(calls, prefix).toBeGreaterThanOrEqual(1);
+            expect(calls, prefix).toBeLessThanOrEqual(2);
+        }
 
         // The status bar no longer offers an "open Files" chip, so reach the file tree through
         // the secondarySidebar's own Files tab (the secondarySidebar is already open from `Meta+Alt+2`).
