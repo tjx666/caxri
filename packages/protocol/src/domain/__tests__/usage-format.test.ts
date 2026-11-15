@@ -5,6 +5,7 @@ import {
     currentLimitWindows,
     formatCreditsBalance,
     formatPercent,
+    formatPlanName,
     formatTokens,
     formatUsd,
     isPlanPaceDismissed,
@@ -14,6 +15,24 @@ import {
     shiftLocalDate,
     tokenCountParts,
 } from '../usage-format.js';
+
+describe('formatPlanName', () => {
+    it('names Claude plans with the Max multiplier from the rate-limit tier', () => {
+        expect(formatPlanName('claude', 'max', 'default_claude_max_20x')).toBe('Claude Max 20x');
+        expect(formatPlanName('claude', 'max', 'default_claude_max_5x')).toBe('Claude Max 5x');
+        expect(formatPlanName('claude', 'max')).toBe('Claude Max');
+        expect(formatPlanName('claude', 'pro', 'default_claude_ai')).toBe('Claude Pro');
+    });
+
+    it('names Codex plans as ChatGPT plans', () => {
+        expect(formatPlanName('codex', 'plus')).toBe('ChatGPT Plus');
+        expect(formatPlanName('codex', 'pro')).toBe('ChatGPT Pro');
+    });
+
+    it('returns undefined without a plan', () => {
+        expect(formatPlanName('claude', undefined, 'default_claude_max_5x')).toBeUndefined();
+    });
+});
 
 describe('usage formatters', () => {
     it('formats dollars by magnitude', () => {

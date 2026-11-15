@@ -77,18 +77,16 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.dailyCostNone': '无花费',
     'statusBar.usage.dailyCostUnavailable': '暂不可用',
     'statusBar.usage.models': '模型',
+    'statusBar.usage.plan': '套餐',
     'statusBar.usage.limit': '{{window}}限额',
     'statusBar.usage.limitLeft': '剩余 {{percent}}%',
     'statusBar.usage.chipLimitWindow': '{{window}}剩余 {{percent}}%',
-    'statusBar.usage.paceNote':
-        '{{window}}限额：剩余 {{percent}}%，{{reset}}。按当前用量速度，额度会在重置前用完，放慢用量或随时间推移会恢复。',
+    'statusBar.usage.paceNote': '按当前速度，{{window}}限额会在重置前用完。',
     'statusBar.usage.resetCredits': '重置卡',
     'statusBar.usage.resetCreditsValue': '{{count}} 张 · 最近一张{{expiry}}',
     'statusBar.usage.resetCreditsExpiringNote':
         '有一张重置卡{{expiry}}。请在此之前到 Codex 中使用，否则会作废。',
     'statusBar.usage.limitsAsOf': '限额更新于',
-    'statusBar.usage.methodNote':
-        'Token 数和费用读取自此对话自身的记录，并按 API 标价计费，规则与用量页面相同。每日费用图统计此 Agent 在用量页面所选范围内的全部对话。套餐限额按账户计算，取任意对话中的最新读数。',
     'statusBar.usage.clickToOpen': '点击查看此会话的用量',
     'statusBar.terminal.childProcessOne': '{{count}} 个子进程',
     'statusBar.terminal.childProcessOther': '{{count}} 个子进程',

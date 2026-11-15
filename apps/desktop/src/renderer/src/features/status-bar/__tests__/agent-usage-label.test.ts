@@ -5,6 +5,7 @@ import { translate } from '../../../i18n';
 import {
     agentUsageClockSignature,
     agentUsageLabel,
+    agentUsageLimitRows,
     agentUsageLimitTone,
     agentUsagePaceNote,
     agentUsageResetCreditsNote,
@@ -34,6 +35,27 @@ function readout(overrides: Partial<AgentUsageReadout> = {}): AgentUsageReadout 
         ...overrides,
     };
 }
+
+describe('agent usage hover card limit rows', () => {
+    it('names the plan before each live window and the reading age', () => {
+        const limit: UsageLimit = {
+            provider: 'claude',
+            observedAt: NOW,
+            planType: 'max',
+            rateLimitTier: 'default_claude_max_20x',
+            windows: [{ windowMinutes: 10_080, usedPercent: 99, resetsAt: NOW + 3_600_000 }],
+        };
+        expect(agentUsageLimitRows(limit, NOW, '11 seconds ago', translate)).toEqual([
+            { label: 'Plan', value: 'Claude Max 20x' },
+            { label: 'Weekly limit', value: '1% left · resets in 1h' },
+            { label: 'Limits as of', value: '11 seconds ago' },
+        ]);
+    });
+
+    it('is empty without a reading', () => {
+        expect(agentUsageLimitRows(undefined, NOW, undefined, translate)).toEqual([]);
+    });
+});
 
 describe('agent usage chip label', () => {
     it('shows tokens, cost, and every live rate-limit window shortest first', () => {
@@ -192,7 +214,7 @@ describe('agent usage limit tone', () => {
     it('explains a pace warning in plain words and stays silent otherwise', () => {
         const DAY = 86_400_000;
         expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6 * DAY), NOW, translate)).toBe(
-            'Weekly limit: 70% left, resets in 6d 0h. At this rate it runs out before it resets; the warning clears as usage slows or time passes.',
+            'Weekly limit runs out before it resets at this rate.',
         );
         expect(
             agentUsagePaceNote(withWindows(10, 10, NOW + 6 * DAY), NOW, translate),

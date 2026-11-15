@@ -3,8 +3,6 @@ export const settingsClaudeWindows = {
     'settings.claudeWindows.loadFailed': 'Could not check the Claude account.',
     'settings.claudeWindows.saveFailed':
         'Could not save. The Claude account may have changed; try again.',
-    'settings.claudeWindows.plan.pro': 'Claude Pro',
-    'settings.claudeWindows.plan.max': 'Claude Max',
     'settings.claudeWindows.planLine': 'Plan: {{plan}}',
     'settings.claudeWindows.keepRolling': 'Keep 5-hour windows rolling',
     'settings.claudeWindows.keepRollingDescription':

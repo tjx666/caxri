@@ -2,6 +2,7 @@ import type { UsageLimit, UsageReport } from '@caxri/protocol';
 import {
     formatLineCount,
     formatPercent,
+    formatPlanName,
     formatTokens,
     formatUsd,
     remainingLimitPercent,
@@ -241,13 +242,14 @@ function LimitWindowRow({
 function ProviderLimits({ generatedAt, limit }: { generatedAt: number; limit: UsageLimit }) {
     const { t } = useTranslation();
     const observedAgo = useRelativeTime(limit.observedAt);
+    const plan = formatPlanName(limit.provider, limit.planType, limit.rateLimitTier);
     return (
         <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2 text-[12px]">
                 <ProviderLabel provider={limit.provider} />
                 <span className="text-[11px] text-muted">
-                    {limit.planType && <span className="capitalize">{limit.planType}</span>}
-                    {limit.planType && observedAgo && ' · '}
+                    {plan}
+                    {plan && observedAgo && ' · '}
                     {observedAgo && t('usage.limits.asOf', { time: observedAgo })}
                 </span>
             </div>

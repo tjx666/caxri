@@ -55,6 +55,18 @@ test("a running Claude Chat reports its plan's 5-hour and weekly limits and warn
         await expect(usageChip).toHaveAttribute('data-status-urgent', '');
         await expect(usageChip).toHaveClass(/text-warning/u);
 
+        // The hover card names the subscription plan and keeps its notes to the one sentence explaining the warning.
+        await usageChip.hover();
+        const usageCard = page.locator('.tooltip-popup');
+        await expect(usageCard).toContainText('PlanClaude Max');
+        await expect(usageCard).toContainText(
+            'Weekly limit runs out before it resets at this rate.',
+        );
+        await expect(usageCard).not.toContainText('API list prices');
+        await page.screenshot({ path: testInfo.outputPath('claude-usage-card.png') });
+        await page.mouse.move(1, 1);
+        await expect(usageCard).toHaveCount(0);
+
         const pace = chat.locator('[data-agent-chat-plan-pace-alert]');
         await expect(pace).toContainText(
             'Weekly limit on track to run out: 39% left, resets in 5d',

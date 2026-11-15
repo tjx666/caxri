@@ -3,6 +3,7 @@ import {
     agentUsageCostLabel,
     currentLimitWindows,
     currentResetCredits,
+    formatPlanName,
     formatTokens,
     isResetCreditExpiringSoon,
     LIMIT_WARNING_PERCENT,
@@ -198,8 +199,8 @@ export function agentUsageWarningReason(
 
 /**
  * The tooltip sentence that says why the chip warns when the cause is pace rather than a nearly spent window, e.g.
- * `Weekly limit: 70% left, resets in 6d 14h. At this rate it runs out before it resets; ...`. The note says the warning
- * is a projection and clears as usage slows or the window's clock catches up. Undefined while every window is on pace.
+ * `Weekly limit runs out before it resets at this rate.`. The window's row above it already shows what is left and when
+ * it resets, so the note names only the projection. Undefined while every window is on pace.
  */
 export function agentUsagePaceNote(
     readout: AgentUsageReadout,
@@ -208,11 +209,8 @@ export function agentUsagePaceNote(
 ): string | undefined {
     const shortfall = limitPaceShortfall(readout.limit, now);
     if (!shortfall) return undefined;
-    const { window } = shortfall;
     return t('statusBar.usage.paceNote', {
-        window: localizedLimitWindowName(window.windowMinutes, t),
-        percent: remainingLimitPercent(window.usedPercent),
-        reset: localizedLimitReset(window.resetsAt, now, t),
+        window: localizedLimitWindowName(shortfall.window.windowMinutes, t),
     });
 }
 
@@ -233,6 +231,41 @@ export function agentUsageResetCreditsValue(
         count,
         expiry: localizedResetCreditExpiry(credits.nextExpiresAt, now, t),
     });
+}
+
+/**
+ * The hover card's account rows, which follow the conversation's own rows: the subscription plan, each live limit
+ * window with its reset, banked resets, and how old the reading is. Rows without a value are left out.
+ */
+export function agentUsageLimitRows(
+    limit: UsageLimit | undefined,
+    now: number,
+    observedAgo: string | undefined,
+    t: Translate,
+): Array<{ label: string; value: string }> {
+    const rows: Array<{ label: string; value: string }> = [];
+    const plan = limit && formatPlanName(limit.provider, limit.planType, limit.rateLimitTier);
+    if (plan) rows.push({ label: t('statusBar.usage.plan'), value: plan });
+    const windows = currentLimitWindows(limit, now);
+    for (const window of windows) {
+        const left = t('statusBar.usage.limitLeft', {
+            percent: remainingLimitPercent(window.usedPercent),
+        });
+        rows.push({
+            label: t('statusBar.usage.limit', {
+                window: localizedLimitWindowName(window.windowMinutes, t),
+            }),
+            value:
+                window.resetsAt === undefined
+                    ? left
+                    : `${left} · ${localizedLimitReset(window.resetsAt, now, t)}`,
+        });
+    }
+    const resetCredits = agentUsageResetCreditsValue(limit, now, t);
+    if (resetCredits) rows.push({ label: t('statusBar.usage.resetCredits'), value: resetCredits });
+    if (observedAgo && windows.length > 0)
+        rows.push({ label: t('statusBar.usage.limitsAsOf'), value: observedAgo });
+    return rows;
 }
 
 /**

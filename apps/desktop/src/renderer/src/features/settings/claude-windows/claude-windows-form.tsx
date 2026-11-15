@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { ClaudeWindowState } from '@caxri/protocol';
+import { formatPlanName } from '@caxri/protocol';
 
 import { Button } from '../../../components/ui/button';
 import { FieldDescription } from '../../../components/ui/field';
@@ -99,10 +100,7 @@ function ClaudeWindowsCard({
     const now = state.checkedAt ?? mountedAt;
     const summary = summarizeClaudeWindows(t, state, now);
     const account = state.account;
-    const plan =
-        account?.planType === 'pro' || account?.planType === 'max'
-            ? t(`settings.claudeWindows.plan.${account.planType}`)
-            : account?.planType;
+    const plan = formatPlanName('claude', account?.planType);
     return (
         <div className="grid w-full grid-cols-1 gap-3" data-testid="claude-windows-form">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
