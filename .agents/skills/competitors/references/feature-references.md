@@ -36,6 +36,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **View container badges**: Badge priority and placement. Evidence: `DESIGN.md` (badges); `packages/protocol/src/domain/view-badges.ts`.
 - **Status bar**: Corner bell; leading SSH remote indicator. Evidence: `apps/desktop/src/renderer/src/features/status-bar/status-bar.tsx`; `ssh-host-status.tsx`.
 - **Side Bar section headers, scroll shadow, tree ARIA**: Caption style, `.shadow.top`, `aria-setsize`. Evidence: `docs/secondary-sidebar-trees.md`.
+- **Session rename validation message**: An inline rename error floats below the input on a surfaced box that covers the next row, like the Explorer rename validation. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-rename-input.tsx`.
 - **Files tree**: Sticky ancestors, active versus inactive selection, Git colors and letters. Evidence: `apps/desktop/src/renderer/src/features/view-containers/resource-explorer/file-tree.tsx`.
 - **Source Control panel**: Default expansion, hover group actions, non-blocking refresh, Sync Changes, multi-diff, codicons. Evidence: `apps/desktop/src/renderer/src/features/view-containers/source-control/`; `apps/server/src/domains/git/working-tree.ts`.
 - **Terminal command decorations, links, search toggles**: `terminalCommandDecoration` colors, local link order, link quick pick, modifier click, search chords. Evidence: `apps/desktop/src/renderer/src/features/terminal/terminal-command-tracker.ts`; `terminal-links.ts`; `terminal-search-bar.tsx`.
