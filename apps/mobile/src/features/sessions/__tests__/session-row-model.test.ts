@@ -10,12 +10,31 @@ import {
     savedAgeLabel,
     sessionAgeLabel,
     sessionAgentLabel,
+    sessionAttentionSourceText,
     sessionAttentionStateLabel,
     sessionRowPullRequest,
     sessionStateLabel,
     sessionStatusGlyphKind,
     sessionTitleForDisplay,
 } from '../session-row-model';
+
+describe('sessionAttentionSourceText', () => {
+    it('names the Project and Session when the Project has a name', () => {
+        expect(sessionAttentionSourceText({ projectTitle: 'web', title: 'Fix login' })).toEqual({
+            label: 'Open Fix login in web',
+            project: 'web',
+            title: 'Fix login',
+        });
+    });
+
+    it('drops the Project prefix and separator when the Project name is blank', () => {
+        expect(sessionAttentionSourceText({ projectTitle: '  ', title: 'Untitled' })).toEqual({
+            label: 'Open Untitled',
+            project: null,
+            title: 'Untitled',
+        });
+    });
+});
 
 describe('sessionTitleForDisplay', () => {
     afterEach(() => setLocale('en'));

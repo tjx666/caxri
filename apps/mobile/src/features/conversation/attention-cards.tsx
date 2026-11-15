@@ -125,9 +125,13 @@ const AttentionCard = ({
         }
     };
     return (
-        <View accessibilityLiveRegion={item.kind === 'permission' ? 'assertive' : 'polite'}>
-            <Card testID={`attention-${item.id}`} theme={theme} tone="attention">
-                {source}
+        <Card testID={`attention-${item.id}`} theme={theme} tone="attention">
+            {source}
+            {/* The source line sits outside the live region so TalkBack announces only the request itself. */}
+            <View
+                accessibilityLiveRegion={item.kind === 'permission' ? 'assertive' : 'polite'}
+                style={styles.liveRegion}
+            >
                 <AttentionCardChrome
                     item={item}
                     questionIndex={questionIndex}
@@ -192,8 +196,8 @@ const AttentionCard = ({
                         )}
                     </View>
                 ) : null}
-            </Card>
-        </View>
+            </View>
+        </Card>
     );
 };
 
@@ -391,6 +395,10 @@ const styles = StyleSheet.create({
     bannerCard: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
     bannerText: { ...mobileType.meta, flex: 1 },
     errorBox: { gap: mobileSpace.xs },
+    /**
+     * Repeats the padded Card gap, since the request content is wrapped in one live-region View.
+     */
+    liveRegion: { gap: mobileSpace.sm },
     link: { justifyContent: 'center', minHeight: mobileControl.row },
     meta: mobileType.meta,
     strong: { fontWeight: '600' },

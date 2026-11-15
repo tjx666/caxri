@@ -8,7 +8,7 @@ import type {
 } from '@caxri/protocol';
 import { mergeAgentActions, resolveRecentAgentActions, searchAgentActions } from '@caxri/protocol';
 
-import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
+import { canDiscoverAgentActions } from '../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../queries/client';
 import { useSettings, useTerminal } from '../../stores/selectors';
 
@@ -66,11 +66,11 @@ export function useAgentActionCatalog({
     const settings = useSettings();
     const terminal = useTerminal(terminalId ?? '');
     const provider = terminal?.provider;
-    const isAgentRunning = isAgentProcessRunning(terminal?.lastAgentProcessState);
+    const canDiscover = canDiscoverAgentActions(terminal);
     const query = useCaxriQuery(
         'agentActions.list',
         { terminalId: terminalId ?? '' },
-        { enabled: Boolean(isOpen && terminalId && provider && isAgentRunning), staleTime: 0 },
+        { enabled: Boolean(isOpen && terminalId && provider && canDiscover), staleTime: 0 },
     );
     const fallbackActions = useMemo(
         () =>

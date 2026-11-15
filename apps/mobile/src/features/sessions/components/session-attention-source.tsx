@@ -13,7 +13,7 @@ import {
 } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
-import { sessionTitleForDisplay } from '../session-row-model';
+import { sessionAttentionSourceText } from '../session-row-model';
 
 /**
  * The first line of a request card in the Sessions list, naming the Project and Session it came from. A tall card
@@ -30,14 +30,11 @@ export const SessionAttentionSource = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
-    const title = sessionTitleForDisplay(session.title, t);
+    const { label, project, title } = sessionAttentionSourceText(session, t);
     return (
         <Pressable
             accessibilityHint={t('sessions.row.openHint')}
-            accessibilityLabel={t('sessions.list.attentionSource', {
-                project: session.projectTitle,
-                title,
-            })}
+            accessibilityLabel={label}
             accessibilityRole="button"
             hitSlop={chipHitSlop}
             onPress={onOpen}
@@ -45,8 +42,7 @@ export const SessionAttentionSource = ({
             testID="session-attention-source"
         >
             <Text numberOfLines={1} style={[styles.label, { color: theme.muted }]}>
-                <Text>{session.projectTitle}</Text>
-                <Text>{' · '}</Text>
+                {project ? <Text>{`${project} · `}</Text> : null}
                 <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
             </Text>
             <ChevronRight color={theme.muted} size={16} />

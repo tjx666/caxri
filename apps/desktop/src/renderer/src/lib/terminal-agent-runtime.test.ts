@@ -1,7 +1,7 @@
 import type { ProcessState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { isAgentProcessRunning } from './terminal-agent-runtime';
+import { canDiscoverAgentActions, isAgentProcessRunning } from './terminal-agent-runtime';
 
 interface AgentRuntimeMatrixRow {
     expected: boolean;
@@ -53,4 +53,34 @@ describe('isAgentProcessRunning', () => {
             expect(isAgentProcessRunning(row.lastAgentProcessState)).toBe(row.expected);
         });
     }
+});
+
+describe('canDiscoverAgentActions', () => {
+    it('asks only while both the Terminal and its Agent run', () => {
+        expect(
+            canDiscoverAgentActions({
+                lastProcessState: 'running',
+                lastAgentProcessState: 'running',
+            }),
+        ).toBe(true);
+    });
+
+    it('waits for a Chat restored after a restart, whose stored Agent state still reads running', () => {
+        expect(
+            canDiscoverAgentActions({
+                lastProcessState: 'interrupted',
+                lastAgentProcessState: 'running',
+            }),
+        ).toBe(false);
+    });
+
+    it('does not ask for a shell whose Agent exited or for an unknown Terminal', () => {
+        expect(
+            canDiscoverAgentActions({
+                lastProcessState: 'running',
+                lastAgentProcessState: 'stopped',
+            }),
+        ).toBe(false);
+        expect(canDiscoverAgentActions(undefined)).toBe(false);
+    });
 });
