@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -66,6 +66,23 @@ const tabSwitchScript: FakeClaudeScript = {
     ],
 };
 
+/**
+ * Extra committed files, so the Files view fills enough of the drawer for the frame analysis to tell its panel from an
+ * empty drawer: three rows of text change too few pixels to count as a new picture. Committed with the fixture, they
+ * leave Changes at its three entries.
+ */
+const TAB_SWITCH_EXTRA_FILES = Array.from(
+    { length: 12 },
+    (_, index) => `sample-${String(index + 1).padStart(2, '0')}.md`,
+);
+
+const seedTabSwitchProject = async (root: string): Promise<void> => {
+    await Promise.all(
+        TAB_SWITCH_EXTRA_FILES.map((name) => writeFile(join(root, name), 'Synthetic sample.\n')),
+    );
+    await seedMobileChangesFixture(root, 'standard');
+};
+
 const isTabSwitchTurnFinished = (snapshot: AgentChatSnapshot): boolean =>
     !snapshot.activeTurnId &&
     snapshot.items.some((item) => item.type === 'agentMessage' && item.text === TAB_SWITCH_REPLY);
@@ -84,7 +101,7 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
         chatProvider: 'claude',
         claudeScript: tabSwitchScript,
         mode: 'agent-chat',
-        seedProject: (root) => seedMobileChangesFixture(root, 'standard'),
+        seedProject: seedTabSwitchProject,
         serial,
     });
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
@@ -102,11 +119,43 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
             60_000,
         );
         await pause(SETTLE_MS);
+        const conversation = boundsOf(await mobileSemantics(serial), 'conversation-view');
         /**
-         * The panel region excludes the header and the composer below it. The drawer that later covers the Session
-         * spans this region too, so its body is analysed in the same band.
+         * Before recording, the Files view is read once and the drawer closed again on Changes, so the recorded switch
+         * slides in a listed panel rather than a loading one that fills in after the slide has ended. The open drawer
+         * also gives the band's left edge.
          */
-        const body = boundsOf(await mobileSemantics(serial), 'conversation-view');
+        await tapMobileCheck(serial, 'session-panel-button');
+        const drawer = boundsOf(
+            await waitForMobile(
+                () => mobileSemantics(serial),
+                (nodes) =>
+                    hasCheck(nodes, 'session-side-panel') && hasCheck(nodes, 'changes-summary'),
+            ),
+            'session-side-panel',
+        );
+        await tapMobileCheck(serial, sessionSideTabCheckId('caxri.files'));
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => hasCheck(nodes, 'panels-view'),
+        );
+        await tapMobileCheck(serial, sessionSideTabCheckId('changes'));
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => hasCheck(nodes, 'changes-summary'),
+        );
+        await tapMobileCheck(serial, 'session-side-panel-close');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) => !hasCheck(nodes, 'session-side-panel'),
+        );
+        await pause(SETTLE_MS);
+        /**
+         * The panel region excludes the header and the composer below it, and the strip of Conversation the phone
+         * drawer leaves uncovered on its left: that strip never moves, and over a sparse panel it would outweigh the
+         * slide.
+         */
+        const body = { bottom: conversation.bottom, left: drawer.left, top: conversation.top };
         const remoteVideoPath = requireRemoteVideoPath();
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await pause(SETTLE_MS);
