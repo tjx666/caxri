@@ -76,6 +76,13 @@ async function writeApprovalScript(chat: DelegatingChat, projectId: string, deci
                     ],
                 },
                 {
+                    // The notice that a covered request waits for the parent. Unscripted, the fake's keyword scenarios
+                    // read "task" as "ask" and raise a question, so the parent itself would turn amber.
+                    prompt: '[Caxri] Delegated task update',
+                    isPrefix: true,
+                    steps: [{ kind: 'message', text: 'Noted the pending request.' }],
+                },
+                {
                     prompt: APPROVE_PROMPT,
                     steps: [
                         { kind: 'command', command: status, output: '', shouldRun: true },
