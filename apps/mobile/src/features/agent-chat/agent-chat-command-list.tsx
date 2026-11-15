@@ -49,7 +49,11 @@ const AgentChatMenuRow = ({
             ]}
             testID={`agent-chat-command-${index}`}
         >
-            <Text numberOfLines={1} style={[agentChatMenuStyles.name, { color: theme.text }]}>
+            <Text
+                numberOfLines={1}
+                style={[agentChatMenuStyles.name, { color: theme.text }]}
+                testID={`agent-chat-command-${index}-name`}
+            >
                 {action.invocation}
                 {action.argumentHint ? (
                     <Text style={{ color: theme.muted, fontWeight: '400' }}>

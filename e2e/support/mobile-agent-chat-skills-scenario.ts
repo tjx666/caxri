@@ -49,6 +49,29 @@ const menuRows = (nodes: readonly MobileSemanticNode[]): number =>
     nodes.filter(({ checkId }) => /^agent-chat-command-\d+$/u.test(checkId)).length;
 
 /**
+ * Which of `invocations` the open `/` menu shows. The device helper returns no text, only whether one node's text
+ * matches, so each row's name is compared in turn. A row count would not do: the phone also merges Caxri's built-in
+ * actions, whose set changes with the Session state (`/pin` matches `/to` by its description), issue #3780.
+ */
+async function menuRowsShowing(
+    serial: string,
+    invocations: readonly string[],
+): Promise<Set<string>> {
+    const rows = menuRows(await mobileSemantics(serial));
+    const shown = new Set<string>();
+    for (let index = 0; index < rows; index += 1)
+        for (const invocation of invocations) {
+            // eslint-disable-next-line no-await-in-loop -- each read is one UIAutomator dump on the same device.
+            const row = await observeMobileNode(serial, `agent-chat-command-${index}-name`, {
+                kind: 'equals',
+                value: invocation,
+            });
+            if (row.textMatches) shown.add(invocation);
+        }
+    return shown;
+}
+
+/**
  * Which language the empty composer's placeholder is in. UIAutomator reports an empty field's hint as its text, so the
  * hint names the app language without exposing anything the user typed.
  */
@@ -160,11 +183,13 @@ async function executeSkillsAndQuestionFlow(
             value: MOBILE_CHAT_SKILL_QUERY,
         });
         if (!draft.exists || !draft.textMatches) throw new Error('Chat draft did not match');
-        // The phone shows exactly the rows the shared ranking gives for `/to`: the two skills, and no release-notes.
-        await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) => menuRows(nodes) === narrowed.length,
+        // `/to` narrows the phone's menu to the two prefixed skills: both show, and release-notes does not.
+        const shown = await waitForMobile(
+            () => menuRowsShowing(serial, [...narrowedSkills, '/release-notes']),
+            (rows) => narrowedSkills.every((skill) => rows.has(skill)),
         );
+        if (shown.has('/release-notes'))
+            throw new Error('The narrowed menu still shows the release-notes skill');
         await waitForNoCheck(serial, 'agent-chat-skill-notice');
         await capture(environment, 'slash-menu-narrowed', artifacts);
         await adbShell(serial, [
