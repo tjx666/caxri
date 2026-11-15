@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import type { MarkdownSkillHost } from '../../../components/markdown/markdown-context';
-import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
+import { canDiscoverAgentActions } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
 import { AgentChatSkillReference } from '../composer-input/agent-chat-skill-reference';
@@ -18,11 +18,11 @@ import { AGENT_ACTION_DISCOVERY_STALE_MS } from './use-agent-chat-command-menu';
  * there is nothing to mark.
  */
 export function useAgentChatSkillHost(terminalId: string): MarkdownSkillHost | undefined {
-    const isAgentRunning = isAgentProcessRunning(useTerminal(terminalId)?.lastAgentProcessState);
+    const canDiscover = canDiscoverAgentActions(useTerminal(terminalId));
     const discovery = useCaxriQuery(
         'agentActions.list',
         { terminalId },
-        { enabled: isAgentRunning, retry: false, staleTime: AGENT_ACTION_DISCOVERY_STALE_MS },
+        { enabled: canDiscover, retry: false, staleTime: AGENT_ACTION_DISCOVERY_STALE_MS },
     );
     const actions = discovery.data?.actions;
     const referenceOnlySkills = discovery.data?.referenceOnlySkills;

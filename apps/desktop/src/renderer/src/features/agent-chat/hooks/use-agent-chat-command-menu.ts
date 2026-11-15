@@ -12,7 +12,10 @@ import {
 import { useTranslation } from '../../../i18n';
 import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
-import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
+import {
+    canDiscoverAgentActions,
+    isAgentProcessRunning,
+} from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useSettings, useTerminal } from '../../../stores/selectors';
 import type { AgentChatComposerKeyEvent } from '../composer/agent-chat-composer-view';
@@ -93,7 +96,7 @@ export function useAgentChatCommandMenu({
         'agentActions.list',
         { terminalId },
         {
-            enabled: isAgentRunning && requiresSkillDiscovery(draft),
+            enabled: canDiscoverAgentActions(terminal) && requiresSkillDiscovery(draft),
             staleTime: AGENT_ACTION_DISCOVERY_STALE_MS,
         },
     );
