@@ -79,18 +79,16 @@ export const statusBar = {
     'statusBar.usage.dailyCostNone': 'No spend',
     'statusBar.usage.dailyCostUnavailable': 'Unavailable',
     'statusBar.usage.models': 'Models',
+    'statusBar.usage.plan': 'Plan',
     'statusBar.usage.limit': '{{window}} limit',
     'statusBar.usage.limitLeft': '{{percent}}% left',
     'statusBar.usage.chipLimitWindow': '{{window}} {{percent}}% left',
-    'statusBar.usage.paceNote':
-        '{{window}} limit: {{percent}}% left, {{reset}}. At this rate it runs out before it resets; the warning clears as usage slows or time passes.',
+    'statusBar.usage.paceNote': '{{window}} limit runs out before it resets at this rate.',
     'statusBar.usage.resetCredits': 'Banked resets',
     'statusBar.usage.resetCreditsValue': '{{count}} · next {{expiry}}',
     'statusBar.usage.resetCreditsExpiringNote':
         'A banked reset {{expiry}}. Use it in Codex before then, or it is lost.',
     'statusBar.usage.limitsAsOf': 'Limits as of',
-    'statusBar.usage.methodNote':
-        "Tokens and cost are read from this conversation's own transcript and priced at API list prices, the same rules as the Usage page. The daily chart counts every conversation with this Agent in the Usage page's scope. Plan limits are account-wide: the newest reading from any conversation.",
     'statusBar.usage.clickToOpen': "Click to open this Session's usage",
     'statusBar.terminal.childProcessOne': '{{count}} child process',
     'statusBar.terminal.childProcessOther': '{{count}} child processes',

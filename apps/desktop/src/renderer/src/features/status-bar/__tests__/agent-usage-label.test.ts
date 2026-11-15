@@ -192,7 +192,7 @@ describe('agent usage limit tone', () => {
     it('explains a pace warning in plain words and stays silent otherwise', () => {
         const DAY = 86_400_000;
         expect(agentUsagePaceNote(withWindows(10, 30, NOW + 6 * DAY), NOW, translate)).toBe(
-            'Weekly limit: 70% left, resets in 6d 0h. At this rate it runs out before it resets; the warning clears as usage slows or time passes.',
+            'Weekly limit runs out before it resets at this rate.',
         );
         expect(
             agentUsagePaceNote(withWindows(10, 10, NOW + 6 * DAY), NOW, translate),

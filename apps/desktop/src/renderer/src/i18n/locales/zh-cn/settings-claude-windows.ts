@@ -6,9 +6,7 @@ export const settingsClaudeWindows: TranslatedNamespace<typeof source> = {
     'settings.claudeWindows.loading': '正在检查 Claude 账号…',
     'settings.claudeWindows.loadFailed': '无法检查 Claude 账号。',
     'settings.claudeWindows.saveFailed': '保存失败。Claude 账号可能已变更，请重试。',
-    'settings.claudeWindows.plan.pro': 'Claude Pro',
-    'settings.claudeWindows.plan.max': 'Claude Max',
-    'settings.claudeWindows.planLine': '计划：{{plan}}',
+    'settings.claudeWindows.planLine': '套餐：{{plan}}',
     'settings.claudeWindows.keepRolling': '保持 5 小时窗口滚动',
     'settings.claudeWindows.keepRollingDescription':
         '上一个 5 小时窗口重置时，用一次最小请求开启下一个窗口，让当天第一个窗口在上班时重置。Pro 默认开启，Max 默认关闭。为了在 Caxri 关闭时也能工作，它会向 macOS 注册一个后台任务（显示在“登录项”中）；关闭此功能会将其移除。',

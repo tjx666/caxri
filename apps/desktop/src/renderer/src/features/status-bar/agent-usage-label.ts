@@ -198,8 +198,8 @@ export function agentUsageWarningReason(
 
 /**
  * The tooltip sentence that says why the chip warns when the cause is pace rather than a nearly spent window, e.g.
- * `Weekly limit: 70% left, resets in 6d 14h. At this rate it runs out before it resets; ...`. The note says the warning
- * is a projection and clears as usage slows or the window's clock catches up. Undefined while every window is on pace.
+ * `Weekly limit runs out before it resets at this rate.`. The window's row above it already shows what is left and when
+ * it resets, so the note names only the projection. Undefined while every window is on pace.
  */
 export function agentUsagePaceNote(
     readout: AgentUsageReadout,
@@ -208,11 +208,8 @@ export function agentUsagePaceNote(
 ): string | undefined {
     const shortfall = limitPaceShortfall(readout.limit, now);
     if (!shortfall) return undefined;
-    const { window } = shortfall;
     return t('statusBar.usage.paceNote', {
-        window: localizedLimitWindowName(window.windowMinutes, t),
-        percent: remainingLimitPercent(window.usedPercent),
-        reset: localizedLimitReset(window.resetsAt, now, t),
+        window: localizedLimitWindowName(shortfall.window.windowMinutes, t),
     });
 }
 

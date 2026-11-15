@@ -80,6 +80,39 @@ export function localDateWeekday(date: string): number {
 type UsageLimitWindow = UsageLimit['windows'][number];
 
 /**
+ * The product each provider sells its subscription plans under, so a bare `max` or `plus` reads as the plan the user
+ * bought. Codex runs on a ChatGPT plan.
+ */
+const PLAN_BRANDS: Partial<Record<UsageLimit['provider'], string>> = {
+    claude: 'Claude',
+    codex: 'ChatGPT',
+};
+
+/**
+ * The subscription plan as its vendor names it (`Claude Max 20x`, `Claude Pro`, `ChatGPT Plus`), so every surface names
+ * one plan the same way. Claude Code reports Max 5x and Max 20x both as `max`; the rate-limit tier
+ * (`default_claude_max_5x`) supplies the multiplier. Undefined when the provider names no plan.
+ */
+export function formatPlanName(
+    provider: UsageLimit['provider'],
+    planType: string | undefined,
+    rateLimitTier?: string,
+): string | undefined {
+    if (!planType) return undefined;
+    const words = planType
+        .split(/[_\s-]+/u)
+        .filter(Boolean)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+    const multiplier =
+        provider === 'claude' && planType === 'max'
+            ? /_max_(\d+x)$/u.exec(rateLimitTier ?? '')?.[1]
+            : undefined;
+    if (multiplier) words.push(multiplier);
+    const brand = PLAN_BRANDS[provider];
+    return [...(brand ? [brand] : []), ...words].join(' ');
+}
+
+/**
  * Rate-limit windows that have not reset since the provider reported them, shortest first. A window whose reset time
  * has passed reports usage that no longer applies, so it is dropped rather than shown stale.
  */

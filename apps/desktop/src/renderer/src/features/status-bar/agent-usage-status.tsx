@@ -4,6 +4,7 @@ import {
     agentUsageCostLabel,
     currentLimitWindows,
     defaultAppSettings,
+    formatPlanName,
     formatTokens,
     formatUsd,
     isPlanPaceDismissed,
@@ -93,6 +94,9 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);
     const resetCredits = agentUsageResetCreditsValue(readout.limit, now, t);
     const resetCreditsNote = agentUsageResetCreditsNote(readout.limit, now, t);
+    const plan =
+        readout.limit &&
+        formatPlanName(readout.limit.provider, readout.limit.planType, readout.limit.rateLimitTier);
     return (
         <StatusItem
             ariaLabel={ariaLabel}
@@ -129,6 +133,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                             value: <AgentDailyCostBars provider={readout.provider} />,
                         },
                         { label: t('statusBar.usage.models'), value: readout.models.join(', ') },
+                        ...(plan ? [{ label: t('statusBar.usage.plan'), value: plan }] : []),
                         ...limitWindows.map((window) => {
                             const used = t('statusBar.usage.limitLeft', {
                                 percent: remainingLimitPercent(window.usedPercent),
@@ -153,7 +158,6 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                     notes={[
                         ...(resetCreditsNote ? [resetCreditsNote] : []),
                         ...(paceNote ? [paceNote] : []),
-                        t('statusBar.usage.methodNote'),
                     ]}
                     hint={t('statusBar.usage.clickToOpen')}
                 />
