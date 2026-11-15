@@ -3,6 +3,7 @@ import {
     agentUsageCostLabel,
     currentLimitWindows,
     currentResetCredits,
+    formatPlanName,
     formatTokens,
     isResetCreditExpiringSoon,
     LIMIT_WARNING_PERCENT,
@@ -230,6 +231,41 @@ export function agentUsageResetCreditsValue(
         count,
         expiry: localizedResetCreditExpiry(credits.nextExpiresAt, now, t),
     });
+}
+
+/**
+ * The hover card's account rows, which follow the conversation's own rows: the subscription plan, each live limit
+ * window with its reset, banked resets, and how old the reading is. Rows without a value are left out.
+ */
+export function agentUsageLimitRows(
+    limit: UsageLimit | undefined,
+    now: number,
+    observedAgo: string | undefined,
+    t: Translate,
+): Array<{ label: string; value: string }> {
+    const rows: Array<{ label: string; value: string }> = [];
+    const plan = limit && formatPlanName(limit.provider, limit.planType, limit.rateLimitTier);
+    if (plan) rows.push({ label: t('statusBar.usage.plan'), value: plan });
+    const windows = currentLimitWindows(limit, now);
+    for (const window of windows) {
+        const left = t('statusBar.usage.limitLeft', {
+            percent: remainingLimitPercent(window.usedPercent),
+        });
+        rows.push({
+            label: t('statusBar.usage.limit', {
+                window: localizedLimitWindowName(window.windowMinutes, t),
+            }),
+            value:
+                window.resetsAt === undefined
+                    ? left
+                    : `${left} · ${localizedLimitReset(window.resetsAt, now, t)}`,
+        });
+    }
+    const resetCredits = agentUsageResetCreditsValue(limit, now, t);
+    if (resetCredits) rows.push({ label: t('statusBar.usage.resetCredits'), value: resetCredits });
+    if (observedAgo && windows.length > 0)
+        rows.push({ label: t('statusBar.usage.limitsAsOf'), value: observedAgo });
+    return rows;
 }
 
 /**

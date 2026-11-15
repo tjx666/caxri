@@ -2,13 +2,10 @@ import type { AgentUsageReadout } from '@caxri/protocol';
 import {
     agentProviderCatalog,
     agentUsageCostLabel,
-    currentLimitWindows,
     defaultAppSettings,
-    formatPlanName,
     formatTokens,
     formatUsd,
     isPlanPaceDismissed,
-    remainingLimitPercent,
 } from '@caxri/protocol';
 import { ChartColumn } from 'lucide-react';
 
@@ -18,17 +15,16 @@ import { useRelativeTime } from '@/hooks/use-relative-time';
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
-import { localizedLimitReset, localizedLimitWindowName } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
 import { AgentDailyCostBars } from './agent-daily-cost-bars';
 import {
     agentUsageLabel,
+    agentUsageLimitRows,
     agentUsageLimitTone,
     agentUsagePaceNote,
     agentUsageResetCreditsNote,
-    agentUsageResetCreditsValue,
     agentUsageWarningReason,
     DAILY_COST_DAYS,
 } from './agent-usage-label';
@@ -83,7 +79,6 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     const agentName = agentProviderCatalog[readout.provider].displayName;
     const { tokens } = readout;
     const cost = agentUsageCostLabel(readout);
-    const limitWindows = currentLimitWindows(readout.limit, now);
     const isPaceDismissed = isPlanPaceDismissed(readout.limit, now);
     const limitTone = agentUsageLimitTone(readout, now, chipOptions, isPaceDismissed);
     const warningReason = agentUsageWarningReason(readout, now, chipOptions, t, isPaceDismissed);
@@ -92,11 +87,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
         : t('statusBar.usage.ariaLabel', { agent: agentName, label });
     // The pace note explains why the chip warns; once the user dismisses that warning the tooltip stops repeating it.
     const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);
-    const resetCredits = agentUsageResetCreditsValue(readout.limit, now, t);
     const resetCreditsNote = agentUsageResetCreditsNote(readout.limit, now, t);
-    const plan =
-        readout.limit &&
-        formatPlanName(readout.limit.provider, readout.limit.planType, readout.limit.rateLimitTier);
     return (
         <StatusItem
             ariaLabel={ariaLabel}
@@ -133,27 +124,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                             value: <AgentDailyCostBars provider={readout.provider} />,
                         },
                         { label: t('statusBar.usage.models'), value: readout.models.join(', ') },
-                        ...(plan ? [{ label: t('statusBar.usage.plan'), value: plan }] : []),
-                        ...limitWindows.map((window) => {
-                            const used = t('statusBar.usage.limitLeft', {
-                                percent: remainingLimitPercent(window.usedPercent),
-                            });
-                            return {
-                                label: t('statusBar.usage.limit', {
-                                    window: localizedLimitWindowName(window.windowMinutes, t),
-                                }),
-                                value:
-                                    window.resetsAt === undefined
-                                        ? used
-                                        : `${used} · ${localizedLimitReset(window.resetsAt, now, t)}`,
-                            };
-                        }),
-                        ...(resetCredits
-                            ? [{ label: t('statusBar.usage.resetCredits'), value: resetCredits }]
-                            : []),
-                        ...(limitObservedAgo && limitWindows.length > 0
-                            ? [{ label: t('statusBar.usage.limitsAsOf'), value: limitObservedAgo }]
-                            : []),
+                        ...agentUsageLimitRows(readout.limit, now, limitObservedAgo, t),
                     ]}
                     notes={[
                         ...(resetCreditsNote ? [resetCreditsNote] : []),
