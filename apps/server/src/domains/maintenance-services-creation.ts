@@ -2,6 +2,7 @@ import { assertE2EAgentInputFromEnvironment } from '@caxri/system';
 
 import type { AgentChatService } from './agent-chat';
 import type { AgentEnvironment, CompactionReadiness } from './agents';
+import { sendContinuePrompt } from './continue-prompt';
 import type { DomainHandlers } from './domain-services';
 import type { SessionParkingOptions } from './parking-handlers';
 import { createTerminateAllHandler, detachSessionAgents } from './parking-handlers';
@@ -173,9 +174,10 @@ export function createSessionMaintenanceServices(options: {
                     agentPrompt: { terminalId: terminal.id, text: continuePrompt },
                 }),
         });
-        // A Chat queues the message behind its own start, so it can be sent right after `resumeSession`.
+        // A Chat queues the message behind its own start, so it can be sent right after `resumeSession`. A PTY Agent
+        // received the prompt above as a launch argument, which is not input either.
         if (terminal && continuePrompt !== undefined && !isPtyTerminal(terminal))
-            await agentChat.send(terminal.id, { text: continuePrompt });
+            await sendContinuePrompt({ agentChat, terminals }, terminal, sessionId, continuePrompt);
         parking.sendFullStateChange('session.resume');
     };
     const airplaneMode = new AirplaneMode({
@@ -188,18 +190,12 @@ export function createSessionMaintenanceServices(options: {
         isTurnRunning,
         continueLive: async (sessionId) => {
             const terminal = primaryAgent(sessionId);
-            if (!terminal) return;
-            if (!isPtyTerminal(terminal)) {
-                await agentChat.send(terminal.id, { text: AIRPLANE_CANCEL_CONTINUE_PROMPT });
-                return;
-            }
-            const launchId = terminals.agentLaunchId(terminal.id);
-            // The interrupt proved the composer empty, so the prompt is submitted on its own.
-            if (launchId)
-                await terminals.submitAgentExact(
-                    terminal.id,
+            // The interrupt proved a PTY composer empty, so the prompt is submitted on its own.
+            if (terminal)
+                await sendContinuePrompt(
+                    { agentChat, terminals },
+                    terminal,
                     sessionId,
-                    launchId,
                     AIRPLANE_CANCEL_CONTINUE_PROMPT,
                 );
         },
