@@ -100,6 +100,8 @@ export type DelegationType = z.infer<typeof delegationTypeSchema>;
  * presets settled on in use, so a type works as well out of the box as the preset it replaced: a review at `high` stays
  * fast on large diffs, a second opinion is worth `xhigh` because it is asked for only on an expensive call, and
  * computer use and X search need speed more than depth. Update them when a provider's recommended model moves on.
+ * Review and second opinion stay on `gpt-5.6-sol` rather than `gpt-6.1-sol`, which answered too slowly for a caller
+ * that blocks on the result.
  *
  * @see https://github.com/tjx666/dianjiang
  */
@@ -119,11 +121,11 @@ export function defaultDelegationTypeBinding(
         case 'review':
             return caller === 'codex'
                 ? { provider: 'claude', model: 'sonnet', effort: 'xhigh' }
-                : { provider: 'codex', model: 'gpt-6.1-sol', effort: 'high' };
+                : { provider: 'codex', model: 'gpt-5.6-sol', effort: 'high' };
         case 'second-opinion':
             return caller === 'codex'
                 ? { provider: 'claude', model: 'opus', effort: 'high' }
-                : { provider: 'codex', model: 'gpt-6.1-sol', effort: 'xhigh' };
+                : { provider: 'codex', model: 'gpt-5.6-sol', effort: 'xhigh' };
     }
 }
 

@@ -151,8 +151,8 @@ describe('delegation presets and caller admission', () => {
         const f = await fixture();
         // Nothing configured: a Claude caller asks Codex, on the models and efforts dianjiang's presets settled on.
         expect(f.service.presets(f.agent, f.input).types).toEqual([
-            { type: 'second-opinion', provider: 'codex', model: 'gpt-6.1-sol', effort: 'xhigh' },
-            { type: 'review', provider: 'codex', model: 'gpt-6.1-sol', effort: 'high' },
+            { type: 'second-opinion', provider: 'codex', model: 'gpt-5.6-sol', effort: 'xhigh' },
+            { type: 'review', provider: 'codex', model: 'gpt-5.6-sol', effort: 'high' },
             { type: 'computer-use', provider: 'codex', model: 'gpt-6.1-terra', effort: 'medium' },
             { type: 'x-search', provider: 'grok', model: 'grok-4.7', effort: 'medium' },
         ]);
@@ -160,7 +160,7 @@ describe('delegation presets and caller admission', () => {
         await f.service.create(unbound, f.agent, { ...f.input, type: 'second-opinion' });
         expect(f.database.agentDelegations.get(unbound)?.receipt.selection).toEqual({
             provider: 'codex',
-            model: 'gpt-6.1-sol',
+            model: 'gpt-5.6-sol',
             effort: 'xhigh',
             type: 'second-opinion',
         });
@@ -188,7 +188,7 @@ describe('delegation presets and caller admission', () => {
             callers: { claude: { types: { review: { provider: 'codex', model: 'gpt-5.5' } } } },
         });
         expect(f.service.presets(f.agent, f.input).types).toEqual([
-            { type: 'second-opinion', provider: 'codex', model: 'gpt-6.1-sol', effort: 'xhigh' },
+            { type: 'second-opinion', provider: 'codex', model: 'gpt-5.6-sol', effort: 'xhigh' },
             // The caller's binding replaces the base tuple whole: no effort leaks from it.
             { type: 'review', provider: 'codex', model: 'gpt-5.5' },
             { type: 'computer-use', provider: 'codex', model: 'gpt-5.5', effort: 'medium' },
