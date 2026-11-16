@@ -481,18 +481,16 @@ export class ProjectStatusService {
     }
 
     /**
-     * Re-reads a visible Session's status once the sidebar's pull request sweep saw its pull request change lifecycle
+     * Re-reads a Session's cached status once the sidebar's pull request sweep saw its pull request change lifecycle
      * (opened, merged, closed). Without it the Status panel kept the pull request open for up to a settled TTL after
-     * Caxri had already told the Agent about the merge. Only polled (visible) Sessions are re-read, so a sweep over
-     * every Session cannot fan out into `gh` queries for panels nobody renders, and a snapshot that already shows this
-     * lifecycle (a focus refresh fetched it first) is left alone. The re-read is a normal stale-while-revalidate load,
-     * so it reuses the shared pull request record the sweep just fetched.
+     * Caxri had already told the Agent about the merge. Hidden Sessions are re-read too: switching away mid-merge once
+     * left a merged pull request's Merge button on screen after switching back. A snapshot already showing this
+     * lifecycle is left alone, and the re-read reuses the record the sweep just fetched, so it costs no `gh pr view`.
      */
     pullRequestChanged(
         sessionId: string,
         pullRequest: Pick<SessionPullRequest, 'state' | 'url'>,
     ): Promise<void> | undefined {
-        if (!this.residentPoll.polled.has(sessionId)) return;
         const entry = this.summaries.get(sessionId);
         if (!entry?.value) return;
         const isCurrent = entry.value.repositories.some(

@@ -154,15 +154,28 @@ describe('ProjectStatusService.pullRequestChanged', () => {
         expect((await forced).repositories[0]?.pullRequest?.lifecycle).toBe('merged');
     });
 
-    it('leaves a Session nobody renders, or a snapshot that already shows the change, alone', async () => {
+    it('re-reads a hidden Session so switching back shows the merge instead of a Merge button', async () => {
+        const { changed, ghViews, lifecycle, service, sweepSees } = await setup();
+        // The user merged from this Session's Status panel, then switched away before the merge returned.
+        service.setPolledSessions(new Set());
+
+        await sweepSees('MERGED');
+        const views = ghViews();
+        void service.pullRequestChanged('session-1', { state: 'merged', url });
+
+        await vi.waitFor(() => expect(changed()).toBe(2));
+        expect(await lifecycle()).toBe('merged');
+        expect(ghViews()).toBe(views);
+    });
+
+    it('leaves a snapshot that already shows the change, or a Session with no snapshot, alone', async () => {
         const { changed, lifecycle, service, sweepSees } = await setup();
         await sweepSees('MERGED');
 
-        // Not polled: no panel renders it.
-        expect(service.pullRequestChanged('session-1', { state: 'merged', url })).toBeUndefined();
-        // Polled, but the snapshot already reports this lifecycle.
-        service.setPolledSessions(new Set(['session-1']));
         expect(service.pullRequestChanged('session-1', { state: 'open', url })).toBeUndefined();
+        expect(
+            service.pullRequestChanged('session-never-read', { state: 'merged', url }),
+        ).toBeUndefined();
 
         expect(changed()).toBe(1);
         expect(await lifecycle()).toBe('open');
