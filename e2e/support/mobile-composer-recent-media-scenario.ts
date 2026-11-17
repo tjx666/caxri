@@ -127,8 +127,9 @@ const openAddSheet = async (serial: string) => {
 /**
  * `MOB-COMPOSER-RECENT-MEDIA-01` (access granted): the Chat composer's add sheet shows the newest photo and video above
  * the sources, the video with its first frame and length; tapping the photo attaches it as an image, and tapping the
- * video attaches it as a file card. `-02` (declined): the sheet shows only its sources, with no system prompt. `-03`
- * (never asked): the sheet's first opening shows the system prompt, and allowing it fills the row.
+ * video attaches it as a file card. `-02` (declined): the sheet shows its sources and a row that opens the app's
+ * settings, with no system prompt and no thumbnails. `-03` (never asked): the sheet's first opening shows the system
+ * prompt, and allowing it fills the row.
  */
 async function executeRecentMediaScenario(
     environment: MobileAndroidCaseEnvironment,
@@ -158,10 +159,15 @@ async function executeRecentMediaScenario(
             const focus = await focusedPackage(serial);
             if (focus !== 'com.caxri.mobile')
                 throw new Error('Another window took focus over the add sheet');
-            if (hasCheck(await mobileSemantics(serial), 'image-source-recent'))
+            const sheet = await mobileSemantics(serial);
+            if (hasCheck(sheet, 'image-source-recent'))
                 throw new Error('The recent row showed without library access');
+            // A denial still leaves a way back: the row that opens the app's system settings.
+            if (!hasCheck(sheet, 'image-source-recent-access'))
+                throw new Error('The photo access row is missing after a denial');
             await capture(environment, 'sheet-without-recent', artifacts);
             await finish(environment, artifacts, {
+                accessRow: 'shown',
                 focusedWindow: 'caxri',
                 permissions: before,
                 recentRow: 'hidden',
