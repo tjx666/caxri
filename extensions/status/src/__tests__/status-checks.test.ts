@@ -166,6 +166,21 @@ describe('running check elapsed time', () => {
         ).toBe('<1m');
     });
 
+    it('names the state and a spoken time in each check row accessible name', () => {
+        const label = (check: Check, now = startedAt + 12 * 60_000) =>
+            pullRequestCheckNodes('status:repo', pullRequest([check]), now)[0].item
+                .accessibilityInformation?.label;
+
+        expect(label({ name: 'build', state: 'pending', startedAt })).toBe(
+            'build, running for 12 minutes',
+        );
+        expect(label({ name: 'build', state: 'success', durationMs: 72_000 })).toBe(
+            'build, passed in 1 minute 12 seconds',
+        );
+        expect(label({ name: 'build', state: 'failure' })).toBe('build, failed');
+        expect(label({ name: 'build', state: 'queued' })).toBe('build, queued');
+    });
+
     it('keeps a settled check on its own duration', () => {
         const settled: Check = { name: 'Lint', state: 'success', startedAt, durationMs: 90_000 };
 

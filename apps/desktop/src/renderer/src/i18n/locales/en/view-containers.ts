@@ -11,15 +11,13 @@ export const viewContainers = {
     'viewContainers.surface.extensionUnavailable': 'Extension unavailable',
     'viewContainers.surface.retryExtensionFailed': 'Unable to retry extension',
     'viewContainers.extensionFailure.interrupted':
-        'The extension connection was interrupted. Retry to reconnect.',
-    'viewContainers.extensionFailure.timeout': 'The extension did not respond in time. Try again.',
-    'viewContainers.extensionFailure.busy': 'The extension is busy. Wait a moment, then try again.',
+        'The connection to this view was interrupted. Retry to reconnect.',
+    'viewContainers.extensionFailure.timeout': 'This view did not respond in time. Try again.',
+    'viewContainers.extensionFailure.busy': 'This view is busy. Wait a moment, then try again.',
     'viewContainers.extensionFailure.denied':
-        'The extension does not have access to this operation or Project.',
-    'viewContainers.extensionFailure.tooLarge':
-        'The extension returned more data than this view can display.',
-    'viewContainers.extensionFailure.generic':
-        'The extension could not load this view. Retry, or check the extension configuration.',
+        'This view does not have access to this operation or Project.',
+    'viewContainers.extensionFailure.tooLarge': 'This view returned more data than it can display.',
+    'viewContainers.extensionFailure.generic': 'This view could not load. Try again.',
     'viewContainers.extensionTree.refresh': 'Refresh {{title}}',
     'viewContainers.extensionTree.noSession': 'Select a Session to load this view.',
     'viewContainers.extensionTree.loading': 'Loading view…',

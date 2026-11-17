@@ -196,23 +196,72 @@ export function publicationDescription(state: ProjectStatusPublication['state'])
     return descriptions[state];
 }
 
+/**
+ * Whole minutes as `45m`, or `2h 5m` from an hour up (`1h` when nothing is left over). Shared by the running elapsed
+ * time and the settled duration so both read the same past an hour; `125m` made the user do the division.
+ */
+function minutesLabel(minutes: number): string {
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
+}
+
+/**
+ * A settled check's duration: seconds under a minute (`45s`), minutes and seconds under an hour (`1m 12s`), then hours
+ * and minutes (`2h 5m`); seconds stop mattering once a check runs for an hour.
+ */
 export function durationLabel(durationMs: number | undefined): string | undefined {
     if (durationMs === undefined) return undefined;
     const seconds = Math.round(durationMs / 1_000);
     if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
+    if (minutes >= 60) return minutesLabel(minutes);
     const remainder = seconds % 60;
     return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
 }
 
 /**
- * A running check's elapsed time in whole minutes (`<1m`, `12m`). The panel re-renders once a minute rather than once a
- * second, so seconds would sit stale between renders and read as a frozen clock.
+ * A running check's elapsed time in whole minutes (`<1m`, `12m`, `2h 5m`). The panel re-renders once a minute rather
+ * than once a second, so seconds would sit stale between renders and read as a frozen clock.
  */
 export function elapsedLabel(elapsedMs: number | undefined): string | undefined {
     if (elapsedMs === undefined) return undefined;
     const minutes = Math.floor(elapsedMs / 60_000);
-    return minutes < 1 ? '<1m' : `${minutes}m`;
+    return minutes < 1 ? '<1m' : minutesLabel(minutes);
+}
+
+/**
+ * The spoken form of {@link durationLabel} and {@link elapsedLabel} for an accessible name, where `12m` or `1m 12s` would
+ * be read as letters. `hasSeconds` follows the compact forms: a running elapsed time is whole minutes, a settled
+ * duration keeps seconds below an hour.
+ */
+export function spokenDurationLabel(durationMs: number, hasSeconds: boolean): string {
+    const totalSeconds = hasSeconds ? Math.round(durationMs / 1_000) : 0;
+    const totalMinutes = hasSeconds
+        ? Math.floor(totalSeconds / 60)
+        : Math.floor(durationMs / 60_000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const seconds = totalSeconds % 60;
+    const parts = [
+        hours > 0 &&
+            (hours === 1
+                ? l10n.t('{count} hour', { count: hours })
+                : l10n.t('{count} hours', { count: hours })),
+        minutes > 0 &&
+            (minutes === 1
+                ? l10n.t('{count} minute', { count: minutes })
+                : l10n.t('{count} minutes', { count: minutes })),
+        // Seconds are dropped from an hour up, matching the compact label.
+        hasSeconds &&
+            hours === 0 &&
+            seconds > 0 &&
+            (seconds === 1
+                ? l10n.t('{count} second', { count: seconds })
+                : l10n.t('{count} seconds', { count: seconds })),
+    ].filter((part): part is string => part !== false);
+    return parts.length > 0 ? parts.join(' ') : l10n.t('less than a minute');
 }
 
 export function ignoredChecksLabel(count: number): string {

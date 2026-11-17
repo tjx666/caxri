@@ -263,10 +263,7 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await providerError.click();
         // A branch failure explains its closed reason; the provider's raw message stays out of the UI.
         await expect(
-            running.page.getByText(
-                'The extension could not load this view. Retry, or check the extension configuration.',
-                { exact: true },
-            ),
+            running.page.getByText('This view could not load. Try again.', { exact: true }),
         ).toBeVisible();
         await expect(running.page.getByText('Fixture provider failure')).toHaveCount(0);
         await expect(

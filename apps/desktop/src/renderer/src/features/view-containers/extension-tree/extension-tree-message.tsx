@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { Button } from '../../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../../components/ui/empty';
+import { Spinner } from '../../../components/ui/spinner';
 
 /**
  * The quiet full-surface state DESIGN.md prescribes for a tree that has nothing to list. Inside `role="tree"` it is a
@@ -48,6 +49,7 @@ export function ExtensionTreeMessage({
                         onAction();
                     }}
                 >
+                    {disabled && <Spinner aria-hidden="true" className="size-3" />}
                     {actionLabel}
                 </Button>
             )}
