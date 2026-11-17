@@ -1,8 +1,9 @@
-import { formatLongPasteReference } from '@caxri/protocol';
+import { formatLongPasteReference, relayedSessionMessage } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
     agentChatFirstImageNumber,
+    agentChatUserMessageContent,
     agentChatUserMessageSegments,
 } from '../agent-chat-user-message-text';
 
@@ -149,5 +150,21 @@ describe('agentChatFirstImageNumber', () => {
     it('is undefined when the text places no image', () => {
         expect(agentChatFirstImageNumber('no placeholders', 1)).toBeUndefined();
         expect(agentChatFirstImageNumber('[Image #1]', 0)).toBeUndefined();
+    });
+});
+
+describe('agentChatUserMessageContent', () => {
+    it('shows a relayed message as its original words with the source Session', () => {
+        const content = agentChatUserMessageContent(
+            relayedSessionMessage('Fix sign-in', 'Drop the pin.'),
+        );
+        expect(content.words).toBe('Drop the pin.');
+        expect(content.relay).toEqual({ sourceTitle: 'Fix sign-in', text: 'Drop the pin.' });
+    });
+
+    it('leaves an ordinary message as typed', () => {
+        const content = agentChatUserMessageContent('Run the tests');
+        expect(content.words).toBe('Run the tests');
+        expect(content.relay).toBeUndefined();
     });
 });

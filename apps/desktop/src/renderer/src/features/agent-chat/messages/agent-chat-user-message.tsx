@@ -1,11 +1,7 @@
 import { useRef, useState } from 'react';
 
 import type { AgentChatDelegatedTask, AgentChatSkillReference } from '@caxri/protocol';
-import {
-    agentChatTextWithSessionMentions,
-    parseAgentChatPathReferences,
-    parseRelayedSessionMessage,
-} from '@caxri/protocol';
+import { agentChatTextWithSessionMentions } from '@caxri/protocol';
 import { CornerDownRight } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -38,7 +34,10 @@ import { useAgentChatVersions } from '../versions/use-agent-chat-versions';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatUserMessageActions } from './agent-chat-user-message-actions';
-import { agentChatFirstImageNumber } from './agent-chat-user-message-text';
+import {
+    agentChatFirstImageNumber,
+    agentChatUserMessageContent,
+} from './agent-chat-user-message-text';
 import { AgentChatUserMessageBody } from './bubble-text/agent-chat-user-message-body';
 
 /**
@@ -93,12 +92,7 @@ export function AgentChatUserMessage({
     const isEditing = edit?.editingId === id;
     const container = useRef<HTMLDivElement>(null);
     const menu = useAgentChatUserMessageMenu({ container, id, text });
-    const parsed = parseAgentChatPathReferences(text);
-    const { handoff, references, skills } = parsed;
-    // A message another Session relayed reads as its original words under a quiet source line; the Agent still
-    // received the protocol line naming the source.
-    const relay = parseRelayedSessionMessage(parsed.text);
-    const words = relay?.text ?? parsed.text;
+    const { handoff, references, relay, skills, words } = agentChatUserMessageContent(text);
     const hasVersions = useAgentChatVersions()?.switcher(id) !== undefined;
     const hasActions =
         words !== '' ||
@@ -153,16 +147,7 @@ export function AgentChatUserMessage({
                     {handoff && (
                         <AgentChatSessionHandoffBubble note={handoff.note} sentAt={createdAt} />
                     )}
-                    {relay && (
-                        <span
-                            className="max-w-[85%] truncate text-[12px] text-muted"
-                            data-agent-chat-relay-source=""
-                        >
-                            {relay.sourceTitle === undefined
-                                ? t('agentChat.message.relayedFromUnknown')
-                                : t('agentChat.message.relayedFrom', { title: relay.sourceTitle })}
-                        </span>
-                    )}
+                    {relay && <AgentChatRelaySource sourceTitle={relay.sourceTitle} />}
                     <div className="flex w-full items-start justify-end gap-1.5">
                         {caption && (
                             <Tooltip content={caption}>
@@ -192,6 +177,23 @@ export function AgentChatUserMessage({
                 </>
             )}
         </AgentChatReplyFrame>
+    );
+}
+
+/**
+ * The quiet line above a relayed message naming the Session it came from.
+ */
+function AgentChatRelaySource({ sourceTitle }: { sourceTitle: string | undefined }) {
+    const { t } = useTranslation();
+    return (
+        <span
+            className="max-w-[85%] truncate text-[12px] text-muted"
+            data-agent-chat-relay-source=""
+        >
+            {sourceTitle === undefined
+                ? t('agentChat.message.relayedFromUnknown')
+                : t('agentChat.message.relayedFrom', { title: sourceTitle })}
+        </span>
     );
 }
 

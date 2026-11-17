@@ -4,7 +4,20 @@ import {
     agentChatImageTokenRanges,
     agentChatSessionReferenceRanges,
     longPasteReferenceRanges,
+    parseAgentChatPathReferences,
+    parseRelayedSessionMessage,
 } from '@caxri/protocol';
+
+/**
+ * What a user's message shows: the references, skills, and hand-off it carried, plus the words the user wrote. A
+ * message another Session relayed shows its original words, with `relay` naming the source; the Agent still received
+ * the protocol line naming that source.
+ */
+export function agentChatUserMessageContent(text: string) {
+    const { handoff, references, skills, text: rest } = parseAgentChatPathReferences(text);
+    const relay = parseRelayedSessionMessage(rest);
+    return { handoff, references, relay, skills, words: relay?.text ?? rest };
+}
 
 /**
  * A run of a user's message: plain text, a file path that opens in the editor, an absolute path drawn as the pill the
