@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-11-08 @ `d2b1d1f4d` (`main`)                                                                      |
+| **Last full audit**      | 2026-11-18 @ `d535e2a29` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `d2b1d1f4d`               |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `d535e2a29`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -44,9 +44,91 @@ Full audit 2026-11-06 @ `71661dad1` found no prior OPEN entry; the batch of [iss
 
 Full audit 2026-11-08 @ `d2b1d1f4d` found no prior OPEN entry; the batch of [issue caxri#3862](https://github.com/tjx666/caxri/issues/3862) fixed its seven confirmed findings. The Mobile Session row's icon-only status was rechecked and stays an intentional design choice.
 
+Full audit 2026-11-18 @ `d535e2a29` found no prior OPEN entry; the batch of [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024) fixed its ten findings. The "unused build-freshness module" candidate was a false positive (a promo-images skill script imports it), the Git manual-controls exceptions were a documentation gap closed by a `DESIGN.md` cross-link, and provider literal branches stay `IT-provider-literal-comparisons`. Splitting Mobile `features/agent-chat` and moving Server composition glue into its own directory are tracked as follow-up issues; the density guard now holds both at their current counts.
+
 ---
 
 ## RESOLVED
+
+### AD-state-remote-events-into-local-stores: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** With an SSH Host attached, a remote Agent's held message appeared in the local approval queue, but Approve or Deny went to the local Server; remote hook and `state.changed` events also overwrote local Settings and Bot state, because those consumers ignored the event's `environmentId`.
+- **Evidence:** `apps/desktop/src/renderer/src/lib/caxri.ts` and `lib/environment-routing.ts` deliver only local events to local-only consumers; the approval store records each held message's environment and routes the decision through `caxri.in(environmentId)`; `features/agent-inbox/agent-message-approval-store.test.ts` and `lib/caxri.test.ts` cover both.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** A remote held message is decided on its own Host; local stores react only to local events.
+
+### AD-lifecycle-window-close-terminate-failure: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Closing the primary window with Terminate while Server Core was stuck logged one stage-less error and closed silently, so the user believed running Agents had stopped.
+- **Evidence:** `apps/desktop/src/main/window-close.ts` logs `window.close_failed` with a closed `stage` enum and shows a stop-failure dialog for the `terminate` stage; `apps/desktop/src/main/__tests__/window-close.test.ts` covers every stage.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** A failed Terminate is visible to the user; other stage failures still fail open with a stage-tagged log.
+
+### AD-perf-diagnostics-full-log-reads: [RESOLVED · Confirmed defect · M]
+
+- **Summary:** Opening the bug report dialog, taking a diagnostics snapshot, or exporting read every rotated log of four processes into Server Core memory (up to about 320 MiB) to find at most five error IDs.
+- **Evidence:** `apps/server/src/domains/diagnostics-logs.ts` bounds each read; `apps/server/src/domains/__tests__/diagnostics-log-bounds.integration.test.ts` asserts the bound.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** Diagnostic reads stay bounded regardless of retained log volume.
+
+### AD-perf-usage-ledger-sync-per-read: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Every sidebar cost read, delegation-strip summary, and usage-limit read ran a full ledger sync over all historical rows, so its cost grew with history.
+- **Evidence:** `apps/server/src/domains/usage/ledger-read-throttle.ts` skips a pass within 5 s of the last one unless a new binding grew the ledger; `usage.scan` logs slow passes and a per-lifetime `skippedByInterval`; `apps/server/src/domains/usage/__tests__/service.integration.test.ts` covers the interval, a fresh binding, and `report()`.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** Repeated reads within the interval cost one pass; the full report still syncs.
+
+### AD-state-discard-if-empty-race: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** `session.discardIfEmpty` decided a Session was discardable before awaiting the delegation fence and mutation queue, so a first message from another connection in between was deleted with it; `project.delete` used the same stale Session list.
+- **Evidence:** `apps/server/src/domains/deletion-handlers.ts` re-checks discardability and recomputes the Project deletion scope inside the final queued callback; `apps/server/src/domains/__tests__/session-discard-if-empty.integration.test.ts` interleaves a held fence with a new message.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** A Session that receives a message before deletion runs is kept.
+
+### AD-sec-transfer-import-worktree-root: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Importing a Projects and Sessions file registered any existing directory as a worktree Project after only a realpath and directory check, leaving extra hidden Project rows; `security.md` also omitted this Project registration entry.
+- **Evidence:** `apps/server/src/domains/project/transfer.ts` registers the root only when `worktreePlacement` confirms it is a linked worktree of the Project; `apps/server/src/domains/project/__tests__/transfer.integration.test.ts` covers a non-worktree directory; `.agents/skills/project-architecture/references/security.md` lists the entry.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** Import registers only verified linked worktrees and reports the rest as missing.
+
+### AD-dup-one-shot-child-termination: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Title generation and the Codex app-server call carried two identical terminate routines that signalled only the direct child, so a native binary behind an npm shim survived a timeout or cancel.
+- **Evidence:** `spawnOneShotInProcessGroup` in `apps/server/src/domains/process-group.ts` spawns detached and stops the whole group; `agents/__tests__/text-generation.test.ts` and `agents/providers/codex/__tests__/app-server-call.test.ts` assert the grandchild is gone.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** One helper owns one-shot child termination and reaches the whole tree.
+
+### AD-layout-density-tree-wide-discovery: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** The directory-density guard covered only a hand-maintained owner list, so `apps/mobile/src/features/agent-chat` (158 flat modules), `apps/server/src/domains/agents`, `apps/server/src/core`, and others could grow without failing.
+- **Evidence:** `scripts/directory-density-baseline.ts` discovers every dense directory tree-wide and fails on one without an owner entry; `scripts/__tests__/directory-density-ratchet.test.ts` covers discovery.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** No directory above the density threshold escapes the ratchet.
+
+### AD-docs-design-md-path-check: [RESOLVED · Contract drift · S]
+
+- **Summary:** `DESIGN.md` cited three moved theme test paths and the react skill one, and docs-check never read `DESIGN.md`.
+- **Evidence:** `scripts/documentation-check.ts` adds `DESIGN.md` to the always-checked root files; `scripts/__tests__/documentation-check-skills.test.ts` covers it.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** A stale path in `DESIGN.md` fails docs-check.
+
+### AD-ui-link-button-variant: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Feature code hand-wrote link-style buttons with three different focus treatments because the shared `Button` had no link variant and no guard.
+- **Evidence:** `apps/desktop/src/renderer/src/components/ui/button.tsx` adds the `link` variant; feature call sites migrated; the Renderer design-contract test rejects new hand-written link buttons.
+- **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
+- **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
+- **Remediation target / Acceptance:** Link-style buttons share one keyboard focus style.
 
 ### AD-sec-raw-error-text-in-logs: [RESOLVED · Confirmed defect · M]
 
