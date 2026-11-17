@@ -39,6 +39,7 @@ import type { WorkbenchEventHandlers } from './workbench-event-handlers';
 import { isWorkbenchIgnoredEvent } from './workbench-ignored-events';
 import {
     applyPendingSessionPatches,
+    isSessionStatePersisted,
     isStaleSessionStateWrite,
     pendingSessionPatches,
     persistedSessionPatches,
@@ -50,7 +51,7 @@ import {
     settledSessionState,
 } from './workbench-session-patches';
 import { withPendingSessionTitles } from './workbench-session-titles';
-import { reportSnapshotFailure } from './workbench-snapshot-failure';
+import { createSnapshotFailureHandler } from './workbench-snapshot-failure';
 import {
     acceptTerminalReads,
     applyFullTerminalSnapshot,
@@ -107,6 +108,10 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 // from inside store actions satisfies unicorn/no-top-level-assignment-in-function.
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
+const snapshotFailures = createSnapshotFailureHandler(() => {
+    // Fire-and-forget: a snapshot read never rejects; its own failure lands back in this handler.
+    void refreshWorkbench();
+});
 /**
  * Where every full snapshot read comes from. The Workbench window reads `app.bootstrap` from this Mac and every
  * connected SSH Host and lists them together (`workbench-environments.ts`). The Caxri Bot window is not admitted for
@@ -444,9 +449,10 @@ async function runLoadBootstrap(): Promise<void> {
         const state = await snapshotSource.read();
         finishPerformanceRequest();
         applySnapshot(state, readStamp, terminalReadSequence);
+        snapshotFailures.succeeded();
     } catch (error: unknown) {
         finishPerformanceRequest();
-        reportSnapshotFailure(error, Boolean(useWorkbenchStore.getState().bootstrap));
+        snapshotFailures.failed(error, Boolean(useWorkbenchStore.getState().bootstrap));
     } finally {
         finishTerminalRead(terminalReadSequence);
         bootstrapRead.inFlight = undefined;
@@ -480,37 +486,12 @@ export function refreshWorkbench(): Promise<void> {
     return queuedRead.current;
 }
 
-/**
- * Drops a fire-and-forget patch that would persist the state Server already holds.
- *
- * UI-driven patches are frequently re-entered with no change at all: restoring focus to a Terminal that is already the
- * active tab re-runs `selectTab`, which rebuilds the layout object and therefore never compares equal by reference.
- * Sending that write costs a `session.updateState` round trip and a SQLite write per focus change, and, worse, it turns
- * an ordinary focus restoration into a failure surface. The Terminal regains focus exactly when a dialog or command
- * palette closes, which is also when the Session behind it may have just been deleted or the application may have
- * started quitting, so the no-op write came back `NOT_FOUND` or `CANCELLED` and raised an "Unable to activate Terminal"
- * notification over a Session the user deliberately removed.
- *
- * `persistSessionState` deliberately keeps the opposite rule: a durable workflow re-persists an already-applied
- * optimistic state on purpose (see `remapOpenEditorsInSession`), so it must still issue the write.
- */
-function isSessionStatePersisted(next: SessionState): boolean {
-    const previous = useWorkbenchStore
-        .getState()
-        .bootstrap?.sessionStates.find(
-            (state) =>
-                state.sessionId === next.sessionId &&
-                state.workbenchRootProjectId === next.workbenchRootProjectId,
-        );
-    return previous !== undefined && isEqual(previous, next);
-}
-
 export function patchSessionState(
     next: SessionState,
     failureLabel?: string,
     onLatestFailure?: () => void,
 ): void {
-    if (isSessionStatePersisted(next)) return;
+    if (isSessionStatePersisted(useWorkbenchStore.getState().bootstrap, next)) return;
     // Fire-and-forget: the store method already funnels every failure into a toast internally and
     // never rejects, so this synchronous-looking wrapper never needs to await the outcome.
     void useWorkbenchStore.getState().patchSessionState(next, failureLabel, onLatestFailure);

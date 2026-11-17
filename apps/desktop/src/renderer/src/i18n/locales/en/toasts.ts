@@ -6,6 +6,7 @@ export const toasts = {
     'toasts.failure.withReason': '{{label}}. {{reason}}',
     'toasts.failure.notReady': 'Caxri is not ready yet.',
     'toasts.failure.timedOut': 'Caxri did not respond in time.',
+    'toasts.failure.serverBusy': 'Caxri is busy. Try again in a moment.',
     'toasts.failure.couldNotComplete': 'The operation could not be completed.',
     'toasts.failure.code.VALIDATION': 'The request was not valid.',
     'toasts.failure.code.NOT_FOUND': 'It no longer exists.',

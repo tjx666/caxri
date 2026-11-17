@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
 import type { CaxriErrorCode } from '@caxri/protocol';
-import { errorMessage, isCaxriError, terminalCapacityDetails } from '@caxri/protocol';
+import { errorMessage, isCaxriError, isServerBusy, terminalCapacityDetails } from '@caxri/protocol';
 import type { ToastT } from 'sonner';
 import { toast } from 'sonner';
 
@@ -353,7 +353,9 @@ export function describeFailureNotice(error: unknown, label: string, t: Translat
     const isServerTextShown = t.locale === 'en';
     let reason: string;
     let detail: string | undefined;
-    if (terminalCapacity)
+    // Load shedding is a CAPACITY code too, but no limit the user can act on was reached: name it a busy Server.
+    if (isServerBusy(error)) reason = t('toasts.failure.serverBusy');
+    else if (terminalCapacity)
         reason = t(
             terminalCapacity.terminalLimit === 'global'
                 ? 'toasts.failure.terminalLimit.global'
