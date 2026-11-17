@@ -31,11 +31,22 @@ const buttonVariants = cva(
                     'border-border bg-elevated enabled:not-aria-disabled:hover:bg-[var(--selection)]',
                 ghost: 'bg-transparent enabled:not-aria-disabled:hover:bg-[var(--selection)]',
                 danger: 'border-danger bg-danger text-danger-foreground',
+                /**
+                 * Link-style text button: borderless, transparent, left-aligned, underlined on hover. Color comes from
+                 * the call site. Pair with `size="inline"`. It keeps the base focus-visible glow (the border is 0, so
+                 * only the 3px ring draws), which is why feature code must not hand-roll `border-0 bg-transparent
+                 * p-0`.
+                 */
+                link: 'justify-start rounded-sm border-0 bg-transparent text-left enabled:not-aria-disabled:hover:underline',
             },
             size: {
                 default: 'min-h-9 px-3',
                 sm: 'min-h-7 px-2 text-[11px]',
                 icon: 'size-7 p-0',
+                /**
+                 * Text-flow size for `variant="link"`: no min-height or padding, inherits the surrounding font size.
+                 */
+                inline: 'min-h-0 p-0',
             },
         },
         defaultVariants: { variant: 'default', size: 'default' },

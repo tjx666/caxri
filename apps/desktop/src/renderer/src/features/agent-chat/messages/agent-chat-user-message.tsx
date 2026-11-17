@@ -4,6 +4,8 @@ import type { AgentChatDelegatedTask, AgentChatSkillReference } from '@caxri/pro
 import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '@caxri/protocol';
 import { CornerDownRight } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 import { writeToClipboardWithFeedback } from '../../../components/copy-feedback';
 import { CopyIconButton } from '../../../components/markdown/copy-icon-button';
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -239,14 +241,15 @@ export function AgentChatUserMessageBubble({
                 </div>
             )}
             {isCut && (
-                <button
+                <Button
+                    size="inline"
+                    variant="link"
                     aria-expanded={isExpanded}
-                    className="mt-1 block cursor-pointer border-0 bg-transparent p-0 text-[12px] text-muted hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                    type="button"
+                    className="mt-1 block text-[12px] text-muted hover:text-foreground"
                     onClick={() => setExpanded((value) => !value)}
                 >
                     {t(isExpanded ? 'agentChat.message.showLess' : 'agentChat.message.showMore')}
-                </button>
+                </Button>
             )}
             {images && images.length > 0 && (
                 <AgentChatMessageImages

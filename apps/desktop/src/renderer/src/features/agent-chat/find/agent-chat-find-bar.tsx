@@ -83,13 +83,14 @@ export function AgentChatFindBar({
                     role="status"
                 >
                     {t('agentChat.find.loadFailed')}
-                    <button
-                        className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
-                        type="button"
+                    <Button
+                        size="inline"
+                        variant="link"
+                        className="text-foreground"
                         onClick={() => onSearchEarlier?.()}
                     >
                         {t('common.retry')}
-                    </button>
+                    </Button>
                 </p>
             )}
             {canSearchEarlier && !hasLoadFailed && (

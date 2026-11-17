@@ -3,6 +3,8 @@ import { useRef, useState } from 'react';
 import type { AgentChatDelegatedTask } from '@caxri/protocol';
 import { Forward, MessageSquareShare } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessions } from '../../../stores/selectors';
@@ -72,13 +74,14 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
         return (
             <>
                 {by}
-                <button
-                    className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-[13px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                    type="button"
+                <Button
+                    size="inline"
+                    variant="link"
+                    className="block min-w-0 truncate text-[13px] text-accent underline-offset-2"
                     onClick={() => openSession(creator.session.id)}
                 >
                     {title}
-                </button>
+                </Button>
                 {creatorProjectId && <DelegatingProject projectId={creatorProjectId} />}
             </>
         );
@@ -98,8 +101,7 @@ function DelegatedTaskSource({ task }: { task: AgentChatDelegatedTask }) {
     return <span>{t(taskSourceKeys(task).unknown)}</span>;
 }
 
-const TOGGLE_CLASS =
-    'mt-1 block cursor-pointer border-0 bg-transparent p-0 text-[12px] text-muted hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent';
+const TOGGLE_CLASS = 'mt-1 block text-[12px] text-muted hover:text-foreground';
 
 /**
  * The task the caller wrote, clamped to six lines with Show more like a long user message.
@@ -125,14 +127,15 @@ function DelegatedTaskPrompt({ prompt }: { prompt: string }) {
                 {prompt}
             </div>
             {(isCut || isExpanded) && (
-                <button
+                <Button
+                    size="inline"
+                    variant="link"
                     aria-expanded={isExpanded}
                     className={TOGGLE_CLASS}
-                    type="button"
                     onClick={() => setExpanded((value) => !value)}
                 >
                     {t(isExpanded ? 'agentChat.message.showLess' : 'agentChat.message.showMore')}
-                </button>
+                </Button>
             )}
         </>
     );
@@ -146,10 +149,11 @@ function DelegatedTaskPointer({ text }: { text: string }) {
     const [isExpanded, setExpanded] = useState(false);
     return (
         <>
-            <button
+            <Button
+                size="inline"
+                variant="link"
                 aria-expanded={isExpanded}
                 className={TOGGLE_CLASS}
-                type="button"
                 onClick={() => setExpanded((value) => !value)}
             >
                 {t(
@@ -157,7 +161,7 @@ function DelegatedTaskPointer({ text }: { text: string }) {
                         ? 'agentChat.delegated.hideInstruction'
                         : 'agentChat.delegated.showInstruction',
                 )}
-            </button>
+            </Button>
             {isExpanded && (
                 <div className="mt-1 text-[12px] leading-4 wrap-anywhere whitespace-pre-wrap text-muted select-text">
                     {text}

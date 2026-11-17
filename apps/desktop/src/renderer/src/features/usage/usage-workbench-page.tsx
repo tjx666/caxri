@@ -308,13 +308,14 @@ export function UsageWorkbenchPage() {
                                 {' · '}
                                 <span className="text-danger">{t('usage.refreshFailed')}</span>
                                 {' · '}
-                                <button
-                                    type="button"
-                                    className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-[11px] text-foreground underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                <Button
+                                    size="inline"
+                                    variant="link"
+                                    className="text-[11px] text-foreground underline-offset-2"
                                     onClick={retry}
                                 >
                                     {t('common.retry')}
-                                </button>
+                                </Button>
                             </>
                         )}
                     </p>

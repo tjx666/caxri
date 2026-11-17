@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { formatTokens } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 import { ReportCard } from '../../../components/report-card';
 import { ShareBar } from '../../../components/share-bar';
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -70,15 +72,16 @@ export function TokenListCard({
                 </ul>
             )}
             {rows.length > COLLAPSED_ROWS && (
-                <button
-                    type="button"
-                    className="mt-2 cursor-pointer rounded-sm border-0 bg-transparent p-0 text-[11px] text-muted underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                <Button
+                    size="inline"
+                    variant="link"
+                    className="mt-2 text-[11px] text-muted underline-offset-2 hover:text-foreground"
                     onClick={() => setIsShowingAll((current) => !current)}
                 >
                     {isShowingAll
                         ? t('agentChat.contextPage.showFewer')
                         : t('agentChat.contextPage.showAll', { count: rows.length })}
-                </button>
+                </Button>
             )}
             {footer && <div className="mt-3 text-[11px] leading-[1.5] text-muted">{footer}</div>}
         </ReportCard>

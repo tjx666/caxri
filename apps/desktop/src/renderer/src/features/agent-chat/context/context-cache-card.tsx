@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { formatPercent, formatTokens } from '@caxri/protocol';
 import { clamp } from 'es-toolkit';
 
+import { Button } from '@/components/ui/button';
+
 import { ReportCard } from '../../../components/report-card';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -139,9 +141,10 @@ export function ContextCacheCard({
                         </table>
                     )}
                     {breaks.length > COLLAPSED_BREAKS && (
-                        <button
-                            type="button"
-                            className="mt-2 cursor-pointer rounded-sm border-0 bg-transparent p-0 text-[11px] text-muted underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                        <Button
+                            size="inline"
+                            variant="link"
+                            className="mt-2 text-[11px] text-muted underline-offset-2 hover:text-foreground"
                             onClick={() => setIsShowingAll((current) => !current)}
                         >
                             {isShowingAll
@@ -149,7 +152,7 @@ export function ContextCacheCard({
                                 : t('agentChat.contextPage.showAll', {
                                       count: breaks.length,
                                   })}
-                        </button>
+                        </Button>
                     )}
                 </>
             )}
