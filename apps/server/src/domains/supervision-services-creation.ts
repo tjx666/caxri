@@ -160,6 +160,12 @@ export function createTerminalSupervision({
             terminalSuspension,
         }),
         terminalSuspension,
+        keychainBlockedSessionIds: (): ReadonlySet<string> =>
+            new Set(
+                Object.entries(sessionSignals.snapshot().sessions)
+                    .filter(([, signal]) => signal.keychainPrompt !== undefined)
+                    .map(([sessionId]) => sessionId),
+            ),
         start: (): void => {
             terminalSuspension.start();
             idleCompaction.start();

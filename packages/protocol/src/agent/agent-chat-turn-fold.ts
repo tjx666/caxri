@@ -35,11 +35,18 @@ export type AgentChatTurnFoldPart =
       };
 
 /**
- * Whether an Agent message spans several lines. A long single paragraph still counts as one line, since the source has
- * no break to measure wrapping by.
+ * The longest trimmed reply that still reads as brief.
+ */
+const BRIEF_REPLY_MAX_LENGTH = 160;
+
+/**
+ * Whether an Agent message is more than a brief closing line: it spans several lines, or one line longer than
+ * {@link BRIEF_REPLY_MAX_LENGTH} characters, since a long single paragraph is an answer, not an acknowledgement.
  */
 function isMultiLineMessage(item: AgentChatItem | undefined): boolean {
-    return item?.type === 'agentMessage' && item.text.trim().includes('\n');
+    if (item?.type !== 'agentMessage') return false;
+    const text = item.text.trim();
+    return text.includes('\n') || text.length > BRIEF_REPLY_MAX_LENGTH;
 }
 
 /**

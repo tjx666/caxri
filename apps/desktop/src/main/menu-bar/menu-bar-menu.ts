@@ -28,6 +28,7 @@ export interface MenuBarActions {
 
 const ATTENTION_LABEL: Record<SessionWorkAttention['kind'], MainTranslationKey> = {
     failed: 'desktop.menuBar.attentionFailed',
+    keychain: 'desktop.menuBar.attentionKeychain',
     result: 'desktop.menuBar.attentionResult',
     waiting: 'desktop.menuBar.attentionWaiting',
 };
@@ -44,9 +45,29 @@ export function menuBarTitle(summary: SessionWorkSummary | undefined): string {
     return summary && summary.attentionCount > 0 ? String(summary.attentionCount) : '';
 }
 
+/**
+ * Hover text for the icon: the app name alone when nothing happens, otherwise how many Sessions need the user and how
+ * many Agents work, each part left out at zero.
+ */
 export function menuBarTooltip(summary: SessionWorkSummary | undefined): string {
-    if (!summary) return t('desktop.menuBar.tooltip');
-    return `${t('desktop.menuBar.tooltip')}: ${workingLabel(summary.working)}`;
+    const parts: string[] = [];
+    if (summary && summary.attentionCount > 0)
+        parts.push(
+            plural(
+                summary.attentionCount,
+                'desktop.menuBar.tooltipNeedYouOne',
+                'desktop.menuBar.tooltipNeedYouOther',
+            ),
+        );
+    if (summary && summary.working > 0)
+        parts.push(
+            plural(
+                summary.working,
+                'desktop.menuBar.tooltipWorkingOne',
+                'desktop.menuBar.tooltipWorkingOther',
+            ),
+        );
+    return parts.length > 0 ? parts.join(' · ') : t('desktop.menuBar.tooltip');
 }
 
 function workingLabel(working: number): string {
@@ -56,22 +77,27 @@ function workingLabel(working: number): string {
 }
 
 /**
- * The menu bar's menu. Status lines come first and are disabled (they inform, they do nothing), then the Sessions that
- * need the user, each opening Caxri on that Session, then the keep-awake switch and the app actions. Without a snapshot
- * (the Server is unreachable) only the app actions remain.
+ * The menu bar's menu. Open Caxri leads, since it is how the user comes back; then the status lines (disabled: they
+ * inform, they do nothing), the Sessions that need the user, each opening Caxri on that Session, the keep-awake switch,
+ * and Quit. Without a snapshot (the Server is unreachable) only the app actions remain.
  */
 export function buildMenuBarMenu(
     snapshot: MenuBarSnapshot | undefined,
     actions: MenuBarActions,
 ): MenuItemConstructorOptions[] {
-    const appItems: MenuItemConstructorOptions[] = [
-        { label: t('desktop.menuBar.open'), click: () => actions.openWindow() },
-        { type: 'separator' },
-        { label: t('desktop.menuBar.quit'), click: () => actions.quit() },
-    ];
-    if (!snapshot) return appItems;
+    const openItem: MenuItemConstructorOptions = {
+        label: t('desktop.menuBar.open'),
+        click: () => actions.openWindow(),
+    };
+    const quitItem: MenuItemConstructorOptions = {
+        label: t('desktop.menuBar.quit'),
+        click: () => actions.quit(),
+    };
+    if (!snapshot) return [openItem, { type: 'separator' }, quitItem];
     const { summary } = snapshot;
     const items: MenuItemConstructorOptions[] = [
+        openItem,
+        { type: 'separator' },
         { label: workingLabel(summary.working), enabled: false },
     ];
     if (summary.usageWaiting > 0)
@@ -111,7 +137,7 @@ export function buildMenuBarMenu(
             click: () => actions.setKeepAwake(!snapshot.isKeepAwakeEnabled),
         },
         { type: 'separator' },
-        ...appItems,
+        quitItem,
     );
     return items;
 }

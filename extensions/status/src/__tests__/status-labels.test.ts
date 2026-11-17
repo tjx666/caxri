@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest';
 import {
     checkLabel,
     deploymentStateLabel,
+    durationLabel,
+    elapsedLabel,
     markdownExcerpt,
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
+    spokenDurationLabel,
 } from '../status-labels';
 
 const STATES = [
@@ -119,5 +122,32 @@ describe('markdownExcerpt', () => {
             ),
         ).toBe('P1 Badge Retry the handoff If resume throws, see docs.');
         expect(markdownExcerpt('- one\n> two', 20)).toBe('one two');
+    });
+});
+
+describe('check time labels', () => {
+    it('keeps seconds and minutes below an hour', () => {
+        expect(durationLabel(45_000)).toBe('45s');
+        expect(durationLabel(72_000)).toBe('1m 12s');
+        expect(durationLabel(59 * 60_000)).toBe('59m');
+        expect(elapsedLabel(10_000)).toBe('<1m');
+        expect(elapsedLabel(12 * 60_000 + 30_000)).toBe('12m');
+        expect(durationLabel(undefined)).toBeUndefined();
+    });
+
+    it('reads hours and minutes from an hour up, for elapsed and settled alike', () => {
+        expect(elapsedLabel(125 * 60_000)).toBe('2h 5m');
+        expect(durationLabel(125 * 60_000 + 40_000)).toBe('2h 5m');
+        expect(elapsedLabel(60 * 60_000)).toBe('1h');
+        expect(durationLabel(3_600_000)).toBe('1h');
+    });
+
+    it('speaks the same spans in words', () => {
+        expect(spokenDurationLabel(12 * 60_000 + 30_000, false)).toBe('12 minutes');
+        expect(spokenDurationLabel(10_000, false)).toBe('less than a minute');
+        expect(spokenDurationLabel(72_000, true)).toBe('1 minute 12 seconds');
+        expect(spokenDurationLabel(45_000, true)).toBe('45 seconds');
+        expect(spokenDurationLabel(125 * 60_000 + 40_000, true)).toBe('2 hours 5 minutes');
+        expect(spokenDurationLabel(3_600_000, false)).toBe('1 hour');
     });
 });

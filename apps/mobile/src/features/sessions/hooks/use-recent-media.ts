@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import type { GranularPermission } from 'expo-media-library';
 import {
@@ -50,14 +51,23 @@ const resolveRecentMedia = async (item: {
 };
 
 /**
- * The newest photos and videos, asking for library access the first time only. Declined access, or a library that
- * cannot be read, yields an empty row rather than an error: the sheet's tiles still reach the full picker.
+ * What one read of the library found: the newest photos and videos, or that access was declined.
  */
-const readRecentMedia = async (): Promise<readonly RecentMedia[]> => {
+interface RecentMediaRead {
+    isDenied: boolean;
+    items: readonly RecentMedia[];
+}
+
+/**
+ * The newest photos and videos, asking for library access the first time only. Declined access reports `isDenied` so
+ * the sheet can point at Settings; a library that cannot be read yields an empty row rather than an error, as the
+ * sheet's tiles still reach the full picker.
+ */
+const readRecentMedia = async (): Promise<RecentMediaRead> => {
     const step = recentMediaAccessStep(await getPermissionsAsync(false, GRANULAR_PERMISSIONS));
-    if (step === 'skip') return [];
+    if (step === 'denied') return { isDenied: true, items: [] };
     if (step === 'ask' && !(await requestPermissionsAsync(false, GRANULAR_PERMISSIONS)).granted)
-        return [];
+        return { isDenied: true, items: [] };
     const items = await new Query()
         .within(AssetField.MEDIA_TYPE, [MediaType.IMAGE, MediaType.VIDEO])
         .orderBy({ key: AssetField.CREATION_TIME, ascending: false })
@@ -65,26 +75,43 @@ const readRecentMedia = async (): Promise<readonly RecentMedia[]> => {
         .exeForMetadata();
     const resolved = await Promise.allSettled(items.map(resolveRecentMedia));
     // An asset deleted or still in iCloud since the query is left out instead of emptying the row.
-    return resolved.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+    return {
+        isDenied: false,
+        items: resolved.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+    };
 };
 
 /**
- * The add sheet's recent photos and videos, read each time the sheet opens while `enabled`.
+ * The add sheet's recent photos and videos, read each time the sheet opens while `isEnabled`, and again when the app
+ * returns to the foreground, so access granted in Settings shows the row without reopening the sheet.
  */
-export const useRecentMedia = (isEnabled: boolean): readonly RecentMedia[] => {
-    const [media, setMedia] = useState(lastRead.items);
+export const useRecentMedia = (isEnabled: boolean): RecentMediaRead => {
+    const [read, setRead] = useState<RecentMediaRead>({ isDenied: false, items: lastRead.items });
     useEffect(() => {
         if (!isEnabled) return;
         let isCurrent = true;
-        void readRecentMedia()
-            .catch((): readonly RecentMedia[] => [])
-            .then((items) => {
-                lastRead.items = items;
-                if (isCurrent) setMedia(items);
-            });
+        // The system permission dialog itself bounces the app through inactive and active; a read still waiting on it
+        // must not start a second one, which would ask again.
+        let isLoading = false;
+        const load = (): void => {
+            if (isLoading) return;
+            isLoading = true;
+            void readRecentMedia()
+                .catch((): RecentMediaRead => ({ isDenied: false, items: [] }))
+                .then((next) => {
+                    isLoading = false;
+                    lastRead.items = next.items;
+                    if (isCurrent) setRead(next);
+                });
+        };
+        load();
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') load();
+        });
         return () => {
             isCurrent = false;
+            subscription.remove();
         };
     }, [isEnabled]);
-    return isEnabled ? media : [];
+    return isEnabled ? read : { isDenied: false, items: [] };
 };

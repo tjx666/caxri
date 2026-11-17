@@ -219,6 +219,10 @@ export const desktop = {
     'desktop.windowClose.closeAnyway': 'Close Anyway',
 
     'desktop.menuBar.tooltip': 'Caxri',
+    'desktop.menuBar.tooltipNeedYouOne': '1 Session needs you',
+    'desktop.menuBar.tooltipNeedYouOther': '{{count}} Sessions need you',
+    'desktop.menuBar.tooltipWorkingOne': '1 Agent working',
+    'desktop.menuBar.tooltipWorkingOther': '{{count}} Agents working',
     'desktop.menuBar.workingNone': 'No Agents working',
     'desktop.menuBar.workingOne': '1 Agent working',
     'desktop.menuBar.workingOther': '{{count}} Agents working',
@@ -228,6 +232,7 @@ export const desktop = {
     'desktop.menuBar.needsYou': 'Needs You',
     'desktop.menuBar.attentionWaiting': 'Waiting for you',
     'desktop.menuBar.attentionFailed': 'Failed',
+    'desktop.menuBar.attentionKeychain': 'Waiting for a Keychain prompt',
     'desktop.menuBar.attentionResult': 'Finished',
     'desktop.menuBar.moreOne': '1 More in Caxri',
     'desktop.menuBar.moreOther': '{{count}} More in Caxri',
@@ -236,7 +241,7 @@ export const desktop = {
     'desktop.menuBar.quit': 'Quit Caxri',
     'desktop.menuBar.introTitle': 'Caxri is still running in the menu bar',
     'desktop.menuBar.introBody':
-        'Your Agents keep working. Click the menu bar icon to come back, or turn this off in Settings.',
+        'Your Agents keep working. Choose Open Caxri from the menu bar icon to come back, or turn this off in Settings.',
 
     'desktop.crash.title': 'Caxri Keeps Crashing',
     'desktop.crash.message':

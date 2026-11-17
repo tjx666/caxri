@@ -8,6 +8,7 @@ import {
     elapsedLabel,
     ignoredChecksHiddenLabel,
     projectStatusStateLabel,
+    spokenDurationLabel,
 } from './status-labels';
 import { linkText, stateIcons, stateTones } from './status-presentation';
 import { previousChecksNode } from './status-previous-checks';
@@ -110,10 +111,33 @@ export function nextElapsedTickMs(
     return delays.length > 0 ? Math.max(ELAPSED_TICK_FLOOR_MS, Math.min(...delays)) : undefined;
 }
 
+/**
+ * What a screen reader says for a check row: name, state, and the time when there is one. The compact description
+ * (`12m`) carries neither the state nor a spoken unit, so `build, 12m` alone left the state to the icon.
+ */
+function checkAccessibilityLabel(check: PullRequestCheck, elapsedMs: number | undefined): string {
+    const name = check.name;
+    if (elapsedMs !== undefined)
+        return l10n.t('{name}, running for {duration}', {
+            name,
+            duration: spokenDurationLabel(elapsedMs, false),
+        });
+    const state = projectStatusStateLabel(check.state);
+    if (check.durationMs !== undefined)
+        return l10n.t('{name}, {state} in {duration}', {
+            name,
+            state,
+            duration: spokenDurationLabel(check.durationMs, true),
+        });
+    return l10n.t('{name}, {state}', { name, state });
+}
+
 function checkRow(id: string, check: PullRequestCheck, now: number): StatusNode {
-    const elapsed = elapsedLabel(runningCheckElapsedMs(check, now));
+    const elapsedMs = runningCheckElapsedMs(check, now);
+    const elapsed = elapsedLabel(elapsedMs);
     const duration = durationLabel(check.durationMs);
     return item(id, check.name, {
+        accessibilityLabel: checkAccessibilityLabel(check, elapsedMs),
         /**
          * A running check shows how long it has been going, so a job that is stuck reads differently from one that just
          * started; a settled check shows how long it took.

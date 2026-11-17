@@ -82,7 +82,7 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
 
     'settings.power.keepAwakeWhileAgentsWork.title': 'Agent 工作时保持 Mac 唤醒',
     'settings.power.keepAwakeWhileAgentsWork.description':
-        'Agent 工作或等待额度重置时阻止系统空闲睡眠；显示器仍可关闭，用电池时合上盖子仍会睡眠。',
+        'Agent 工作或等待套餐额度重置时，不让 Mac 进入睡眠。屏幕仍可关闭，使用电池时合上盖子仍会让 Mac 睡眠。',
     'settings.window.menuBarWhenClosed.title': '在菜单栏中继续运行',
     'settings.window.menuBarWhenClosed.description':
         '有任务运行时关闭窗口，会隐藏 Dock 图标，Caxri 留在菜单栏中继续运行。',

@@ -25,15 +25,15 @@ export interface RecentMedia {
 export const RECENT_MEDIA_LIMIT = 16;
 
 /**
- * What the add sheet does about library access when it opens: read the library, ask once, or stay quiet. A user who
- * already declined is never asked again from here; the sheet simply keeps its tiles, as before the row existed.
+ * What the add sheet does about library access when it opens: read the library, ask once, or point at Settings. A user
+ * who already declined is never asked again from here; the sheet shows one row that opens the app's Settings instead.
  */
 export const recentMediaAccessStep = (permission: {
     granted: boolean;
     status: string;
-}): 'ask' | 'read' | 'skip' => {
+}): 'ask' | 'denied' | 'read' => {
     if (permission.granted) return 'read';
-    return permission.status === 'undetermined' ? 'ask' : 'skip';
+    return permission.status === 'undetermined' ? 'ask' : 'denied';
 };
 
 /**
@@ -47,6 +47,31 @@ export const formatMediaDuration = (milliseconds: number): string => {
     return hours > 0
         ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}`
         : `${minutes}:${rest}`;
+};
+
+/**
+ * The accessible label of the recent thumbnail at `index` (zero-based) of `total`, as a translation key with its
+ * parameters, so a screen reader tells the tiles apart by position, kind, and a video's length.
+ */
+export const recentMediaLabel = (
+    media: Pick<RecentMedia, 'durationMs' | 'kind'>,
+    index: number,
+    total: number,
+): {
+    key:
+        | 'sessions.image.recentPhoto'
+        | 'sessions.image.recentVideo'
+        | 'sessions.image.recentVideoDuration';
+    params: { duration?: string; index: number; total: number };
+} => {
+    const parameters = { index: index + 1, total };
+    if (media.kind === 'image') return { key: 'sessions.image.recentPhoto', params: parameters };
+    if (media.durationMs === undefined)
+        return { key: 'sessions.image.recentVideo', params: parameters };
+    return {
+        key: 'sessions.image.recentVideoDuration',
+        params: { ...parameters, duration: formatMediaDuration(media.durationMs) },
+    };
 };
 
 /**

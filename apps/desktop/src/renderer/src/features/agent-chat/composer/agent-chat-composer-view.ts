@@ -201,6 +201,20 @@ export function agentChatDraftTransaction(
 }
 
 /**
+ * Whether an unfocused editor should scroll its own scroller to the bottom after the draft changed from outside: text
+ * was appended to a non-empty draft (Add to message), which would otherwise stay below the visible part of a long
+ * draft. The caller scrolls only the editor's own scroller (`scrollDOM`), never ancestors, which `scrollIntoView` would
+ * also move.
+ */
+export function shouldRevealAppendedAgentChatDraft(
+    current: string,
+    next: string,
+    isFocused: boolean,
+): boolean {
+    return !isFocused && current !== '' && next.length > current.length && next.startsWith(current);
+}
+
+/**
  * Trims a typed or pasted change so the document stays within `limit` characters, as a textarea's `maxLength` does;
  * `undefined` keeps the transaction as it is. A transaction with several changes past the limit is dropped (`[]`).
  */

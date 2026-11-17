@@ -1,3 +1,4 @@
+import { relayedSessionMessage } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
@@ -79,6 +80,23 @@ describe('agentChatRailMarks', () => {
                 translate,
             ).map(({ preview }) => preview),
         ).toEqual(['also this', 'Fix the build']);
+    });
+
+    it('previews a relayed message by the text it carries', () => {
+        const [mark] = agentChatRailMarks(
+            [
+                {
+                    kind: 'item',
+                    item: {
+                        id: 'u1',
+                        type: 'userMessage',
+                        text: relayedSessionMessage('Fix login', 'Check the tests'),
+                    },
+                },
+            ],
+            translate,
+        );
+        expect(mark.preview).toBe('Check the tests');
     });
 
     it('holds the skeleton only for a message with nothing to show yet', () => {

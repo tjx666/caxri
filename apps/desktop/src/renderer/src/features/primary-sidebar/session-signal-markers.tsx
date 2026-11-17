@@ -68,7 +68,7 @@ export function SessionCardSignals({ sessionId }: { sessionId: string }) {
                     data-session-signal="keychain"
                 >
                     <KeyRound aria-hidden="true" className="mt-0.5 flex-none" size={12} />
-                    <span className="line-clamp-3 min-w-0 break-all">{keychain.sentence}</span>
+                    <span className="line-clamp-3 min-w-0 break-words">{keychain.sentence}</span>
                 </p>
             )}
             {heat && (

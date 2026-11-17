@@ -94,6 +94,28 @@ describe('summarizeSessionWork', () => {
         ]);
     });
 
+    it('lists a Session blocked on a Keychain dialog first, even with no recorded attention', () => {
+        const summary = summarizeSessionWork({
+            projects,
+            sessions: [
+                session('result', {
+                    hasPendingAttention: true,
+                    lastAttentionKind: 'waiting',
+                    sessionActivityAt: 30,
+                }),
+                session('blocked', { agentActivityState: 'running' }),
+                session('hidden', { projectId: 'wt', agentActivityState: 'running' }),
+            ],
+            terminals: [],
+            keychainBlockedSessionIds: new Set(['blocked', 'hidden']),
+        });
+        expect(summary.attentionCount).toBe(2);
+        expect(summary.attention.map(({ sessionId, kind }) => [sessionId, kind])).toEqual([
+            ['blocked', 'keychain'],
+            ['result', 'waiting'],
+        ]);
+    });
+
     it('caps the list but reports the full count', () => {
         const sessions = Array.from(
             { length: SESSION_WORK_SUMMARY_ATTENTION_MAX + 3 },

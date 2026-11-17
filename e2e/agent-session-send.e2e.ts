@@ -70,9 +70,9 @@ test("an Agent relays a message into another of the user's Sessions as a new tur
         await expect(session.getByText('Relayed it.')).toBeVisible();
 
         await selectSession(page, targetId);
-        await expect(
-            session.getByText(`[Caxri] Relayed from Session "Fix sign-in" at the user's request:`),
-        ).toBeVisible();
+        // The target Chat names the source quietly instead of showing the protocol line the Agent received.
+        await expect(session.getByText('Relayed from Fix sign-in', { exact: true })).toBeVisible();
+        await expect(session.getByText('[Caxri] Relayed from', { exact: false })).toHaveCount(0);
         await expect(session.getByText(RELAYED_TEXT)).toBeVisible();
         await expect(session.getByText(TARGET_REPLY)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('relayed-target-session.png') });

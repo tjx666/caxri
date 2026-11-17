@@ -38,6 +38,25 @@ export function relayedSessionMessage(sourceTitle: string | undefined, text: str
     return `[Caxri] Relayed from ${source} at the user's request:\n\n${text}`;
 }
 
+const RELAYED_PREFIX =
+    /^\[Caxri\] Relayed from (?:Session "([^\n]*)"|another Session) at the user's request:\n\n/u;
+
+/**
+ * Reads a message {@link relayedSessionMessage} built back into the source Session's title (absent for "another
+ * Session") and the original text, so the Chat can draw the source quietly instead of the protocol line. `undefined`
+ * for any other message. This stays beside the builder as the single owner of the format.
+ */
+export function parseRelayedSessionMessage(
+    message: string,
+): { sourceTitle?: string; text: string } | undefined {
+    const match = RELAYED_PREFIX.exec(message);
+    if (!match) return undefined;
+    const text = message.slice(match[0].length);
+    // The title group does not take part when the message came from "another Session".
+    const sourceTitle = match[1] as string | undefined;
+    return sourceTitle === undefined ? { text } : { sourceTitle, text };
+}
+
 /**
  * One management step on a Session an Agent created. Archive and restore are the sidebar's own reversible operations;
  * restore puts the Session back at the top of its Project, where the user sees it again.

@@ -32,15 +32,20 @@ function attentionKind(
  *
  * - Working counts every active Session whose Agent runs, worktree Projects included: the Mac must stay awake for a
  *   Delegated Session's work as much as for a top-level one.
- * - Needs attention lists only what a list without nesting can show, by the phone home list's rule
- *   (`isSessionListedOnMobileHome`): a second opinion or delegated work belongs to the Session that asked for it,
- *   unless it waits on the user's answer. Sessions of a Project the Primary Side Bar hides are left out, as in the
- *   Activity view.
+ * - Needs attention also lists a Session blocked on a Keychain dialog, first, since its Agent cannot continue. It lists
+ *   only what a list without nesting can show, by the phone home list's rule (`isSessionListedOnMobileHome`): a second
+ *   opinion or delegated work belongs to the Session that asked for it, unless it waits on the user's answer. Sessions
+ *   of a Project the Primary Side Bar hides are left out, as in the Activity view.
  */
 export function summarizeSessionWork(input: {
     projects: ReadonlyArray<Pick<ProjectRecord, 'id' | 'ownerProjectId' | 'title'>>;
     sessions: readonly SessionRecord[];
     terminals: readonly TerminalRecord[];
+    /**
+     * Sessions with an open Keychain dialog (the sidebar marker's signal). They need the user even when no attention
+     * was recorded, because the dialog blocks the Agent.
+     */
+    keychainBlockedSessionIds?: ReadonlySet<string>;
 }): SessionWorkSummary {
     const terminals = new Map(input.terminals.map((terminal) => [terminal.id, terminal]));
     const shellTerminals = new Map<string, TerminalRecord>();
@@ -59,6 +64,7 @@ export function summarizeSessionWork(input: {
     );
     let working = 0;
     let usageWaiting = 0;
+    const keychainBlocked = input.keychainBlockedSessionIds ?? new Set<string>();
     const attention: SessionRecord[] = [];
     for (const session of active) {
         const terminal = session.primaryAgentTerminalId
@@ -74,7 +80,7 @@ export function summarizeSessionWork(input: {
         if (isUsageWaiting) usageWaiting += 1;
         if (group === 'working') working += 1;
         if (
-            group === 'attention' &&
+            (group === 'attention' || keychainBlocked.has(session.id)) &&
             listedIds.has(session.id) &&
             isSessionListedOnMobileHome(
                 {
@@ -88,7 +94,11 @@ export function summarizeSessionWork(input: {
         )
             attention.push(session);
     }
-    attention.sort((left, right) => compareSessionActivityGroupRows('attention', left, right));
+    attention.sort(
+        (left, right) =>
+            Number(keychainBlocked.has(right.id)) - Number(keychainBlocked.has(left.id)) ||
+            compareSessionActivityGroupRows('attention', left, right),
+    );
     return {
         working,
         usageWaiting,
@@ -97,7 +107,7 @@ export function summarizeSessionWork(input: {
             sessionId: session.id,
             title: clip(session.title),
             projectTitle: clip(listedProjects.get(session.projectId)?.title ?? ''),
-            kind: attentionKind(session),
+            kind: keychainBlocked.has(session.id) ? 'keychain' : attentionKind(session),
         })),
     };
 }

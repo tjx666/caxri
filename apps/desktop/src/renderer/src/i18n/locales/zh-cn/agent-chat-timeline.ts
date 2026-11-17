@@ -60,6 +60,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.steered': '已插入本轮',
     'agentChat.message.steeredHint': '已插入本轮：在 Agent 工作时发送，并入了正在进行的这一轮',
     'agentChat.message.copy': '复制消息',
+    'agentChat.message.relayedFrom': '转自「{{title}}」',
+    'agentChat.message.relayedFromUnknown': '转自另一个会话',
     'agentChat.version.previous': '上一个版本',
     'agentChat.version.next': '下一个版本',
     'agentChat.version.position': '第 {{index}} 个版本，共 {{count}} 个',

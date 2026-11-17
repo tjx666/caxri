@@ -207,6 +207,10 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.windowClose.closeAnyway': '仍要关闭',
 
     'desktop.menuBar.tooltip': 'Caxri',
+    'desktop.menuBar.tooltipNeedYouOne': '1 个对话需要你处理',
+    'desktop.menuBar.tooltipNeedYouOther': '{{count}} 个对话需要你处理',
+    'desktop.menuBar.tooltipWorkingOne': '1 个 Agent 在工作',
+    'desktop.menuBar.tooltipWorkingOther': '{{count}} 个 Agent 在工作',
     'desktop.menuBar.workingNone': '没有 Agent 在工作',
     'desktop.menuBar.workingOne': '1 个 Agent 在工作',
     'desktop.menuBar.workingOther': '{{count}} 个 Agent 在工作',
@@ -216,6 +220,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.menuBar.needsYou': '需要你处理',
     'desktop.menuBar.attentionWaiting': '等待你回复',
     'desktop.menuBar.attentionFailed': '失败',
+    'desktop.menuBar.attentionKeychain': '等待钥匙串授权',
     'desktop.menuBar.attentionResult': '已完成',
     'desktop.menuBar.moreOne': '在 Caxri 中查看其余 1 个',
     'desktop.menuBar.moreOther': '在 Caxri 中查看其余 {{count}} 个',
@@ -224,7 +229,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.menuBar.quit': '退出 Caxri',
     'desktop.menuBar.introTitle': 'Caxri 仍在菜单栏中运行',
     'desktop.menuBar.introBody':
-        'Agent 会继续工作。点菜单栏图标即可回来，也可以在设置中关闭此行为。',
+        'Agent 会继续工作。从菜单栏图标中选择“打开 Caxri”即可回来，也可以在设置中关闭此行为。',
 
     'desktop.crash.title': 'Caxri 反复崩溃',
     'desktop.crash.message': 'Caxri 窗口多次崩溃，已停止自动重新载入。',

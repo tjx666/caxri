@@ -19,7 +19,7 @@ describe('extension failure recovery', () => {
                 },
                 translate,
             ),
-        ).toBe('The extension connection was interrupted. Retry to reconnect.');
+        ).toBe('The connection to this view was interrupted. Retry to reconnect.');
     });
     it('distinguishes denied access from a retryable timeout', () => {
         expect(
@@ -35,7 +35,7 @@ describe('extension failure recovery', () => {
         );
         expect(reason).toBe('timeout');
         expect(describeExtensionFailureReason(reason, translate)).toBe(
-            'The extension did not respond in time. Try again.',
+            'This view did not respond in time. Try again.',
         );
     });
     it('classifies Server request codes and falls back for anything else', () => {

@@ -14,9 +14,10 @@ const sessionWorkAttentionSchema = z.strictObject({
     projectTitle: z.string().max(200),
     /**
      * `waiting` blocks the Agent on the user's answer; `failed` ended the turn with an error; `result` has a finished
-     * turn to read. Same tiers as the Activity view's Needs attention group.
+     * turn to read. Same tiers as the Activity view's Needs attention group. `keychain` is a macOS Keychain dialog one
+     * of the Session's processes raised: the Agent is blocked until the user answers it, so it sorts first.
      */
-    kind: z.enum(['failed', 'result', 'waiting']),
+    kind: z.enum(['failed', 'keychain', 'result', 'waiting']),
 });
 export type SessionWorkAttention = z.infer<typeof sessionWorkAttentionSchema>;
 

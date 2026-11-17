@@ -2,7 +2,7 @@ import type { SessionWorkSummary } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MenuBarActions } from '../menu-bar-menu';
-import { buildMenuBarMenu, menuBarTitle } from '../menu-bar-menu';
+import { buildMenuBarMenu, menuBarTitle, menuBarTooltip } from '../menu-bar-menu';
 
 const quiet: SessionWorkSummary = { working: 0, usageWaiting: 0, attentionCount: 0, attention: [] };
 
@@ -18,6 +18,18 @@ describe('menuBarTitle', () => {
         expect(menuBarTitle(undefined)).toBe('');
         expect(menuBarTitle({ ...quiet, working: 4 })).toBe('');
         expect(menuBarTitle({ ...quiet, attentionCount: 3 })).toBe('3');
+    });
+});
+
+describe('menuBarTooltip', () => {
+    it('names both counts, leaving out a zero part', () => {
+        expect(menuBarTooltip(undefined)).toBe('Caxri');
+        expect(menuBarTooltip(quiet)).toBe('Caxri');
+        expect(menuBarTooltip({ ...quiet, attentionCount: 2, working: 3 })).toBe(
+            '2 Sessions need you · 3 Agents working',
+        );
+        expect(menuBarTooltip({ ...quiet, attentionCount: 1 })).toBe('1 Session needs you');
+        expect(menuBarTooltip({ ...quiet, working: 1 })).toBe('1 Agent working');
     });
 });
 
@@ -50,6 +62,8 @@ describe('buildMenuBarMenu', () => {
             handlers,
         );
         expect(labels(items)).toEqual([
+            'Open Caxri',
+            '---',
             '2 Agents working',
             '1 Chat waiting for a plan limit to reset',
             'Keeping this Mac awake',
@@ -59,8 +73,6 @@ describe('buildMenuBarMenu', () => {
             '9 More in Caxri',
             '---',
             'Keep Mac Awake While Agents Work',
-            '---',
-            'Open Caxri',
             '---',
             'Quit Caxri',
         ]);
