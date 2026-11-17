@@ -14,9 +14,7 @@ describe('focused CI checks', () => {
             'apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer.tsx';
         expect(shouldRunReactDoctor('affected', [renderer])).toBe(true);
         expect(shouldRunReactDoctor('affected', ['apps/mobile/src/app/index.ts'])).toBe(true);
-        expect(shouldRunReactDoctor('affected', ['apps/server/src/domains/git/index.ts'])).toBe(
-            false,
-        );
+        expect(shouldRunReactDoctor('affected', ['apps/cli/src/main.ts'])).toBe(false);
         expect(shouldRunReactDoctor('affected', ['apps/desktop/README.md'])).toBe(false);
         // Draft and focused scopes keep their cheaper gate set; the `full` scope runs it from the platform gates.
         expect(shouldRunReactDoctor('focused-source', [renderer])).toBe(false);
@@ -40,9 +38,7 @@ describe('focused CI checks', () => {
             ]),
         ).toEqual([guard, families]);
         // Outside the guarded owners only the tree-wide family ratchet applies.
-        expect(
-            focusedRegressionPaths('affected', ['apps/server/src/domains/git/index.ts']),
-        ).toEqual([families]);
+        expect(focusedRegressionPaths('affected', ['apps/cli/src/main.ts'])).toEqual([families]);
         expect(focusedRegressionPaths('affected', ['docs/testing.md'])).toEqual([]);
     });
 

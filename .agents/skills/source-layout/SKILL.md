@@ -93,7 +93,10 @@ Before adding or moving source files, consult the directory owners and filename 
 `scripts/directory-density-baseline.ts` for the destination. Caps there cover protocol
 (`packages/protocol/src/domain/`, `agent/`) and Desktop agent-chat folders, among others: put a new
 module in a topical subdirectory (for example `agent/chat/`) instead of adding another flat file.
-Caps only shrink; lower the cap when files move out.
+Caps only shrink; lower the cap when files move out. The list is not hand-picked: any directory
+with 12 or more direct production modules (tests, fixtures, generated files, locale data, and
+`e2e/` excluded) fails the ratchet until it is listed, so a new dense directory must be recorded
+at its current count or split.
 Anywhere under a workspace `src/`, six production modules sharing the prefix before their first
 hyphen (`retry-claims.ts`, `retry-notice.ts`, ...) fail `scripts/__tests__/flat-family-ratchet.test.ts`
 unless the family predates the guard in `scripts/flat-family-baseline.ts`; move them into a

@@ -1,5 +1,6 @@
 /**
- * Shrink-only inventory of high-density source directories.
+ * Shrink-only inventory of high-density source directories. Every directory in the tree with 12 or more direct
+ * production modules must be listed; the ratchet test discovers them tree-wide.
  *
  * `source-layout` says a cohesive cluster of three or more modules belongs in its own directory, but the Renderer
  * feature lint rule and the Server domain-root structure test only cover their own roots. These owners kept growing
@@ -62,13 +63,151 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 11, directory: 'apps/desktop/src/renderer/src/features/agent-chat/attachments' },
     { cap: 10, directory: 'apps/desktop/src/renderer/src/features/agent-chat/tasks' },
     { cap: 12, directory: 'apps/desktop/src/renderer/src/features/agent-chat/activity' },
+
+    // Desktop Renderer
+    { cap: 12, directory: 'apps/desktop/src/renderer/src/features/agent-activity' },
+    { cap: 21, directory: 'apps/desktop/src/renderer/src/features/benchmark' },
+    { cap: 15, directory: 'apps/desktop/src/renderer/src/features/bug-report' },
+    { cap: 39, directory: 'apps/desktop/src/renderer/src/features/caxri-bot' },
+    { cap: 17, directory: 'apps/desktop/src/renderer/src/features/delegation' },
+    { cap: 15, directory: 'apps/desktop/src/renderer/src/features/performance-monitor' },
+    { cap: 38, directory: 'apps/desktop/src/renderer/src/features/preview' },
+    { cap: 74, directory: 'apps/desktop/src/renderer/src/features/primary-sidebar' },
+    { cap: 24, directory: 'apps/desktop/src/renderer/src/features/primary-sidebar/hooks' },
+    { cap: 13, directory: 'apps/desktop/src/renderer/src/features/process-explorer' },
+    { cap: 46, directory: 'apps/desktop/src/renderer/src/features/session' },
+    { cap: 81, directory: 'apps/desktop/src/renderer/src/features/settings' },
+    { cap: 23, directory: 'apps/desktop/src/renderer/src/features/ssh-host' },
+    { cap: 46, directory: 'apps/desktop/src/renderer/src/features/status-bar' },
+    { cap: 72, directory: 'apps/desktop/src/renderer/src/features/terminal' },
+    { cap: 21, directory: 'apps/desktop/src/renderer/src/features/usage' },
+    { cap: 34, directory: 'apps/desktop/src/renderer/src/features/workbench' },
+    { cap: 27, directory: 'apps/desktop/src/renderer/src/components' },
+    { cap: 24, directory: 'apps/desktop/src/renderer/src/components/markdown' },
+    { cap: 25, directory: 'apps/desktop/src/renderer/src/components/ui' },
+    { cap: 25, directory: 'apps/desktop/src/renderer/src/hooks' },
+    { cap: 54, directory: 'apps/desktop/src/renderer/src/lib' },
+    { cap: 34, directory: 'apps/desktop/src/renderer/src/stores' },
+
+    // Mobile
+    { cap: 20, directory: 'apps/mobile/scripts' },
+    { cap: 34, directory: 'apps/mobile/src/components' },
+    { cap: 158, directory: 'apps/mobile/src/features/agent-chat' },
+    { cap: 12, directory: 'apps/mobile/src/features/changes' },
+    { cap: 39, directory: 'apps/mobile/src/features/connection' },
+    { cap: 39, directory: 'apps/mobile/src/features/conversation' },
+    { cap: 23, directory: 'apps/mobile/src/features/panels' },
+    { cap: 36, directory: 'apps/mobile/src/features/sessions' },
+    { cap: 53, directory: 'apps/mobile/src/features/sessions/components' },
+    { cap: 28, directory: 'apps/mobile/src/features/sessions/hooks' },
+    { cap: 22, directory: 'apps/mobile/src/features/terminal' },
+
+    // Server
+    { cap: 54, directory: 'apps/server/src/core' },
+    { cap: 23, directory: 'apps/server/src/core/extensions' },
+    { cap: 42, directory: 'apps/server/src/core/mobile' },
+    { cap: 32, directory: 'apps/server/src/core/mobile/gateway' },
+    { cap: 17, directory: 'apps/server/src/core/terminal-host' },
+    { cap: 46, directory: 'apps/server/src/domains' },
+    { cap: 37, directory: 'apps/server/src/domains/agent-delegation' },
+    { cap: 12, directory: 'apps/server/src/domains/agent-dispatch' },
+    { cap: 63, directory: 'apps/server/src/domains/agents' },
+    { cap: 23, directory: 'apps/server/src/domains/agents/hooks' },
+    { cap: 16, directory: 'apps/server/src/domains/agents/providers/claude' },
+    { cap: 19, directory: 'apps/server/src/domains/agents/providers/codex' },
+    { cap: 24, directory: 'apps/server/src/domains/bot' },
+    { cap: 27, directory: 'apps/server/src/domains/db' },
+    { cap: 38, directory: 'apps/server/src/domains/db/models' },
+    { cap: 14, directory: 'apps/server/src/domains/db/schema' },
+    { cap: 13, directory: 'apps/server/src/domains/external-status' },
+    { cap: 23, directory: 'apps/server/src/domains/files' },
+    { cap: 35, directory: 'apps/server/src/domains/git' },
+    { cap: 33, directory: 'apps/server/src/domains/project-status' },
+    { cap: 26, directory: 'apps/server/src/domains/session' },
+    { cap: 45, directory: 'apps/server/src/domains/terminal' },
+    { cap: 26, directory: 'apps/server/src/domains/usage' },
+    { cap: 19, directory: 'apps/server/src/domains/workbench' },
+    { cap: 17, directory: 'apps/server/src/extension-host' },
+    { cap: 12, directory: 'apps/server/src/terminal-host' },
+    { cap: 19, directory: 'apps/server/src/terminal-host/engine' },
+
+    // CLI, extensions, and packages
+    { cap: 17, directory: 'apps/cli/src/commands' },
+    { cap: 18, directory: 'extensions/git/src' },
+    { cap: 13, directory: 'extensions/status/src' },
+    { cap: 12, directory: 'packages/client/src/supervise' },
+    { cap: 16, directory: 'packages/markdown/src' },
+    { cap: 29, directory: 'packages/protocol/src/configuration' },
+    { cap: 28, directory: 'packages/protocol/src/desktop' },
+    { cap: 38, directory: 'packages/protocol/src/mobile' },
+    { cap: 19, directory: 'packages/protocol/src/transport' },
+    { cap: 14, directory: 'packages/system/src/process' },
+    { cap: 20, directory: 'packages/utils/src' },
+
+    // Repository tooling
+    { cap: 126, directory: 'scripts' },
+    { cap: 16, directory: 'scripts/eslint-rules' },
+    { cap: 46, directory: 'scripts/mobile-android-case-definitions' },
+    { cap: 15, directory: 'tools/oxlint/anti-slop/rules' },
+    { cap: 40, directory: '.agents/skills/acceptance/scripts' },
+    { cap: 14, directory: '.agents/skills/debug/scripts' },
+    { cap: 12, directory: '.agents/skills/promo-images/scripts' },
+    { cap: 14, directory: '.agents/skills/quality-check/scripts' },
+    { cap: 17, directory: '.agents/skills/switch-worktree/scripts' },
 ];
 
 /**
- * A subdirectory below a guarded owner with at least this many direct production modules must have its own owner entry.
- * Without it, splitting a dense root into subdirectories only moves the unguarded growth one level down.
+ * Any directory with at least this many direct production modules must have its own owner entry, wherever it sits in
+ * the tree. Discovery is tree-wide (`findUnlistedDenseDirectories`), so a dense directory nobody remembered to list
+ * fails the ratchet instead of growing unguarded, and splitting a dense root only moves the guarded count one level
+ * down.
  */
-export const DIRECTORY_DENSITY_NESTED_THRESHOLD = 12;
+const DIRECTORY_DENSITY_NESTED_THRESHOLD = 12;
+
+/**
+ * Path segments whose contents are not production source for density purposes: tests, fixtures, generated output,
+ * dependencies, locale data (one flat file per namespace by design), and the `e2e/` test-support root. `scripts/` and
+ * skill script directories are counted: repository tooling grows flat like any other source.
+ */
+const NON_PRODUCTION_SEGMENT =
+    /(?:^|\/)(?:__tests__|fixtures|generated|node_modules|e2e|locales)(?:\/|$)/u;
+
+/**
+ * True when a repository-relative path is a production module counted toward its directory's density: a `*.ts` /
+ * `*.tsx` file that is not a test, declaration, or generated file, and not under a non-production segment.
+ */
+function isDirectoryDensityModule(path: string): boolean {
+    return (
+        /\.tsx?$/u.test(path) &&
+        !/\.test\.tsx?$/u.test(path) &&
+        !path.endsWith('.d.ts') &&
+        !path.endsWith('.generated.ts') &&
+        !NON_PRODUCTION_SEGMENT.test(path)
+    );
+}
+
+/**
+ * Directories (with their direct production module counts) that reach `threshold` but have no owner entry. Takes the
+ * file list as a parameter so tests can inject a synthetic tree.
+ */
+export function findUnlistedDenseDirectories(
+    paths: readonly string[],
+    owners: readonly DirectoryDensityOwner[] = DIRECTORY_DENSITY_OWNERS,
+    threshold: number = DIRECTORY_DENSITY_NESTED_THRESHOLD,
+): Array<{ count: number; directory: string }> {
+    const listed = new Set(owners.map(({ directory }) => directory));
+    const counts = new Map<string, number>();
+    for (const path of paths) {
+        const slash = path.lastIndexOf('/');
+        if (slash === -1 || !isDirectoryDensityModule(path)) continue;
+        const directory = path.slice(0, slash);
+        counts.set(directory, (counts.get(directory) ?? 0) + 1);
+    }
+    return [...counts]
+        .filter(([directory, count]) => count >= threshold && !listed.has(directory))
+        .map(([directory, count]) => ({ count, directory }))
+        .toSorted((a, b) => a.directory.localeCompare(b.directory));
+}
 
 export const DIRECTORY_DENSITY_FAMILIES: readonly DirectoryDensityFamily[] = [
     { cap: 23, directory: 'apps/server/src/domains/agent-chat', prefix: 'chat-' },

@@ -3,8 +3,8 @@
  * every `docs/**\/*.md` file, `docs/README.md` index completeness, relative Markdown link targets and their `#heading`
  * anchors (same-document ones included), backticked repository paths, and backticked TypeScript source filenames
  * written without a repository root. Agent skill Markdown (`.agents/skills`, `skills`) gets link and path checks only.
- * `GLOSSARY.md` and `AGENTS.md` get link/path checks only: they carry no frontmatter and are not part of the `docs/`
- * index.
+ * `GLOSSARY.md`, `AGENTS.md`, and `DESIGN.md` get link/path checks only: they carry no frontmatter and are not part of
+ * the `docs/` index.
  *
  * Every filesystem existence check walks each path segment through `readdir` instead of `existsSync`, because macOS's
  * default case-insensitive-but-preserving filesystem would silently accept a stale-cased reference (e.g.
@@ -53,7 +53,7 @@ export type DocumentStatus = (typeof DOC_STATUS_VALUES)[number];
 const SKIP_PATH_CHECK_STATUSES = new Set<string>(['historical', 'superseded']);
 
 const DOCS_INDEX_RELATIVE_PATH = 'docs/README.md';
-const ALWAYS_CHECKED_ROOT_FILES = ['GLOSSARY.md', 'AGENTS.md'];
+const ALWAYS_CHECKED_ROOT_FILES = ['GLOSSARY.md', 'AGENTS.md', 'DESIGN.md'];
 
 /**
  * Directories whose Markdown is Agent skill content: checked for links and backticked repository paths only, because
