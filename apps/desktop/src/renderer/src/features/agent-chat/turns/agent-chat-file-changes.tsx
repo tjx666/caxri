@@ -12,6 +12,8 @@ import {
 } from '@caxri/protocol';
 import { ChevronRight, FileDiff, Plus } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
@@ -175,13 +177,14 @@ export function AgentChatDiff({
                     <p className="m-0 flex items-center gap-2 border-t border-border px-2 py-1 font-sans text-muted">
                         {t('agentChat.changes.diffTruncated')}
                         {onOpenDiff && (
-                            <button
-                                className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
-                                type="button"
+                            <Button
+                                size="inline"
+                                variant="link"
+                                className="text-foreground"
                                 onClick={onOpenDiff}
                             >
                                 {t('agentChat.changes.openDiff')}
-                            </button>
+                            </Button>
                         )}
                     </p>
                 )}

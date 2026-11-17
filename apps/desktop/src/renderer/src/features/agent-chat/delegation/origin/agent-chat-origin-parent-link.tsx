@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 
 import { useTranslation } from '../../../../i18n';
@@ -22,14 +23,15 @@ export function AgentChatOriginParentLink({
     const label = t('delegation.origin.back', { title });
     return (
         <Tooltip content={label}>
-            <button
+            <Button
+                size="inline"
+                variant="link"
                 aria-label={label}
-                className="inline cursor-pointer border-0 bg-transparent p-0 text-xs text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                type="button"
+                className="inline text-xs text-accent underline-offset-2"
                 onClick={() => openSession(parentId)}
             >
                 {title}
-            </button>
+            </Button>
         </Tooltip>
     );
 }

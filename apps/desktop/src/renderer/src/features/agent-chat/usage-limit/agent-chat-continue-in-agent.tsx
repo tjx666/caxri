@@ -31,8 +31,7 @@ import {
 import { continueAgentChatInAgent } from './agent-chat-usage-limit-commands';
 import { useCanContinueInAgent } from './use-can-continue-in-agent';
 
-const LINK_CLASS =
-    'min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent';
+const LINK_CLASS = 'block min-w-0 truncate text-[12px] text-accent underline-offset-2';
 
 /**
  * Where another Agent already continued this work: a link to that Session, like the `/new-session` bubble's "Continued
@@ -52,13 +51,14 @@ function ContinuedInRow({ continuedIn }: { continuedIn: AgentChatContinuation })
             <span className="flex-none text-muted">{t('agentChat.handoff.continuedIn')}</span>
             <AgentIdentityIcon identity={continuedIn.provider} size={12} />
             {session && session.archivedAt === undefined ? (
-                <button
+                <Button
+                    size="inline"
+                    variant="link"
                     className={LINK_CLASS}
-                    type="button"
                     onClick={() => openSession(session.id)}
                 >
                     {title}
-                </button>
+                </Button>
             ) : (
                 <span className="min-w-0 truncate">{title}</span>
             )}

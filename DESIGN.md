@@ -74,7 +74,10 @@ reference this file; deviations require updating this spec first.
 11. **Leave the work to Agents.** A person's controls review, steer, and decide; they do not redo
     Agent work. Do not add a manual control for Git work that belongs to Agents, such as staging or
     committing. The pull request merge button is the deliberate exception, because merging is the
-    decision a person still makes.
+    decision a person still makes. The fixed set of person-initiated Git mutations that are not
+    authoring work (switching to an existing local branch, discarding confirmed working-tree changes,
+    Sync Changes) is whitelisted in `.agents/skills/project-architecture/references/git.md`, which is
+    authoritative for that list.
 
 `apps/desktop/src/renderer/src/styles/theme.css` is the single Tailwind/default-theme/bootstrap
 source imported by both `styles.css` (main workbench) and `process-explorer.css`. Entry
@@ -164,7 +167,7 @@ variant over it, so every surface that paints a title bar switches together.
 A built-in preset fills these roles from its upstream theme only where that clears the contrast
 floor. Every label the focused window shows (the three tab states, the four list states, and
 `titleBarActiveForeground`) must reach WCAG AA on its own fill, asserted per theme and per role in
-`domains/__tests__/theme-control-colors.test.ts`. This is the same rule `--muted` already answers
+`domains/theme/__tests__/theme-control-colors.test.ts`. This is the same rule `--muted` already answers
 to, and for the same reason: several upstream themes set `tab.inactiveForeground` to their comment
 color, which is exactly the substitution that rule forbids. A preset is Caxri's own product, so it
 takes the correction; an imported theme is its author's and keeps the original values.
@@ -206,7 +209,7 @@ only by glyph shape at 13px. It is violet in every built-in theme, following the
 established, and it is not `--accent`: two built-in palettes set `accent` to their own `success` or
 `warning` value, so borrowing the focus token would simply recreate the collision. Being a status
 role it is held to WCAG's 3:1 non-text floor on every chrome surface and to a 60° hue separation
-from `success`, both asserted in `domains/__tests__/theme.test.ts`. A theme file saved before a color
+from `success`, both asserted in `domains/theme/__tests__/theme.test.ts`. A theme file saved before a color
 role existed is repaired by `upgradeThemeColors` before validation, which recovers a saved preset's
 own value from the catalog and falls back to a custom theme's `accent`. A fixed default hex is the
 wrong tool here and was tried first: it silently downgraded every non-Dracula preset to `custom-*`
@@ -216,7 +219,7 @@ floor on both dark and light presets.
 `--muted` is secondary text, not a syntax comment color. It must clear WCAG AA (4.5:1) against
 `--background`, `--surface`, and `--elevated` alike, and a theme is not free to borrow its
 palette's comment color for it. The built-in palette is asserted against that floor in
-`domains/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
+`domains/theme/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
 pre-Runtime first frame cannot drift. Imported themes are held to the same floor as a requirement:
 app-color imports (full Caxri JSON and VS Code themes) are rejected before activation when
 `--muted` misses the floor on any chrome surface, while terminal-only imports preserve the active
@@ -275,7 +278,8 @@ shared component when every usage shows changing digits (`StatusItem`, `StatTile
 - Keyboard focus on a shared control (`Button`, `Input`, `Select`) is one treatment: an `--accent`
   border plus a 3px `--accent` glow at 50%, shown only for `:focus-visible`, so a pointer click
   draws nothing. A feature-local icon button uses the shared `Button` (`size="icon"`, `ghost`) to
-  inherit it instead of hand-rolling a borderless `<button>` with no focus state.
+  inherit it instead of hand-rolling a borderless `<button>` with no focus state. A link-style text
+  button uses `Button variant="link" size="inline"`, never `border-0 bg-transparent p-0`.
 
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric
 arbitrary-class allowlist above and rejects feature-local raw text inputs and raw checkboxes.
@@ -1532,7 +1536,7 @@ code block over 20 lines folds to its first 15 under a fade into `--elevated`, w
 the block's top back into view. Copy and full screen always carry the whole code. Tool output keeps
 its own height cap instead. All follow the Codex app's Dracula transcript; fullscreen follows ChatGPT
 and Claude.ai's block expansion, and folding follows Linear's documents. A path the
-Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
+Agent writes as plain prose (a repository path with a line number, an absolute path) is a file link like a cited one;
 in the user's bubble a path or URL takes the same `--accent` with no underline until hover, so a
 link reads the same on both sides of the transcript. A user message longer than 12 lines clamps with
 Show more / Show less; clicking a sent image opens a larger preview, a loading one pulses, and one
@@ -1633,7 +1637,7 @@ kinds, ending `, N failed` when items
 failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over
 24px. A shell command that only reads, searches, or lists files reads as that action (`sed -n
 '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
-line in the expanded view. Explorations chained with `&&` read as one (`Read a.ts, b.ts`), a search
+line in the expanded view. Explorations chained with `&&` read as one (`Read` followed by the comma-separated file names), a search
 over `rg --files` reads `Found files`, and a read of a skill's `SKILL.md` reads `Used skill
 review` with the skill glyph. A test run (`Ran tests a.test.ts`, flask glyph), a commit
 (`Committed` with its message, or `Committed and pushed`), a push (`Pushed feat/x`), and a `gh pr`

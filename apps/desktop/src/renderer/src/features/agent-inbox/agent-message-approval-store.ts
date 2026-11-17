@@ -2,6 +2,7 @@ import type { AgentHeldMessage } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { caxri } from '../../lib/caxri';
+import { forgetHeldMessage, indexHeldMessage } from '../../lib/environment-routing';
 import { createStore } from '../../lib/store';
 import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { listHeldAgentMessages } from './agent-message-approval-client';
@@ -31,7 +32,44 @@ function earliestExpiry(queue: AgentHeldMessageQueue): number | undefined {
     return earliest;
 }
 
-type AgentHeldMessageQueue = HeldMessageQueue<AgentHeldMessage>;
+/**
+ * A held message tagged with the machine that holds it: `undefined` is this Mac's Server, any other value an SSH Host's
+ * id. The approval dialog can name the Host from this field. Requests about the message (`agent.message.held.get`,
+ * `approve`, `deny`) reach that machine through the routing index, see `indexHeldMessage`.
+ */
+type EnvironmentHeldMessage = AgentHeldMessage & { environmentId?: string };
+
+type AgentHeldMessageQueue = HeldMessageQueue<EnvironmentHeldMessage>;
+
+/**
+ * Tags one event-delivered message with its machine and registers that machine for the requests that follow.
+ */
+function tagHeldMessage(
+    message: AgentHeldMessage,
+    environmentId: string | undefined,
+): EnvironmentHeldMessage {
+    if (environmentId === undefined) return message;
+    indexHeldMessage(environmentId, message.messageId);
+    return { ...message, environmentId };
+}
+
+/**
+ * Applies a settling receipt only to the entry the receipt's machine owns: a remote Host's receipt must not drop this
+ * Mac's request that happens to share an id, nor the reverse.
+ */
+function settleHeldMessageFromReceipt(
+    queue: AgentHeldMessageQueue,
+    receipt: { messageId: string; status: string },
+    environmentId: string | undefined,
+): AgentHeldMessageQueue {
+    const entry = queue.messages.find((message) => message.messageId === receipt.messageId);
+    if (entry && entry.environmentId !== environmentId) return queue;
+    // Forget the route even when the dialog already removed the entry after its own approve or deny.
+    if (environmentId !== undefined) forgetHeldMessage(receipt.messageId);
+    return receipt.status === 'expired'
+        ? expireHeldMessage(queue, receipt.messageId)
+        : removeHeldMessage(queue, receipt.messageId);
+}
 
 interface HeldMessageQueueState {
     queue: AgentHeldMessageQueue;
@@ -84,7 +122,14 @@ export function subscribeHeldMessageQueue(): () => void {
     async function loadHeldMessages(): Promise<void> {
         try {
             const initial = await listHeldAgentMessages();
-            if (isActive) updateHeldMessageQueue((queue) => replaceHeldMessages(queue, initial));
+            // The read is this Mac's alone, so entries an SSH Host delivered by event survive it.
+            if (isActive)
+                updateHeldMessageQueue((queue) =>
+                    replaceHeldMessages(queue, [
+                        ...queue.messages.filter((message) => message.environmentId !== undefined),
+                        ...initial,
+                    ]),
+                );
         } catch (error: unknown) {
             if (isActive)
                 pushToast(
@@ -94,16 +139,16 @@ export function subscribeHeldMessageQueue(): () => void {
         }
     }
     void loadHeldMessages();
-    const unsubscribe = caxri.onEvent((event) => {
-        if (event.event === 'agent.message.held')
-            updateHeldMessageQueue((queue) => receiveHeldMessage(queue, event.payload));
+    const unsubscribe = caxri.onEvent((event, environmentId) => {
+        if (event.event === 'agent.message.held') {
+            const tagged = tagHeldMessage(event.payload, environmentId);
+            updateHeldMessageQueue((queue) => receiveHeldMessage(queue, tagged));
+        }
         if (event.event === 'agent.message.receipt' && event.payload.status !== 'held') {
             const { messageId, status } = event.payload;
             // An `expired` receipt is the same event as the local tick below, whichever reports it first.
             updateHeldMessageQueue((queue) =>
-                status === 'expired'
-                    ? expireHeldMessage(queue, messageId)
-                    : removeHeldMessage(queue, messageId),
+                settleHeldMessageFromReceipt(queue, { messageId, status }, environmentId),
             );
         }
     });

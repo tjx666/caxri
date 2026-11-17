@@ -33,6 +33,10 @@ Every path that registers a Project is one of these authorities; a new one belon
 - A linked worktree of an existing Project: a detected Agent worktree (explicit Continue or the
   standing automatic-follow policy) or a Workbench Root picker choice, each revalidated against the
   owning Project's linked-worktree topology before registration.
+- Projects and Sessions import (`projectTransfer.importPath`). The file's top-level Project roots follow
+  the same canonical-folder rules as Open Folder; a Session's exported worktree folder is registered as
+  a worktree Project only after the owning Project's linked-worktree topology lists it, and otherwise
+  is reported in `missingWorkbenchRoots` with the Session left on the Project root.
 - `mobile.project.add` from a paired device with the `control` role. Server Core resolves the typed
   path inside the Server user's home directory, registers the owning root, and grants the new Project
   to that device; see [mobile authorization](../../../../docs/mobile/authorization.md#adding-a-project-from-mobile).

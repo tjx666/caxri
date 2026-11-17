@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -238,4 +239,80 @@ export function execFileInProcessGroup(
             })();
         });
     });
+}
+
+/**
+ * A stdin-driven one-shot child (a text-generation CLI, `codex app-server --stdio`) and the one way to stop it.
+ */
+export interface OneShotProcess {
+    child: ChildProcessWithoutNullStreams;
+    /**
+     * Ends stdin and, when the leader still runs, stops its whole process group: SIGTERM, `graceMs`, SIGKILL, then
+     * waits for the leader to exit and reaps what it left behind. Resolves only once the tree is gone, so a delayed
+     * child cannot apply an already-rejected write. Idempotent; a leader that already exited on its own keeps its group
+     * (see `execFileInProcessGroup`).
+     */
+    terminate: (graceMs: number) => Promise<void>;
+}
+
+async function didExit(exited: Promise<void>): Promise<true> {
+    await exited;
+    return true;
+}
+
+function hasLeaderExited(child: ChildProcessWithoutNullStreams): boolean {
+    return child.exitCode !== null || child.signalCode !== null;
+}
+
+/**
+ * Spawns a piped one-shot child leading its own process group, so `terminate` reaches a grandchild (the native binary
+ * behind an npm or Node shim, a tool it started) that `child.kill()` would orphan with its pipes unread. Windows has no
+ * process groups and signals the child alone.
+ *
+ * The child does not outlive Server Core on a graceful stop because every caller terminates it on cancel; a Server Core
+ * killed outright leaves it running, as with any detached child (the Chat path adds a ledger for that, which one-shot
+ * calls bounded by a timeout do not need).
+ */
+export function spawnOneShotInProcessGroup(
+    executable: string,
+    arguments_: readonly string[],
+    options: { cwd: string; env: NodeJS.ProcessEnv },
+): OneShotProcess {
+    const child = spawn(executable, [...arguments_], {
+        cwd: options.cwd,
+        env: options.env,
+        detached: process.platform !== 'win32',
+        stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const { pid } = child;
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+    const signalTree = (signal: NodeJS.Signals): void => {
+        if (pid === undefined || process.platform === 'win32') child.kill(signal);
+        else signalGroup(pid, signal);
+    };
+    let termination: Promise<void> | undefined;
+    const run = async (graceMs: number): Promise<void> => {
+        child.stdin.end();
+        if (pid === undefined || hasLeaderExited(child)) return;
+        signalTree('SIGTERM');
+        let timer: NodeJS.Timeout | undefined;
+        const gracefully = await Promise.race([
+            didExit(exited),
+            new Promise<false>((resolve) => {
+                timer = setTimeout(() => resolve(false), graceMs);
+                timer.unref();
+            }),
+        ]);
+        if (timer) clearTimeout(timer);
+        if (!gracefully && !hasLeaderExited(child)) signalTree('SIGKILL');
+        await exited;
+        if (process.platform !== 'win32') await reapGroup(pid);
+        // A descendant that left the group can hold the pipes open; drop our read ends.
+        child.stdout.destroy();
+        child.stderr.destroy();
+    };
+    return {
+        child,
+        terminate: (graceMs) => (termination ??= run(graceMs)),
+    };
 }

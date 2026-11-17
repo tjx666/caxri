@@ -71,13 +71,14 @@ function ApprovalPaths({
             ))}
             {moreCount > 0 && (
                 <li className="font-sans">
-                    <button
-                        className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-muted underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
-                        type="button"
+                    <Button
+                        size="inline"
+                        variant="link"
+                        className="text-muted underline-offset-2 hover:text-foreground"
                         onClick={() => setExpanded(true)}
                     >
                         {t('agentChat.request.morePaths', { count: moreCount })}
-                    </button>
+                    </Button>
                 </li>
             )}
         </ul>

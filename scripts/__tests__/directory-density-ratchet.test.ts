@@ -1,12 +1,13 @@
-import { readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import {
     DIRECTORY_DENSITY_FAMILIES,
-    DIRECTORY_DENSITY_NESTED_THRESHOLD,
     DIRECTORY_DENSITY_OWNERS,
+    findUnlistedDenseDirectories,
     isDirectoryDensityPath,
 } from '../directory-density-baseline';
 
@@ -25,13 +26,18 @@ function listModules(directory: string, prefix = ''): string[] {
         .map((entry) => entry.name);
 }
 
-function listSubdirectories(directory: string): string[] {
-    return readdirSync(resolve(projectRoot, directory), { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && entry.name !== '__tests__')
-        .flatMap((entry) => {
-            const child = `${directory}/${entry.name}`;
-            return [child, ...listSubdirectories(child)];
-        });
+/**
+ * Tracked plus untracked source files, so a new file fails locally before it is committed.
+ */
+function listSourcePaths(): string[] {
+    return execFileSync(
+        'git',
+        ['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*.ts', '*.tsx'],
+        { cwd: projectRoot, maxBuffer: 1 << 28 },
+    )
+        .toString()
+        .split('\0')
+        .filter((path) => path !== '' && existsSync(resolve(projectRoot, path)));
 }
 
 function expectAtCap(label: string, actual: number, cap: number): void {
@@ -63,18 +69,29 @@ describe('directory density ratchet', () => {
         },
     );
 
-    it('records every dense subdirectory below a guarded owner as its own owner', () => {
-        const owners = new Set(DIRECTORY_DENSITY_OWNERS.map(({ directory }) => directory));
-        const unguarded = [...owners]
-            .flatMap((directory) => listSubdirectories(directory))
-            .filter(
-                (directory) =>
-                    !owners.has(directory) &&
-                    listModules(directory).length >= DIRECTORY_DENSITY_NESTED_THRESHOLD,
-            );
+    it('records every dense directory in the tree as an owner', () => {
         expect(
-            unguarded,
-            `add these to DIRECTORY_DENSITY_OWNERS with their current module count`,
+            findUnlistedDenseDirectories(listSourcePaths()),
+            'add these to DIRECTORY_DENSITY_OWNERS with their current module count',
+        ).toEqual([]);
+    });
+
+    it('detects an unlisted dense directory in an injected file list', () => {
+        const files = (directory: string, count: number, suffix = '.ts') =>
+            Array.from({ length: count }, (_, index) => `${directory}/m${index}${suffix}`);
+        const dense = files('apps/x/src/dense', 12);
+        const ignored = [
+            ...files('apps/x/src/tested', 12, '.test.ts'),
+            ...files('apps/x/src/fixtures', 12),
+            ...files('apps/x/src/i18n/locales/en', 12),
+            ...files('e2e/support', 12),
+        ];
+        const small = files('apps/x/src/small', 11, '.tsx');
+        expect(findUnlistedDenseDirectories([...dense, ...ignored, ...small], [])).toEqual([
+            { count: 12, directory: 'apps/x/src/dense' },
+        ]);
+        expect(
+            findUnlistedDenseDirectories(dense, [{ cap: 12, directory: 'apps/x/src/dense' }]),
         ).toEqual([]);
     });
 
@@ -90,6 +107,6 @@ describe('directory density ratchet', () => {
         expect(
             isDirectoryDensityPath('apps/server/src/domains/agent-chat/providers/claude/x.ts'),
         ).toBe(true);
-        expect(isDirectoryDensityPath('apps/server/src/domains/git/index.ts')).toBe(false);
+        expect(isDirectoryDensityPath('apps/cli/src/main.ts')).toBe(false);
     });
 });

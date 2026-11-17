@@ -130,13 +130,14 @@ export function NotificationHelperStatus() {
                 <Button size="sm" variant="secondary" onClick={sendTest}>
                     {t('settings.notificationHelper.sendTest')}
                 </Button>
-                <button
-                    type="button"
-                    className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                <Button
+                    size="inline"
+                    variant="link"
+                    className="text-[11px] text-accent underline-offset-2"
                     onClick={openMacosSettings}
                 >
                     {t('settings.notificationHelper.openMacosSettings')}
-                </button>
+                </Button>
             </div>
             {testOutcome ? (
                 <FieldDescription role="status" tone={testOutcome === 'sent' ? 'muted' : 'warning'}>

@@ -6,6 +6,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { chatStateStore } from '../../agent-chat';
 import { CaxriDatabase } from '../../db';
+import type { WorktreeTopologyReader } from '../../session/import-conversation';
 import {
     exportProjectTransfer,
     importProjectTransferFile,
@@ -32,6 +33,20 @@ async function fixture() {
         return path;
     };
     return { directory, folder, open };
+}
+
+/**
+ * A topology reader for a repository whose main checkout is `main` and whose linked worktrees are `linked`.
+ */
+function topologyOf(main: string, ...linked: string[]): WorktreeTopologyReader {
+    return () =>
+        Promise.resolve({
+            repositoryKey: main,
+            worktrees: [
+                { branch: 'main', rootPath: main, isMain: true },
+                ...linked.map((rootPath) => ({ branch: 'feature', rootPath })),
+            ],
+        });
 }
 
 /**
@@ -126,7 +141,9 @@ describe('Project transfer', () => {
         const target = context.open('target');
         const emit = vi.fn();
 
-        await expect(importProjectTransferFile(target, file, emit)).resolves.toEqual({
+        await expect(
+            importProjectTransferFile(target, file, emit, topologyOf(app, worktree)),
+        ).resolves.toEqual({
             projectCount: 1,
             sessionCount: 2,
             skipped: [{ rootPath: gone, reason: 'missing' }],
@@ -169,7 +186,9 @@ describe('Project transfer', () => {
             payload: { kind: 'full', reason: 'project.import' },
         });
 
-        await expect(importProjectTransferFile(target, file, emit)).resolves.toMatchObject({
+        await expect(
+            importProjectTransferFile(target, file, emit, topologyOf(app, worktree)),
+        ).resolves.toMatchObject({
             projectCount: 0,
             sessionCount: 0,
             skipped: [
@@ -222,7 +241,9 @@ describe('Project transfer', () => {
         );
         const target = context.open('target');
 
-        await expect(importProjectTransferFile(target, file, vi.fn())).resolves.toMatchObject({
+        await expect(
+            importProjectTransferFile(target, file, vi.fn(), topologyOf(app)),
+        ).resolves.toMatchObject({
             sessionCount: 1,
             missingWorkbenchRoots: [worktree],
         });
@@ -234,9 +255,47 @@ describe('Project transfer', () => {
         ]);
     });
 
+    it('keeps a Session on its Project root when the exported worktree folder is not a linked worktree of it', async () => {
+        const context = await fixture();
+        const app = await context.folder('app');
+        const unrelated = await context.folder('unrelated');
+        const file = join(context.directory, 'export.json');
+        await writeFile(
+            file,
+            JSON.stringify({
+                format: 'caxri.projects',
+                formatVersion: 1,
+                exportedAt: 1,
+                projects: [
+                    {
+                        rootPath: app,
+                        sessions: [
+                            {
+                                title: 'Elsewhere',
+                                titleMode: 'manual',
+                                pinned: false,
+                                workbenchRootPath: unrelated,
+                                terminals: [],
+                            },
+                        ],
+                    },
+                ],
+            }),
+        );
+        const target = context.open('target');
+
+        await expect(
+            importProjectTransferFile(target, file, vi.fn(), topologyOf(app)),
+        ).resolves.toMatchObject({ sessionCount: 1, missingWorkbenchRoots: [unrelated] });
+
+        const [session] = target.listSessions();
+        expect(session.rootPath).toBe(app);
+        expect(target.findProjectByRootPath(unrelated)).toBeUndefined();
+    });
+
     it('removes a partly imported Project so importing the file again brings in every Session', async () => {
         const context = await fixture();
-        const { app, gone, source } = await seedSource(context);
+        const { app, gone, source, worktree } = await seedSource(context);
         const file = join(context.directory, 'export.json');
         await writeProjectTransfer(source, file);
         await rm(gone, { recursive: true });
@@ -249,12 +308,16 @@ describe('Project transfer', () => {
                 throw new Error('disk full');
             });
 
-        await expect(importProjectTransferFile(target, file, vi.fn())).rejects.toThrow('disk full');
+        await expect(
+            importProjectTransferFile(target, file, vi.fn(), topologyOf(app, worktree)),
+        ).rejects.toThrow('disk full');
         expect(target.findProjectByRootPath(app)).toBeUndefined();
         expect(target.listSessions()).toEqual([]);
 
         failSecond.mockRestore();
-        await expect(importProjectTransferFile(target, file, vi.fn())).resolves.toMatchObject({
+        await expect(
+            importProjectTransferFile(target, file, vi.fn(), topologyOf(app, worktree)),
+        ).resolves.toMatchObject({
             projectCount: 1,
             sessionCount: 2,
         });
@@ -278,7 +341,9 @@ describe('Project transfer', () => {
         target.hideProject(project.id);
         const emit = vi.fn();
 
-        await expect(importProjectTransferFile(target, file, emit)).resolves.toMatchObject({
+        await expect(
+            importProjectTransferFile(target, file, emit, topologyOf(app)),
+        ).resolves.toMatchObject({
             projectCount: 0,
             sessionCount: 0,
             skipped: [
@@ -305,7 +370,9 @@ describe('Project transfer', () => {
         target.archiveSession(target.createSession(project.id, null).session.id);
         target.hideProject(project.id);
 
-        await expect(importProjectTransferFile(target, file, vi.fn())).resolves.toMatchObject({
+        await expect(
+            importProjectTransferFile(target, file, vi.fn(), topologyOf(app)),
+        ).resolves.toMatchObject({
             projectCount: 1,
             sessionCount: 2,
         });
@@ -319,7 +386,7 @@ describe('Project transfer', () => {
 
         expect(() => parseProjectTransfer('not json')).toThrow('not a Caxri Projects');
         await expect(
-            importProjectTransferFile(context.open('target'), file, vi.fn()),
+            importProjectTransferFile(context.open('target'), file, vi.fn(), topologyOf('/none')),
         ).rejects.toThrow('not a Caxri Projects');
         expect(await readFile(file, 'utf8')).toContain('A theme');
     });

@@ -1,6 +1,7 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { formatUsd } from '@caxri/protocol';
 
+import { Button } from '@/components/ui/button';
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { useTranslation } from '../../i18n';
@@ -42,15 +43,16 @@ export function AgentDailyCostBars({ provider }: { provider: AgentProvider }) {
         return isError ? (
             <span className="flex items-center gap-2">
                 {t('statusBar.usage.dailyCostUnavailable')}
-                <button
-                    className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-foreground underline hover:text-muted focus-visible:outline focus-visible:outline-accent"
-                    type="button"
+                <Button
+                    size="inline"
+                    variant="link"
+                    className="text-foreground underline hover:text-muted"
                     onClick={() => {
                         void refetch();
                     }}
                 >
                     {t('common.retry')}
-                </button>
+                </Button>
             </span>
         ) : (
             <span className="block h-6" />

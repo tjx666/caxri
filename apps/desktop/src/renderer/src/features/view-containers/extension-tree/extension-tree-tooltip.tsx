@@ -8,6 +8,8 @@ import { cloneElement, useCallback, useEffect, useId, useRef, useState } from 'r
 
 import type { TreeItemDto } from '@caxri/protocol';
 
+import { Button } from '@/components/ui/button';
+
 import type { TooltipCursorAnchor } from '../../../components/tooltip-positioning';
 import {
     resolveTooltipCursorAnchor,
@@ -251,7 +253,9 @@ export function ExtensionTreeTooltip({
                             >
                                 <span className="text-muted">{row.label}: </span>
                                 {row.url ? (
-                                    <button
+                                    <Button
+                                        size="inline"
+                                        variant="link"
                                         aria-label={t(
                                             'viewContainers.extensionTree.openTooltipLink',
                                             {
@@ -259,12 +263,11 @@ export function ExtensionTreeTooltip({
                                                 value: row.value,
                                             },
                                         )}
-                                        className="max-w-full cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                                        type="button"
+                                        className="max-w-full text-accent underline-offset-2"
                                         onClick={() => openTooltipUrl(row.url!)}
                                     >
                                         <span className="wrap-anywhere">{row.value}</span>
-                                    </button>
+                                    </Button>
                                 ) : (
                                     <span className="wrap-anywhere text-foreground">
                                         {row.value}

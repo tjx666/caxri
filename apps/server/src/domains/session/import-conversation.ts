@@ -74,7 +74,7 @@ interface ConversationPlacement {
  * working in that worktree, as a Session the user moved there would, instead of adding the checkout as a new Project.
  * Anything that is not a Git checkout, or whose repository no visible Project owns, has no placement here.
  */
-async function worktreePlacement(
+export async function worktreePlacement(
     projects: readonly ProjectRecord[],
     cwd: string,
     readTopology: WorktreeTopologyReader,

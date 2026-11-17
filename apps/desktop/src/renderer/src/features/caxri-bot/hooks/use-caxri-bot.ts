@@ -100,7 +100,7 @@ export function useCaxriBot(): {
         const patchPullRequestRows = debounce(() => {
             void patchPendingPullRequestRows();
         }, BOARD_REFRESH_DEBOUNCE_MS);
-        const unsubscribe = caxri.onEvent((event) => {
+        const unsubscribe = caxri.onLocalEvent((event) => {
             const effect = botEventEffect(event, useCaxriBotStore.getState().identity);
             if (effect.reattach)
                 useWorkbenchStore.setState((current) => ({

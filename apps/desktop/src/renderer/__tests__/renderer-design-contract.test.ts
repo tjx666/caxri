@@ -362,4 +362,74 @@ describe('Renderer design contract', () => {
             'gate `hover:` behind `enabled:` or `not-aria-disabled:` so a disabled control never renders a hover affordance',
         ).toEqual([]);
     });
+
+    it('gives the shared Button a link variant that keeps the shared focus glow and gated hover', async () => {
+        // Link-style text buttons are `Button variant="link" size="inline"`: the variant must not drop the base
+        // focus-visible glow, must stay borderless and padding-free, and must gate its hover underline like every
+        // other variant so a disabled link advertises nothing.
+        const source = await readFile(join(rendererRoot, 'components/ui/button.tsx'), 'utf8');
+        expect(source).toContain('focus-visible:shadow-[0_0_0_3px_var(--state-focus-ring)]');
+        expect(source).toMatch(/link:\s*'[^']*border-0[^']*bg-transparent[^']*'/);
+        expect(source).toMatch(/link:\s*'[^']*enabled:not-aria-disabled:hover:underline[^']*'/);
+        expect(source).not.toMatch(/link:\s*'[^']*focus-visible:/);
+        expect(source).toMatch(/inline:\s*'min-h-0 p-0'/);
+    });
+
+    it('keeps hand-rolled borderless text buttons out of features outside an exact allowlist', async () => {
+        // `border-0 bg-transparent p-0` on a feature-local `<button>` is how three divergent focus treatments crept
+        // in. Link-style text buttons use `Button variant="link" size="inline"`. The allowlist is exact: it may only
+        // shrink, so a file that stops matching must be removed from it.
+        const allowlist: Record<string, string> = {
+            'agent-chat/attachments/agent-chat-attachment-list.tsx': 'absolute overlay zoom target',
+            'agent-chat/attachments/agent-chat-message-images.tsx': 'image thumbnail zoom target',
+            'agent-chat/composer/strip/agent-chat-strip-section.tsx': 'composer strip icon chrome',
+            'agent-chat/context/token-list-card.tsx': 'flex-fill disclosure row',
+            'agent-chat/delegation/agent-chat-delegated-session-row.tsx':
+                'absolutely positioned row chrome',
+            'agent-chat/tools/agent-chat-work-file-link.tsx':
+                'truncating inline file link with decoration styling',
+            'agent-chat/turns/agent-chat-file-changes.tsx':
+                'truncating path link and row icon button',
+            'agent-chat/turns/agent-chat-turn-changes.tsx': 'grouped stat toggle',
+            'agent-chat/usage-limit/agent-chat-usage-guard-card.tsx': 'flex-fill disclosure row',
+            'agent-status/agent-provider-status-section.tsx': 'flex section heading toggle',
+            'editor/git/git-changes-diff-editor.tsx': 'flex-fill section header',
+            'primary-sidebar/pinned-session-group.tsx': 'sidebar row with neutral focus',
+            'primary-sidebar/project-group.tsx': 'sidebar row with neutral focus',
+            'primary-sidebar/session-row-actions.tsx': 'sidebar row icon actions',
+            'process-explorer/process-row.tsx': 'row icon button',
+            'process-explorer/process-title-bar.tsx': 'title bar icon button',
+            'project-search/project-search-controls.tsx': 'toggle icon controls',
+            'session/session-search/session-search-preview.tsx': 'icon button',
+            'session/session-search/session-search-results.tsx': 'icon button',
+            'settings/delegation-presets/types/type-row.tsx': 'flex toggle row',
+            'ssh-host/ssh-host-folder-picker-dialog.tsx': 'icon buttons',
+            'tabs/work-tab.tsx': 'tab-close chrome',
+            'usage/usage-session-title.tsx':
+                'link-style with conditional classes, not yet migrated',
+            'view-containers/source-control/source-control-header.tsx': 'header icon buttons',
+        };
+        const featuresRoot = join(rendererRoot, 'features');
+        const paths = (await listProductionSources(featuresRoot)).filter((path) =>
+            path.endsWith('.tsx'),
+        );
+        const matching = (
+            await Promise.all(
+                paths.map(async (path) => {
+                    const source = await readFile(path, 'utf8');
+                    return /<button\b/.test(source) &&
+                        source.includes('border-0 bg-transparent p-0')
+                        ? relative(featuresRoot, path).split(sep).join('/')
+                        : undefined;
+                }),
+            )
+        )
+            .filter((path): path is string => path !== undefined)
+            .toSorted((left, right) => left.localeCompare(right));
+
+        expect(
+            matching,
+            'use `<Button variant="link" size="inline">` for link-style text buttons; the allowlist must match exactly',
+        ).toEqual(Object.keys(allowlist).toSorted((left, right) => left.localeCompare(right)));
+    });
 });

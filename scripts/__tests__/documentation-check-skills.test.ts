@@ -4,7 +4,11 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { checkLinksAndPaths, defaultCheckedFiles } from '../documentation-check';
+import {
+    checkLinksAndPaths,
+    defaultCheckedFiles,
+    runDocumentationCheck,
+} from '../documentation-check';
 
 const temporaryDirectories: string[] = [];
 
@@ -80,5 +84,14 @@ describe('checkLinksAndPaths for skill Markdown', () => {
         expect(files).toEqual(
             expect.arrayContaining(['.agents/skills/demo/SKILL.md', 'skills/product/SKILL.md']),
         );
+    });
+
+    it('includes DESIGN.md in the default checked file set and fails its stale path', async () => {
+        const repoRoot = await createRepoRoot();
+        await writeRepoFile(repoRoot, 'DESIGN.md', 'See `docs/gone.md`.\n');
+        const files = await defaultCheckedFiles(repoRoot);
+        expect(files).toContain('DESIGN.md');
+        const issues = await runDocumentationCheck(repoRoot, ['DESIGN.md']);
+        expect(issues.map((issue) => issue.file)).toEqual(['DESIGN.md']);
     });
 });

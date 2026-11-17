@@ -1,9 +1,8 @@
 import type { Buffer } from 'node:buffer';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { spawn } from 'node:child_process';
 
 import { CaxriError } from '@caxri/protocol';
 
+import { spawnOneShotInProcessGroup } from '../../../process-group';
 import type { AgentEnvironment } from '../../contract';
 import { agentCommandEnvironment } from '../../rename';
 
@@ -51,36 +50,6 @@ function codexAppServerErrorDetail(error: unknown): string | undefined {
         : detail;
 }
 
-function hasChildExited(child: ChildProcessWithoutNullStreams): boolean {
-    return child.exitCode !== null || child.signalCode !== null;
-}
-
-/**
- * Reaps the one-shot app-server before settling. Merely sending a signal is insufficient: a delayed child could
- * otherwise apply an already-rejected write after a timeout or cancellation.
- */
-async function terminateCodexAppServer(child: ChildProcessWithoutNullStreams): Promise<void> {
-    child.stdin.end();
-    if (child.pid === undefined || hasChildExited(child)) return;
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    child.kill();
-    let forceTimer: NodeJS.Timeout | undefined;
-    const hasExited = async (): Promise<true> => {
-        await exited;
-        return true;
-    };
-    const exitedGracefully = await Promise.race([
-        hasExited(),
-        new Promise<false>((resolve) => {
-            forceTimer = setTimeout(() => resolve(false), CODEX_APP_SERVER_TERMINATION_GRACE_MS);
-            forceTimer.unref();
-        }),
-    ]);
-    if (forceTimer) clearTimeout(forceTimer);
-    if (!exitedGracefully && !hasChildExited(child)) child.kill('SIGKILL');
-    await exited;
-}
-
 /**
  * Runs `calls` in order on a one-shot `codex app-server --stdio` and returns their results, each request sent only
  * after the previous one answered. Every failure this bridge authors itself is thrown as a `CaxriError`: these strings
@@ -98,10 +67,14 @@ export async function callCodexAppServer(
         context.maximumOutputBytes ?? CODEX_APP_SERVER_DEFAULT_MAXIMUM_OUTPUT_BYTES;
     const environment = await agentCommandEnvironment(context.environment);
     return new Promise((resolve, reject) => {
-        const child = spawn(
+        /**
+         * Reaping the one-shot app-server before settling matters: a delayed child could otherwise apply an
+         * already-rejected write after a timeout or cancellation.
+         */
+        const { child, terminate } = spawnOneShotInProcessGroup(
             context.executable,
             [...(context.rootArgs ?? []), 'app-server', '--stdio'],
-            { cwd: context.cwd, env: environment, stdio: ['pipe', 'pipe', 'pipe'] },
+            { cwd: context.cwd, env: environment },
         );
         let buffer = '';
         let outputBytes = 0;
@@ -121,7 +94,7 @@ export async function callCodexAppServer(
             result: unknown[] | undefined,
         ): Promise<void> {
             try {
-                await terminateCodexAppServer(child);
+                await terminate(CODEX_APP_SERVER_TERMINATION_GRACE_MS);
                 if (error) reject(error);
                 else resolve(result ?? []);
             } catch (terminationError) {

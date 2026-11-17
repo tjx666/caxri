@@ -90,16 +90,17 @@ export function DelegationQuestionCard({
                 {question.text}
             </span>
             {!isFieldShown && (
-                <button
-                    className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                    type="button"
+                <Button
+                    size="inline"
+                    variant="link"
+                    className="w-fit text-[12px] text-accent underline-offset-2"
                     onClick={() => {
                         shouldFocusField.current = true;
                         setIsOpen(true);
                     }}
                 >
                     {t('delegation.question.answerAction')}
-                </button>
+                </Button>
             )}
             {isFieldShown && (
                 <>

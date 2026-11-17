@@ -1,9 +1,9 @@
 import type { Buffer } from 'node:buffer';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 
 import { CaxriError } from '@caxri/protocol';
+
+import { spawnOneShotInProcessGroup } from '../process-group';
 
 const DEFAULT_MAXIMUM_OUTPUT_BYTES = 128 * 1024;
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -24,36 +24,6 @@ export interface AgentTextCommandOptions {
     signal?: AbortSignal;
 }
 
-function hasExited(child: ChildProcessWithoutNullStreams): boolean {
-    return child.exitCode !== null || child.signalCode !== null;
-}
-
-async function didExit(exited: Promise<void>): Promise<true> {
-    await exited;
-    return true;
-}
-
-async function terminate(
-    child: ChildProcessWithoutNullStreams,
-    terminationGraceMs: number,
-): Promise<void> {
-    child.stdin.end();
-    if (child.pid === undefined || hasExited(child)) return;
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    child.kill();
-    let timer: NodeJS.Timeout | undefined;
-    const graceful = await Promise.race([
-        didExit(exited),
-        new Promise<false>((resolve) => {
-            timer = setTimeout(() => resolve(false), terminationGraceMs);
-            timer.unref();
-        }),
-    ]);
-    if (timer) clearTimeout(timer);
-    if (!graceful && !hasExited(child)) child.kill('SIGKILL');
-    await exited;
-}
-
 /**
  * Sends user-derived prompt material only over stdin. Keeping it out of argv prevents local process listings,
  * diagnostics, and structured logs from exposing its contents.
@@ -62,11 +32,11 @@ export function runAgentTextCommand(options: AgentTextCommandOptions): Promise<s
     if (options.signal?.aborted)
         return Promise.reject(new CaxriError('CANCELLED', `${options.operation} was cancelled`));
     return new Promise((resolve, reject) => {
-        const child = spawn(options.executable, [...options.arguments], {
-            cwd: options.cwd,
-            env: options.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
+        const { child, terminate } = spawnOneShotInProcessGroup(
+            options.executable,
+            options.arguments,
+            { cwd: options.cwd, env: options.environment },
+        );
         const stdoutDecoder = new StringDecoder('utf8');
         let stdout = '';
         let outputBytes = 0;
@@ -90,10 +60,7 @@ export function runAgentTextCommand(options: AgentTextCommandOptions): Promise<s
 
         async function finishSettlement(error?: Error): Promise<void> {
             try {
-                await terminate(
-                    child,
-                    options.limits?.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS,
-                );
+                await terminate(options.limits?.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS);
                 if (error) reject(error);
                 else resolve(stdout);
             } catch (terminationError: unknown) {

@@ -1,6 +1,8 @@
 import { agentChatSessionHandoffTarget } from '@caxri/protocol';
 import { MessageSquareShare } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 import { useTranslation } from '../../../i18n';
 import { useSessions, useTerminal } from '../../../stores/selectors';
 import { openSession } from '../../session/session-commands';
@@ -22,14 +24,15 @@ function HandoffTargetRow({ sentAt }: { sentAt: number | undefined }) {
         <div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-border pt-1.5 text-[12px] leading-4">
             <span className="flex-none text-muted">{t('agentChat.handoff.continuedIn')}</span>
             {target.archivedAt === undefined ? (
-                <button
-                    className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-[12px] text-accent underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                <Button
+                    size="inline"
+                    variant="link"
+                    className="block min-w-0 truncate text-[12px] text-accent underline-offset-2"
                     data-agent-chat-handoff-target={target.id}
-                    type="button"
                     onClick={() => openSession(target.id)}
                 >
                     {title}
-                </button>
+                </Button>
             ) : (
                 <span className="min-w-0 truncate">
                     {t('agentChat.delegated.archived', { title })}

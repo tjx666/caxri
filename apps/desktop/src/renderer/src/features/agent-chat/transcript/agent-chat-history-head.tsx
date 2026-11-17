@@ -1,6 +1,8 @@
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef } from 'react';
 
+import { Button } from '@/components/ui/button';
+
 import { useTranslation } from '../../../i18n';
 import { AGENT_CHAT_HISTORY_HEAD_ATTRIBUTE } from './agent-chat-history';
 
@@ -70,13 +72,14 @@ export function AgentChatHistoryHead({
                 {hasFailed ? (
                     <p className="m-0 text-[11px] text-muted" role="status">
                         {t('agentChat.history.loadFailed')}{' '}
-                        <button
-                            className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
-                            type="button"
+                        <Button
+                            size="inline"
+                            variant="link"
+                            className="text-foreground"
                             onClick={onLoad}
                         >
                             {t('common.retry')}
-                        </button>
+                        </Button>
                     </p>
                 ) : isLoading ? (
                     <p className="m-0 text-[11px] text-muted" role="status">
@@ -103,13 +106,14 @@ export function AgentChatHistoryHead({
             {onOpenAsTerminal && (
                 <>
                     {' '}
-                    <button
-                        className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
-                        type="button"
+                    <Button
+                        size="inline"
+                        variant="link"
+                        className="text-foreground"
                         onClick={onOpenAsTerminal}
                     >
                         {t('agentChat.dock.openAsTerminal')}
-                    </button>
+                    </Button>
                 </>
             )}
         </p>

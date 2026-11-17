@@ -3,6 +3,8 @@ import { agentTranscriptTabPath } from '@caxri/protocol';
 import { capitalize } from 'es-toolkit';
 import { CircleDot } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
+
 import { FOCUSABLE_TOOLTIP_TRIGGER_CLASS, Tooltip } from '../../../../components/ui/tooltip';
 import type { TranslationKey } from '../../../../i18n';
 import { useTranslation } from '../../../../i18n';
@@ -66,13 +68,14 @@ function TerminalTranscriptRow({ terminal }: { terminal: TerminalRecord }) {
                             : 'panel.terminalInfo.transcriptMissing',
                     )}
                 >
-                    <button
-                        type="button"
-                        className="cursor-pointer border-0 bg-transparent p-0 text-left text-accent underline-offset-2 hover:underline"
+                    <Button
+                        size="inline"
+                        variant="link"
+                        className="text-accent underline-offset-2"
                         onClick={() => openEditorTab(agentTranscriptTabPath(terminal.id))}
                     >
                         {transcript.data.path}
-                    </button>
+                    </Button>
                 </Tooltip>
             </dd>
         </>

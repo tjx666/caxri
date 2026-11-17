@@ -62,7 +62,11 @@ function recordCursor(record: LogQueryRecord): Cursor {
     return { timestamp: record.timestamp, id: record.id };
 }
 
-async function readSuffix(path: string, maximumBytes: number): Promise<string> {
+/**
+ * Reads at most the last `maximumBytes` of a file, dropping the partial first line when the file was cut. A missing
+ * file reads as empty. Shared with diagnostics so every bounded log read has one tail contract.
+ */
+export async function readSuffix(path: string, maximumBytes: number): Promise<string> {
     let file: FileHandle | undefined;
     try {
         file = await open(path, 'r');

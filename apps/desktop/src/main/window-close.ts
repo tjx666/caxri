@@ -1,4 +1,4 @@
-import { logEventCatalog } from '@caxri/protocol';
+import { logEventCatalog, toWireError } from '@caxri/protocol';
 import type { ErrorLogFields, StructuredLogger } from '@caxri/system';
 import { errorLogFields } from '@caxri/system';
 import type { BrowserWindow, Dialog } from 'electron';
@@ -6,6 +6,12 @@ import type { BrowserWindow, Dialog } from 'electron';
 import type { RunningWork } from './confirmations';
 import { runningWorkPhrase, runningWorkTotal } from './confirmations';
 import { translateMain as t } from './locale';
+
+/**
+ * Closed set of window-close stages that can fail; the `stage` field of `window.close_failed`.
+ */
+type WindowCloseFailureStage =
+    'confirm' | 'countRunning' | 'detach' | 'notification' | 'terminate' | 'unsavedEditors';
 
 interface WindowCloseOptions {
     close: () => void;
@@ -20,7 +26,14 @@ interface WindowCloseOptions {
      * Server replies carry a result the close flow ignores; only rejection matters here.
      */
     detachAll: () => Promise<unknown>;
-    logFailure: (fields: ErrorLogFields) => void;
+    /**
+     * `code` is the wire error code, so the caller can log expected Server loss (`UNAVAILABLE`) as a warning.
+     */
+    logFailure: (stage: WindowCloseFailureStage, fields: ErrorLogFields, code: string) => void;
+    /**
+     * Tells the user that an explicit Terminate could not stop the running work.
+     */
+    notifyStopFailure: () => Promise<void>;
     terminateAll: () => Promise<unknown>;
 }
 
@@ -65,6 +78,23 @@ export function windowClosePrompt(running: RunningWork): WindowClosePrompt {
     };
 }
 
+export async function notifyWindowCloseStopFailure(
+    dialog: Dialog,
+    window: BrowserWindow | undefined,
+): Promise<void> {
+    const options = {
+        type: 'error' as const,
+        title: t('desktop.windowClose.stopFailureTitle'),
+        message: t('desktop.windowClose.stopFailureMessage'),
+        detail: t('desktop.windowClose.stopFailureDetail'),
+        buttons: [t('desktop.windowClose.closeAnyway')],
+        defaultId: 0,
+        cancelId: 0,
+    };
+    if (window && !window.isDestroyed()) await dialog.showMessageBox(window, options);
+    else await dialog.showMessageBox(options);
+}
+
 export async function confirmWindowClose(
     dialog: Dialog,
     window: BrowserWindow,
@@ -83,22 +113,56 @@ export async function confirmWindowClose(
 }
 
 /**
- * Completes window closure even when the Server is unavailable during shutdown.
+ * Completes window closure even when the Server is unavailable during shutdown. Each stage fails on its own so the log
+ * says which one broke (`window.close_failed` `stage`):
+ *
+ * - `unsavedEditors`, `countRunning`, `confirm`, and `detach` fail open: the window still closes, because keeping work
+ *   alive (or asking nothing) is the safe outcome and a wedged Server must not trap the window open.
+ * - `terminate` is different: the user explicitly chose to end the running work. If the Server cannot do it, the window
+ *   still closes (matching the quit path) but the user is told that the work is still running, so a closed window never
+ *   silently implies termination.
  */
 export async function resolveWindowClose(options: WindowCloseOptions): Promise<void> {
+    const fail = (stage: WindowCloseFailureStage, error: unknown): void => {
+        options.logFailure(stage, errorLogFields(error), toWireError(error).code);
+    };
+    let decision: 'cancel' | 'close' | 'terminate' = 'close';
+    let running: RunningWork | undefined;
     try {
         if ((await options.decideUnsavedEditors()) === 'cancel') return;
-        const running = await options.countRunning();
-        if (runningWorkTotal(running) > 0) {
-            const decision = await options.confirm(running);
-            if (decision === 'cancel') return;
-            if (decision === 'terminate') await options.terminateAll();
-            else await options.detachAll();
-        } else {
-            await options.detachAll();
-        }
     } catch (error) {
-        options.logFailure(errorLogFields(error));
+        fail('unsavedEditors', error);
+    }
+    try {
+        running = await options.countRunning();
+    } catch (error) {
+        fail('countRunning', error);
+    }
+    if (running && runningWorkTotal(running) > 0) {
+        try {
+            decision = await options.confirm(running);
+        } catch (error) {
+            fail('confirm', error);
+        }
+        if (decision === 'cancel') return;
+    }
+    if (decision === 'terminate') {
+        try {
+            await options.terminateAll();
+        } catch (error) {
+            fail('terminate', error);
+            try {
+                await options.notifyStopFailure();
+            } catch (notifyError) {
+                fail('notification', notifyError);
+            }
+        }
+    } else {
+        try {
+            await options.detachAll();
+        } catch (error) {
+            fail('detach', error);
+        }
     }
     options.close();
 }
