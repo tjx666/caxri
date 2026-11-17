@@ -22,6 +22,7 @@ import {
     CaxriError,
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
     localServerEventSchema,
+    SERVER_BUSY_DETAILS,
     toWireError,
 } from '@caxri/protocol';
 import type {
@@ -160,7 +161,9 @@ export function controlCapacityReply(id: string): CommandReplyEnvelope {
         protocolVersion: CAXRI_PROTOCOL_VERSION,
         id,
         ok: false,
-        error: toWireError(new CaxriError('CAPACITY', 'Too many requests are in flight')),
+        error: toWireError(
+            new CaxriError('CAPACITY', 'Too many requests are in flight', SERVER_BUSY_DETAILS),
+        ),
     };
 }
 

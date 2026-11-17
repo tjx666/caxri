@@ -6,6 +6,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.withReason': '{{label}}：{{reason}}',
     'toasts.failure.notReady': 'Caxri 尚未就绪。',
     'toasts.failure.timedOut': 'Caxri 未能及时响应。',
+    'toasts.failure.serverBusy': 'Caxri 正忙，请稍后再试。',
     'toasts.failure.couldNotComplete': '无法完成该操作。',
     'toasts.failure.code.VALIDATION': '请求的内容无效。',
     'toasts.failure.code.NOT_FOUND': '目标已不存在。',

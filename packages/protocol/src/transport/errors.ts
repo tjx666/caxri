@@ -50,6 +50,20 @@ export function terminalCapacityDetails(error: unknown): TerminalCapacityDetails
     return { terminalLimit, limit };
 }
 
+/**
+ * `details` of a `CAPACITY` rejection that sheds load because one peer already has too many control requests executing.
+ * Nothing the user created reached a limit: the same request succeeds once the backlog drains, so a client retries it
+ * shortly and words it as a busy Server rather than a capacity limit.
+ */
+export const SERVER_BUSY_DETAILS = { serverBusy: true } as const;
+
+/**
+ * Whether a rejected request carries {@link SERVER_BUSY_DETAILS}.
+ */
+export function isServerBusy(error: unknown): boolean {
+    return isCaxriError(error) && error.code === 'CAPACITY' && error.details?.serverBusy === true;
+}
+
 export interface WireError {
     code: CaxriErrorCode;
     message: string;

@@ -1,9 +1,16 @@
-import { CAXRI_PROTOCOL_VERSION, CaxriError, logEventCatalog } from '@caxri/protocol';
+import {
+    CAXRI_PROTOCOL_VERSION,
+    CaxriError,
+    fromWireError,
+    isServerBusy,
+    logEventCatalog,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 import type WebSocket from 'ws';
 
 import type { ControlServerOptions } from '../control-server-support';
 import {
+    controlCapacityReply,
     executeReply,
     fileSystemCode,
     isTokenMatch,
@@ -333,6 +340,17 @@ describe('delegation request correlation', () => {
         ]);
         expect(JSON.stringify(writes)).not.toContain('synthetic-private-prompt');
         expect(JSON.stringify(writes)).not.toContain('synthetic-private-answer');
+    });
+});
+
+describe('controlCapacityReply', () => {
+    it('marks load shedding as a busy Server so a Client can retry instead of reporting a limit', () => {
+        const reply = controlCapacityReply('request-1');
+        expect(reply.ok).toBe(false);
+        expect(!reply.ok && isServerBusy(fromWireError(reply.error))).toBe(true);
+        expect(isServerBusy(new CaxriError('CAPACITY', 'A Session supports at most 16'))).toBe(
+            false,
+        );
     });
 });
 

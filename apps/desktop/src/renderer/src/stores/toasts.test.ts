@@ -1,4 +1,4 @@
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, SERVER_BUSY_DETAILS } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -454,6 +454,19 @@ describe('Sonner notification adapter', () => {
             });
             expect(describeFailureNotice(session, '无法新建终端', translate).message).toBe(
                 '无法新建终端：此会话已有 16 个 Agent 和终端在运行，请先关闭一些再试。',
+            );
+        });
+
+        it('names a busy Server instead of a capacity limit the user never reached', () => {
+            const error = new CaxriError(
+                'CAPACITY',
+                'Too many requests are in flight',
+                SERVER_BUSY_DETAILS,
+            );
+            expect(describeFailureNotice(error, '无法从 Server 刷新项目和会话', translate)).toEqual(
+                {
+                    message: '无法从 Server 刷新项目和会话：Caxri 正忙，请稍后再试。',
+                },
             );
         });
 

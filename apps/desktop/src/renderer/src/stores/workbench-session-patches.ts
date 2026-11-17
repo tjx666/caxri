@@ -145,3 +145,29 @@ export function applyPendingSessionPatches(
     });
     return { ...state, sessionStates };
 }
+
+/**
+ * Drops a fire-and-forget patch that would persist the state Server already holds.
+ *
+ * UI-driven patches are frequently re-entered with no change at all: restoring focus to a Terminal that is already the
+ * active tab re-runs `selectTab`, which rebuilds the layout object and therefore never compares equal by reference.
+ * Sending that write costs a `session.updateState` round trip and a SQLite write per focus change, and, worse, it turns
+ * an ordinary focus restoration into a failure surface. The Terminal regains focus exactly when a dialog or command
+ * palette closes, which is also when the Session behind it may have just been deleted or the application may have
+ * started quitting, so the no-op write came back `NOT_FOUND` or `CANCELLED` and raised an "Unable to activate Terminal"
+ * notification over a Session the user deliberately removed.
+ *
+ * `persistSessionState` deliberately keeps the opposite rule: a durable workflow re-persists an already-applied
+ * optimistic state on purpose (see `remapOpenEditorsInSession`), so it must still issue the write.
+ */
+export function isSessionStatePersisted(
+    bootstrap: BootstrapState | undefined,
+    next: SessionState,
+): boolean {
+    const previous = bootstrap?.sessionStates.find(
+        (state) =>
+            state.sessionId === next.sessionId &&
+            state.workbenchRootProjectId === next.workbenchRootProjectId,
+    );
+    return previous !== undefined && isEqual(previous, next);
+}
