@@ -31,6 +31,23 @@ describe('claudeUserPrompt', () => {
         ]);
     });
 
+    it('sends a slash command its images ahead of the text, so Claude Code still runs the command', () => {
+        const { message } = claudeUserPrompt({
+            uuid: crypto.randomUUID(),
+            turnId: 'turn-1',
+            sessionId: 'session-1',
+            text: '/add-model [Image #1]',
+            images: [image],
+        });
+        expect(message.message.content).toEqual([
+            {
+                type: 'image',
+                source: { type: 'base64', media_type: 'image/png', data: image.data },
+            },
+            { type: 'text', text: '/add-model [Image #1]' },
+        ]);
+    });
+
     it('sends an image-only message without an empty text block', () => {
         const { message } = claudeUserPrompt({
             uuid: crypto.randomUUID(),
