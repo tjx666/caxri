@@ -150,7 +150,7 @@ describe('directory density contract selection', () => {
             ),
         ).resolves.toContain(contract);
         await expect(
-            selectedTestCandidates(process.cwd(), ['packages/utils/src/index.ts']),
+            selectedTestCandidates(process.cwd(), ['apps/cli/src/main.ts']),
         ).resolves.not.toContain(contract);
     });
 });
