@@ -64,6 +64,8 @@ export const agentChatTimeline = {
     'agentChat.message.steeredHint':
         'Steered: sent while the Agent was working, so it joined the running turn',
     'agentChat.message.copy': 'Copy message',
+    'agentChat.message.relayedFrom': 'Relayed from {{title}}',
+    'agentChat.message.relayedFromUnknown': 'Relayed from another Session',
     'agentChat.version.previous': 'Previous version',
     'agentChat.version.next': 'Next version',
     'agentChat.version.position': 'Version {{index}} of {{count}}',

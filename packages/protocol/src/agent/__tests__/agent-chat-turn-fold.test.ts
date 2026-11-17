@@ -208,6 +208,17 @@ describe('isOpenByDefault', () => {
         ]);
     });
 
+    it('keeps the fold closed behind a single paragraph longer than a brief reply', () => {
+        const paragraph: AgentChatItem = { ...reply, text: 'Done. '.repeat(30) };
+        expect(openFolds(foldAgentChatTurn([user, command, paragraph], 'a2'))).toEqual([
+            { index: 0, isOpen: undefined },
+        ]);
+        const atLimit: AgentChatItem = { ...reply, text: 'x'.repeat(160) };
+        expect(openFolds(foldAgentChatTurn([user, command, atLimit], 'a2'))).toEqual([
+            { index: 0, isOpen: true },
+        ]);
+    });
+
     it('keeps an earlier answer of several lines in view before a one-line final reply, and folds the rest', () => {
         const answer: AgentChatItem = { ...commentary, text: 'Merged.\n\nThe issue is closed.' };
         const parts = foldAgentChatTurn(

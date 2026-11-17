@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react';
 
 import type { AgentChatDelegatedTask, AgentChatSkillReference } from '@caxri/protocol';
-import { agentChatTextWithSessionMentions, parseAgentChatPathReferences } from '@caxri/protocol';
+import {
+    agentChatTextWithSessionMentions,
+    parseAgentChatPathReferences,
+    parseRelayedSessionMessage,
+} from '@caxri/protocol';
 import { CornerDownRight } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -89,7 +93,12 @@ export function AgentChatUserMessage({
     const isEditing = edit?.editingId === id;
     const container = useRef<HTMLDivElement>(null);
     const menu = useAgentChatUserMessageMenu({ container, id, text });
-    const { handoff, references, skills, text: words } = parseAgentChatPathReferences(text);
+    const parsed = parseAgentChatPathReferences(text);
+    const { handoff, references, skills } = parsed;
+    // A message another Session relayed reads as its original words under a quiet source line; the Agent still
+    // received the protocol line naming the source.
+    const relay = parseRelayedSessionMessage(parsed.text);
+    const words = relay?.text ?? parsed.text;
     const hasVersions = useAgentChatVersions()?.switcher(id) !== undefined;
     const hasActions =
         words !== '' ||
@@ -143,6 +152,16 @@ export function AgentChatUserMessage({
                 <>
                     {handoff && (
                         <AgentChatSessionHandoffBubble note={handoff.note} sentAt={createdAt} />
+                    )}
+                    {relay && (
+                        <span
+                            className="max-w-[85%] truncate text-[12px] text-muted"
+                            data-agent-chat-relay-source=""
+                        >
+                            {relay.sourceTitle === undefined
+                                ? t('agentChat.message.relayedFromUnknown')
+                                : t('agentChat.message.relayedFrom', { title: relay.sourceTitle })}
+                        </span>
                     )}
                     <div className="flex w-full items-start justify-end gap-1.5">
                         {caption && (

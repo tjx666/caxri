@@ -7,6 +7,7 @@ import {
     agentChatDraftChange,
     agentChatDraftTransaction,
     agentChatLimitedChange,
+    shouldRevealAppendedAgentChatDraft,
 } from '../agent-chat-composer-view';
 
 describe('agentChatDraftChange', () => {
@@ -62,6 +63,16 @@ describe('agentChatDraftTransaction', () => {
         expect(state.doc.toString()).toBe('@fix');
         expect(redo({ state, dispatch })).toBe(true);
         expect(state.doc.toString()).toBe(chosen);
+    });
+});
+
+describe('shouldRevealAppendedAgentChatDraft', () => {
+    it('reveals text appended to an unfocused, non-empty draft only', () => {
+        expect(shouldRevealAppendedAgentChatDraft('draft', 'draft\n> quote', false)).toBe(true);
+        expect(shouldRevealAppendedAgentChatDraft('draft', 'draft\n> quote', true)).toBe(false);
+        expect(shouldRevealAppendedAgentChatDraft('', 'quote', false)).toBe(false);
+        expect(shouldRevealAppendedAgentChatDraft('draft', 'other', false)).toBe(false);
+        expect(shouldRevealAppendedAgentChatDraft('draft', '', false)).toBe(false);
     });
 });
 

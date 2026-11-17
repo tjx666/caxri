@@ -41,6 +41,7 @@ import {
     agentChatComposerPasteEvent,
     agentChatDraftTransaction,
     isAgentChatEditorTextDrop,
+    shouldRevealAppendedAgentChatDraft,
 } from './agent-chat-composer-view';
 
 /**
@@ -282,14 +283,18 @@ export function AgentChatComposerEditor({
     useLayoutEffect(() => {
         const view = viewReference.current;
         if (!view) return;
-        const transaction = agentChatDraftTransaction(view.state.doc.toString(), draft, {
+        const current = view.state.doc.toString();
+        const transaction = agentChatDraftTransaction(current, draft, {
             isFocused: view.hasFocus,
         });
         if (!transaction) return;
+        const revealsAppended = shouldRevealAppendedAgentChatDraft(current, draft, view.hasFocus);
         view.dispatch({
             ...transaction,
             annotations: [externalDraft.of(true), ...[transaction.annotations ?? []].flat()],
         });
+        // Only the editor's own scroller moves: CodeMirror's `scrollIntoView` would also scroll ancestors.
+        if (revealsAppended) view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight;
     }, [draft]);
 
     useLayoutEffect(() => {

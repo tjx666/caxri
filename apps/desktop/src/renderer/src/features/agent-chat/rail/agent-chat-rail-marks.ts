@@ -1,4 +1,4 @@
-import { agentChatPathReferencePreview } from '@caxri/protocol';
+import { agentChatPathReferencePreview, parseRelayedSessionMessage } from '@caxri/protocol';
 
 import type { Translate } from '../../../i18n';
 import type { AgentChatTimelineEntry } from '../transcript/agent-chat-timeline';
@@ -93,7 +93,8 @@ export function agentChatRailPreview(text: string, imageCount: number, t: Transl
 /**
  * The rail's marks, one per user message in transcript order. User messages always stay at the timeline's top level (a
  * finished turn folds only work and commentary), so nested entries are not searched. A delegated task previews the task
- * its caller wrote, not the pointer that stands in for it.
+ * its caller wrote, not the pointer that stands in for it, and a relayed message previews the text it carries, not the
+ * `[Caxri] Relayed from` protocol line.
  */
 export function agentChatRailMarks(
     timeline: readonly AgentChatTimelineEntry[],
@@ -112,7 +113,7 @@ export function agentChatRailMarks(
         const imageCount = images?.length ?? 0;
         const words = delegatedTask
             ? (delegatedTask.prompt ?? t('agentChat.delegated.task'))
-            : agentChatPathReferencePreview(text);
+            : agentChatPathReferencePreview(parseRelayedSessionMessage(text)?.text ?? text);
         marks.push({
             id,
             preview: agentChatRailPreview(words, imageCount, t),

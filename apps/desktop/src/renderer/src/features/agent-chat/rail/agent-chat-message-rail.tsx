@@ -20,7 +20,7 @@ import { useAgentChatRailPanel } from './hooks/use-agent-chat-rail-panel';
 const RailTick = memo(({ isActive, width }: { isActive: boolean; width: number }) => (
     <div className="flex h-3 min-h-1.5 shrink items-center justify-end">
         <span
-            className={cn('block h-0.5 rounded-full', isActive ? 'bg-foreground' : 'bg-muted/40')}
+            className={cn('block h-0.5 rounded-full', isActive ? 'bg-foreground' : 'bg-muted/70')}
             style={{ width }}
         />
     </div>
@@ -56,45 +56,47 @@ const RailRow = memo(
     }) => {
         const { t } = useTranslation();
         return (
-            <button
-                aria-current={isActive ? 'location' : undefined}
-                aria-label={
-                    isReady
-                        ? t('agentChat.rail.goToMessage', { preview })
-                        : t('agentChat.rail.loadingPreview')
-                }
-                className="group/row flex h-7.5 w-full shrink-0 cursor-pointer items-center justify-end gap-2.5 rounded-md border-0 bg-transparent px-3 text-right outline-none hover:bg-[var(--selection)] focus-visible:bg-[var(--selection)]"
-                data-agent-chat-rail-row={id}
-                tabIndex={isTabStop ? 0 : -1}
-                type="button"
-                onClick={() => onJump(id)}
-                onFocus={() => onFocusRow(position)}
-                // A pointer jump leaves focus where it was, so the list it closes keeps no focused row behind.
-                onPointerDown={(event) => event.preventDefault()}
-            >
-                {isReady ? (
-                    <span
-                        className={cn(
-                            'min-w-0 truncate text-[13px]',
-                            isActive
-                                ? 'font-medium text-foreground'
-                                : 'text-muted group-hover/row:text-foreground group-focus-visible/row:text-foreground',
-                        )}
-                    >
-                        {preview}
-                    </span>
-                ) : (
-                    <Skeleton className="h-2.5 w-32" />
-                )}
-                <span
-                    aria-hidden="true"
-                    className={cn(
-                        'block h-0.5 shrink-0 rounded-full',
-                        isActive ? 'bg-foreground' : 'bg-muted/40',
+            <li className="flex shrink-0">
+                <button
+                    aria-current={isActive ? 'location' : undefined}
+                    aria-label={
+                        isReady
+                            ? t('agentChat.rail.goToMessage', { preview })
+                            : t('agentChat.rail.loadingPreview')
+                    }
+                    className="group/row flex h-7.5 w-full shrink-0 cursor-pointer items-center justify-end gap-2.5 rounded-md border-0 bg-transparent px-3 text-right outline-none hover:bg-[var(--selection)] focus-visible:bg-[var(--selection)]"
+                    data-agent-chat-rail-row={id}
+                    tabIndex={isTabStop ? 0 : -1}
+                    type="button"
+                    onClick={() => onJump(id)}
+                    onFocus={() => onFocusRow(position)}
+                    // A pointer jump leaves focus where it was, so the list it closes keeps no focused row behind.
+                    onPointerDown={(event) => event.preventDefault()}
+                >
+                    {isReady ? (
+                        <span
+                            className={cn(
+                                'min-w-0 truncate text-[13px]',
+                                isActive
+                                    ? 'font-medium text-foreground'
+                                    : 'text-muted group-hover/row:text-foreground group-focus-visible/row:text-foreground',
+                            )}
+                        >
+                            {preview}
+                        </span>
+                    ) : (
+                        <Skeleton className="h-2.5 w-32" />
                     )}
-                    style={{ width }}
-                />
-            </button>
+                    <span
+                        aria-hidden="true"
+                        className={cn(
+                            'block h-0.5 shrink-0 rounded-full',
+                            isActive ? 'bg-foreground' : 'bg-muted/70',
+                        )}
+                        style={{ width }}
+                    />
+                </button>
+            </li>
         );
     },
 );
@@ -122,7 +124,7 @@ export function AgentChatMessageRail({
 }) {
     const { t } = useTranslation();
     const [column, setColumn] = useState<HTMLElement | null>(null);
-    const list = useRef<HTMLDivElement>(null);
+    const list = useRef<HTMLUListElement>(null);
     const capacity = useAgentChatRailCapacity(column);
     const indices = useMemo(
         () => agentChatRailSampleIndices(marks.length, capacity),
@@ -173,7 +175,7 @@ export function AgentChatMessageRail({
         >
             {/* Not positioned, so the list below centers on the whole column rather than on the ticks. */}
             <div
-                className="pointer-events-auto flex max-h-full flex-col items-end"
+                className="pointer-events-auto flex max-h-full flex-col items-end pl-6"
                 onPointerEnter={(event) => {
                     if (event.pointerType === 'mouse') panel.pointerEnter();
                 }}
@@ -197,7 +199,7 @@ export function AgentChatMessageRail({
                         />
                     ))}
                 </div>
-                <div
+                <ul
                     className={cn(
                         'absolute top-1/2 right-0 flex max-h-full w-max max-w-90 min-w-60 origin-right -translate-y-1/2 [scrollbar-width:thin] flex-col overflow-y-auto rounded-md bg-elevated p-1 shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] transition-[opacity,scale] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) motion-reduce:transition-none',
                         panel.isOpen ? 'scale-100' : 'pointer-events-none scale-96 opacity-0',
@@ -230,7 +232,7 @@ export function AgentChatMessageRail({
                             onJump={jump}
                         />
                     ))}
-                </div>
+                </ul>
             </div>
         </nav>
     );
