@@ -77,7 +77,7 @@ Full audit 2026-11-18 @ `d535e2a29` found no prior OPEN entry; the batch of [iss
 ### AD-perf-usage-ledger-sync-per-read: [RESOLVED · Architecture debt · S]
 
 - **Summary:** Every sidebar cost read, delegation-strip summary, and usage-limit read ran a full ledger sync over all historical rows, so its cost grew with history.
-- **Evidence:** `apps/server/src/domains/usage/ledger-read-throttle.ts` skips a pass within 5 s of the last one unless a new binding grew the ledger; `usage.scan` logs slow passes and a per-lifetime `skippedByInterval`; `apps/server/src/domains/usage/__tests__/service.integration.test.ts` covers the interval, a fresh binding, and `report()`.
+- **Evidence:** `apps/server/src/domains/usage/ledger-read-throttle.ts` skips a pass within 30 s of the last one unless a new binding grew the ledger; `usage.scan` logs slow passes and a per-lifetime `skippedByInterval`; `apps/server/src/domains/usage/__tests__/service.integration.test.ts` covers the interval, a fresh binding, and `report()`.
 - **First seen:** 2026-11-18 @ d535e2a29 · **Last verified:** 2026-11-18 @ d535e2a29
 - **Resolved:** 2026-11-18 via [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024).
 - **Remediation target / Acceptance:** Repeated reads within the interval cost one pass; the full report still syncs.

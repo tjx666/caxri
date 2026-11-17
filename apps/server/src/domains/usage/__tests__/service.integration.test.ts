@@ -8,6 +8,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { agentProviders } from '../../agents';
 import { CaxriDatabase } from '../../db';
+import { LEDGER_READ_MIN_INTERVAL_MS } from '../ledger-read-throttle';
 import { UsageService } from '../service';
 
 const T0 = Date.parse('2026-03-01T10:00:00.000Z');
@@ -153,7 +154,7 @@ describe('UsageService', () => {
                 agentSessionId,
                 claudeLine('m1', 100, PRICED) + claudeLine('m2', 50, PRICED),
             );
-            clock.now += 6_000;
+            clock.now += LEDGER_READ_MIN_INTERVAL_MS;
             const later = await service.sessionCost(sessionId);
             expect(spy).toHaveBeenCalledTimes(2);
             expect(later!.costUsd).toBeGreaterThan(first!.costUsd!);
