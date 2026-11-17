@@ -28,6 +28,33 @@ const requestOwners = new Map<string, string>();
 type OwnerKind = keyof typeof owners;
 
 /**
+ * Which SSH Host holds each pending Agent message awaiting approval, by message id. Kept apart from `owners` because a
+ * Workbench snapshot never lists them: they arrive only as `agent.message.held` events, so a snapshot refresh must not
+ * wipe them. The approval queue registers an entry when a remote held message arrives and drops it when it settles.
+ */
+const heldMessageOwners = new Map<string, string>();
+
+/**
+ * Records that an SSH Host holds this Agent message, so `agent.message.held.get`, `approve`, and `deny` reach it.
+ */
+export function indexHeldMessage(environmentId: string, messageId: string): void {
+    heldMessageOwners.set(messageId, environmentId);
+}
+
+/**
+ * Drops a held message's owner once it settled or expired.
+ */
+export function forgetHeldMessage(messageId: string): void {
+    heldMessageOwners.delete(messageId);
+}
+
+const HELD_MESSAGE_METHODS = new Set([
+    'agent.message.held.get',
+    'agent.message.approve',
+    'agent.message.deny',
+]);
+
+/**
  * Records a reply indexed since a snapshot read started, which that snapshot cannot list yet. Each carries the
  * generation it was indexed at, so a snapshot read before it keeps it and one read after it takes over.
  */
@@ -105,6 +132,8 @@ export function indexReplyRecords(environmentId: string, reply: unknown): void {
  * Drops one SSH Host's records once it is disconnected.
  */
 export function forgetEnvironment(environmentId: string): void {
+    for (const [id, owner] of heldMessageOwners)
+        if (owner === environmentId) heldMessageOwners.delete(id);
     for (const [id, record] of replyRecords)
         if (record.environmentId === environmentId) replyRecords.delete(id);
     for (const map of Object.values(owners))
@@ -205,6 +234,10 @@ function resolveParameters(method: string, parameters: RequestParameters): strin
     if (method === 'requests.cancel') {
         const cancelled = stringField(parameters, 'requestId');
         return cancelled === undefined ? undefined : requestOwners.get(cancelled);
+    }
+    if (HELD_MESSAGE_METHODS.has(method)) {
+        const messageId = stringField(parameters, 'messageId');
+        return messageId === undefined ? undefined : heldMessageOwners.get(messageId);
     }
     for (const key of SESSION_KEYS) {
         const id = stringField(parameters, key);

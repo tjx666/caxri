@@ -305,7 +305,7 @@ export function useSettingsPageController() {
     useEffect(() => {
         const coordinator = writeCoordinatorReference.current;
         if (!coordinator) return;
-        return caxri.onEvent((event) => {
+        return caxri.onLocalEvent((event) => {
             if (event.event === 'agentHooks.changed') {
                 setAgentHookHealth(event.payload);
                 return;

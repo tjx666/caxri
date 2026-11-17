@@ -123,7 +123,7 @@ async function refreshManagedSessions(): Promise<void> {
 export function retainBotManagedSessionsFeed(): () => void {
     feed.holders += 1;
     if (feed.holders === 1) {
-        feed.unsubscribe = caxri.onEvent((event) => {
+        feed.unsubscribe = caxri.onLocalEvent((event) => {
             // Fire-and-forget: a failed read keeps the last answer and the next event retries.
             if (isBotManagedSessionsEvent(event)) void refreshManagedSessions();
         });

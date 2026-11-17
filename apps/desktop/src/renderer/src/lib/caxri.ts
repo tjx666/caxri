@@ -104,6 +104,14 @@ function onEvent(listener: EnvironmentEventListener): () => void {
     };
 }
 
+/**
+ * Like {@link onEvent} for state that belongs to this Mac alone (settings health, Caxri Bot, config reconcile). An event
+ * an SSH Host's Server sent describes that Host, so it never reaches the listener.
+ */
+function onLocalEvent(listener: (event: ServerEvent) => void): () => void {
+    return globalThis.caxri.onEvent((event) => listener(event));
+}
+
 function clientFor(target: RequestTarget): CaxriClient {
     return createCaxriClient({
         negotiate: () => globalThis.caxri.negotiate(),
@@ -135,6 +143,7 @@ const client = clientFor('auto');
 export const caxri = {
     ...client,
     onEvent,
+    onLocalEvent,
     /**
      * A client for one machine: `undefined` is this Mac, any other value a connected SSH Host's id.
      */
