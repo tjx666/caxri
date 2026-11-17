@@ -4,10 +4,10 @@ import { agentProviderCatalog } from '@caxri/protocol';
 import { ArrowUp, SquareArrowOutUpRight } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
-import { Textarea } from '../../../components/ui/textarea';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { useTerminal } from '../../../stores/selectors';
+import { AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME } from '../agent-chat-stop-button';
 import {
     AgentChatRevealFileContext,
     useAgentChatOpenFile,
@@ -94,39 +94,44 @@ function SideChatComposer({ isBusy, terminalId }: { isBusy: boolean; terminalId:
         setDraft('');
     };
     return (
-        <div className="relative mx-auto w-full max-w-3xl shrink-0 px-4 pt-1 pb-3">
-            <Textarea
-                aria-label={t('agentChat.sideChat.placeholder')}
-                className="min-h-[72px] pr-11"
-                placeholder={t('agentChat.sideChat.placeholder')}
-                ref={input}
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                    if (
-                        !isAgentChatSideSendKey({
-                            ...event,
-                            isComposing: event.nativeEvent.isComposing,
-                        })
-                    )
-                        return;
-                    event.preventDefault();
-                    send();
-                }}
-            />
-            <Tooltip content={t(sendTooltipKey)}>
-                {/* aria-disabled, not disabled: a natively disabled button never opens its tooltip. */}
-                <Button
-                    aria-disabled={!canSend || undefined}
-                    aria-label={t('agentChat.sideChat.send')}
-                    className="absolute right-6 bottom-5 size-6"
-                    size="icon"
-                    variant="default"
-                    onClick={send}
-                >
-                    <ArrowUp aria-hidden="true" className="size-3.5" />
-                </Button>
-            </Tooltip>
+        <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pt-1 pb-3">
+            {/* Same shell as the Chat composer: a surface card whose border only darkens on focus, no form-field ring. */}
+            <div className="flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted">
+                <textarea
+                    aria-label={t('agentChat.sideChat.placeholder')}
+                    className="block field-sizing-content max-h-48 min-h-[4.5rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-[13px] leading-5 text-inherit outline-none placeholder:text-muted"
+                    placeholder={t('agentChat.sideChat.placeholder')}
+                    ref={input}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (
+                            !isAgentChatSideSendKey({
+                                ...event,
+                                isComposing: event.nativeEvent.isComposing,
+                            })
+                        )
+                            return;
+                        event.preventDefault();
+                        send();
+                    }}
+                />
+                <div className="flex justify-end px-2 pb-2">
+                    <Tooltip content={t(sendTooltipKey)}>
+                        {/* aria-disabled, not disabled: a natively disabled button never opens its tooltip. */}
+                        <Button
+                            aria-disabled={!canSend || undefined}
+                            aria-label={t('agentChat.sideChat.send')}
+                            className={AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME}
+                            size="icon"
+                            variant="ghost"
+                            onClick={send}
+                        >
+                            <ArrowUp aria-hidden="true" className="size-4" strokeWidth={2.25} />
+                        </Button>
+                    </Tooltip>
+                </div>
+            </div>
         </div>
     );
 }
