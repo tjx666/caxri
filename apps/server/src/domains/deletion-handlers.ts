@@ -57,23 +57,41 @@ export function createDeletionHandlers(
             )
         );
     };
-    const deleteSessions = (sessionIds: readonly string[], windowKey?: string) =>
+    /**
+     * Removes the Sessions once the delegation fence and the mutation queue have waited. Both waits are asynchronous,
+     * so anything that decided to delete before them (a discard check, a Project's Session list) may be stale by the
+     * time `shouldProceed` runs; `shouldProceed` is the one synchronous point before the database delete and may veto
+     * the removal by returning `false`.
+     */
+    const removeSessions = (
+        sessionIds: readonly string[],
+        windowKey: string | undefined,
+        shouldProceed: () => boolean,
+    ): Promise<BootstrapState | undefined> =>
         options.delegations.deleteSessions(sessionIds, () =>
             options.mobileTerminalMutations.runSessions(sessionIds, () => {
+                if (!shouldProceed()) return;
                 for (const id of sessionIds) options.forgetSessionRuntime(id);
                 options.evictSessions(sessionIds);
                 for (const id of sessionIds) database.deleteSession(id);
                 return finish('session.delete', windowKey);
             }),
         );
+    const deleteSessions = async (sessionIds: readonly string[], windowKey?: string) =>
+        (await removeSessions(sessionIds, windowKey, () => true))!;
     return {
         'session.delete': ({ sessionId, windowKey }) => deleteSessions([sessionId], windowKey),
         'session.deleteMany': ({ sessionIds, windowKey }) =>
             deleteSessions([...new Set(sessionIds)], windowKey),
         'session.discardIfEmpty': async ({ sessionId, windowKey }) => {
             if (!isDiscardable(sessionId)) return { discarded: false };
-            await deleteSessions([sessionId], windowKey);
-            return { discarded: true };
+            // Another connection can send the first message while the removal waits on the delegation fence and the
+            // mutation queue, so the predicate is checked again at the point of deletion. A Session that received a
+            // message must stay.
+            const removed = await removeSessions([sessionId], windowKey, () =>
+                isDiscardable(sessionId),
+            );
+            return { discarded: removed !== undefined };
         },
         'project.delete': ({ projectId, windowKey }) =>
             options.mobileTerminalMutations.runProject(projectId, () => {
@@ -85,10 +103,22 @@ export function createDeletionHandlers(
                     owned.map((session) => session.id),
                     () =>
                         options.mobileTerminalMutations.runSessions(affected, () => {
-                            for (const session of owned) options.forgetSessionRuntime(session.id);
-                            options.evictSessions(affected);
+                            // The scope read above predates the fence and queue waits, so a Session created meanwhile
+                            // is missing from it. Re-read it here so runtime and view state are retired for exactly the
+                            // Sessions the cascade deletes.
+                            const fresh = database.projectDeletionScope(projectId);
+                            const freshAffected = [
+                                ...new Set(
+                                    [...fresh.owned, ...fresh.workbench].map(
+                                        (session) => session.id,
+                                    ),
+                                ),
+                            ];
+                            for (const session of fresh.owned)
+                                options.forgetSessionRuntime(session.id);
+                            options.evictSessions(freshAffected);
                             database.deleteProject(projectId);
-                            options.projectDeleted(workbench.map((session) => session.id));
+                            options.projectDeleted(fresh.workbench.map((session) => session.id));
                             options.projectMetadataDeleted?.();
                             return finish('project.delete', windowKey);
                         }),
