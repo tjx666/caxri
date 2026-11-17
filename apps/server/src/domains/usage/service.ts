@@ -24,6 +24,7 @@ import type { AgentSessionUsageRow, CaxriDatabase, ExternalAgentUsageRow } from 
 import type { ExternalStatusRunner } from '../external-status';
 import { delegatedCost, sessionCostWithDelegated } from './delegated-cost';
 import { UsageKeyIndex } from './key-index';
+import { LedgerReadThrottle, scanLogLevel } from './ledger-read-throttle';
 import { LiveAgentUsage } from './live-usage';
 import { PlanLimitRefresh } from './plan-limit-refresh';
 import { ModelPricing } from './pricing';
@@ -99,6 +100,7 @@ export class UsageService {
      */
     private ledgerPendingScans = 0;
     private hasSyncedLedger = false;
+    private readonly ledgerReads: LedgerReadThrottle;
     private readonly claudeMisses: ClaudeTranscriptMisses = new Map();
     private keyIndex?: UsageKeyIndex;
     /**
@@ -111,6 +113,12 @@ export class UsageService {
     private readonly noticeDismissals: UsageNoticeDismissals;
 
     constructor(private readonly options: UsageServiceOptions) {
+        this.ledgerReads = new LedgerReadThrottle({
+            isRunning: () => this.syncs.has('ledger'),
+            ledger: options.database.agentSessionUsage,
+            now: () => this.now(),
+            sync: () => waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
+        });
         this.pricing = new ModelPricing({
             userDataPath: options.userDataPath,
             fetch: options.fetch,
@@ -197,6 +205,7 @@ export class UsageService {
         const { database, environment, logger } = this.options;
         database.agentSessionUsage.recordBindings(undefined, this.now());
         const rows = database.agentSessionUsage.list();
+        this.ledgerReads.passStarted(rows.length);
         const locator = new UsageTranscriptLocator(environment, this.claudeMisses, () =>
             this.now(),
         );
@@ -232,9 +241,12 @@ export class UsageService {
         }
         const isFirst = !this.hasSyncedLedger;
         this.hasSyncedLedger = true;
-        logger.write(outcomes.failed > 0 ? 'warn' : 'debug', logEventCatalog.usage.scan, {
-            durationMs: performance.now() - startedAt,
+        this.ledgerReads.passCompleted(this.now());
+        const durationMs = performance.now() - startedAt;
+        logger.write(scanLogLevel(outcomes.failed, durationMs), logEventCatalog.usage.scan, {
+            durationMs,
             fields: {
+                skippedByInterval: this.ledgerReads.skippedReads,
                 rows: rows.length,
                 ...outcomes,
                 rescans,
@@ -499,7 +511,7 @@ export class UsageService {
      * starting its pull-request pass, and folds in what live conversations reported since.
      */
     async readLimits(): Promise<UsageLimit[]> {
-        await waitBriefly(this.syncs.run('ledger', () => this.syncLedger()));
+        await this.ledgerReads.read();
         const ledger: UsageLimit[] = [];
         for (const row of this.options.database.agentSessionUsage.list()) {
             const rateLimits = parseUsageRecord(row.usageJson)?.rateLimits;
@@ -524,10 +536,7 @@ export class UsageService {
      * usage.
      */
     async sessionCost(sessionId: string): Promise<SessionCost | null> {
-        await Promise.all([
-            this.loadPricing(),
-            waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
-        ]);
+        await Promise.all([this.loadPricing(), this.ledgerReads.read()]);
         return sessionCostWithDelegated(this.options.database, sessionId, (model) =>
             this.pricing.priceOf(model),
         );
@@ -539,10 +548,7 @@ export class UsageService {
      * answer.
      */
     async delegationSummary(sessionId: string): Promise<DelegationCostSummary> {
-        await Promise.all([
-            this.loadPricing(),
-            waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
-        ]);
+        await Promise.all([this.loadPricing(), this.ledgerReads.read()]);
         const summary = delegatedCost(this.options.database, sessionId, (model) =>
             this.pricing.priceOf(model),
         );

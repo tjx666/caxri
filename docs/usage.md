@@ -66,6 +66,12 @@ Server Core owns everything below; the page only renders `usage.report`.
    pruned transcript keeps its last aggregate. A Claude conversation missing from the directory its working directory
    names is searched for across every Claude project directory once; a miss is remembered until that base directory
    changes or an hour passes, so a pruned transcript does not cost a full search on every report.
+   The per-Session reads (`usage.sessionCost`, `usage.delegationSummary`) and `usage.limits` do not start a new pass
+   within 5 seconds of the last one finishing: they answer from the stored rows, because a pass stats every ledger
+   transcript (the ledger is never pruned) and each Client reads once per Session. A running pass is still joined, and
+   a ledger row added since the last pass forces a pass, so a freshly bound conversation is never read as "no usage".
+   `usage.report` always syncs. `usage.scan` logs at info when a pass takes over a second, and carries the cumulative
+   `skippedByInterval` count of reads answered without a pass.
 3. **Pricing.** Cost uses LiteLLM's public price list, the same source as `ccusage`: a cached copy refreshed daily from raw.githubusercontent.com (15 s timeout, 16 MiB cap; skipped under E2E),
    falling back to the snapshot bundled at build time (`scripts/update-model-prices.ts` regenerates it). Costs are API
    list-price estimates, not what a subscription plan charged. Models without a price are listed in the coverage note

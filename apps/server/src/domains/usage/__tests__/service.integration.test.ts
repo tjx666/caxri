@@ -12,12 +12,12 @@ import { UsageService } from '../service';
 
 const T0 = Date.parse('2026-03-01T10:00:00.000Z');
 
-function claudeLine(id: string, output: number) {
+function claudeLine(id: string, output: number, model = 'claude-x') {
     return `${JSON.stringify({
         type: 'assistant',
         timestamp: new Date(T0).toISOString(),
         requestId: `request-${id}`,
-        message: { id, model: 'claude-x', usage: { output_tokens: output } },
+        message: { id, model, usage: { output_tokens: output } },
     })}\n`;
 }
 
@@ -31,6 +31,7 @@ async function setup() {
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(() => database.close());
     const project = database.createProject(projectRoot);
+    const clock = { now: T0 + 60_000 };
     const service = new UsageService({
         database,
         environment,
@@ -38,7 +39,7 @@ async function setup() {
         runner: vi.fn(),
         userDataPath: directory,
         fetch: () => Promise.resolve(new Response('offline', { status: 503 })),
-        now: () => T0 + 60_000,
+        now: () => clock.now,
     });
     const writeTranscript = async (agentSessionId: string, content: string) => {
         const path = agentProviders.claude.transcriptPath!(
@@ -51,6 +52,7 @@ async function setup() {
     const bind = (agentSessionId: string) => {
         const { terminal } = database.createSession(project.id, 'claude');
         database.rebindAgentSession(terminal!.id, 'claude', agentSessionId);
+        return terminal!.sessionId;
     };
     const writeOutsideTranscript = async (agentSessionId: string, content: string) => {
         const path = join(
@@ -61,7 +63,7 @@ async function setup() {
         await mkdir(dirname(path), { recursive: true });
         await writeFile(path, content);
     };
-    return { service, writeTranscript, writeOutsideTranscript, bind };
+    return { service, writeTranscript, writeOutsideTranscript, bind, clock };
 }
 
 describe('UsageService', () => {
@@ -119,5 +121,70 @@ describe('UsageService', () => {
         await sync();
         expect(Math.max(...pending)).toBe(1);
         expect(pending.at(-1)).toBe(0);
+    });
+
+    /**
+     * The sidebar cards read one Session each; every read used to relocate and stat every ledger transcript, so the
+     * cost grew with total history instead of what was on screen.
+     */
+    describe('per-Session reads', () => {
+        const PRICED = 'claude-sonnet-4-5';
+        const id = (prefix: string) => `${prefix}-2c3d-4e5f-8a9b-1c2d3e4f5a6b`;
+        const syncSpy = (service: UsageService) =>
+            vi.spyOn(service as unknown as { syncLedger(): Promise<void> }, 'syncLedger');
+
+        it('runs one ledger pass for sequential reads inside the interval, and another after it', async () => {
+            const { service, writeTranscript, bind, clock } = await setup();
+            const agentSessionId = id('5b6a1f8e');
+            await writeTranscript(agentSessionId, claudeLine('m1', 100, PRICED));
+            const sessionId = bind(agentSessionId);
+            const spy = syncSpy(service);
+
+            const first = await service.sessionCost(sessionId);
+            await service.sessionCost(sessionId);
+            await service.sessionCost(sessionId);
+            await service.sessionCost(sessionId);
+            await service.sessionCost(sessionId);
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(first?.costUsd).toBeGreaterThan(0);
+
+            await delay(20);
+            await writeTranscript(
+                agentSessionId,
+                claudeLine('m1', 100, PRICED) + claudeLine('m2', 50, PRICED),
+            );
+            clock.now += 6_000;
+            const later = await service.sessionCost(sessionId);
+            expect(spy).toHaveBeenCalledTimes(2);
+            expect(later!.costUsd).toBeGreaterThan(first!.costUsd!);
+        });
+
+        it('picks up a conversation bound inside the interval', async () => {
+            const { service, writeTranscript, bind } = await setup();
+            const first = id('6b6a1f8e');
+            const second = id('7b6a1f8e');
+            await writeTranscript(first, claudeLine('m1', 100, PRICED));
+            await writeTranscript(second, claudeLine('m2', 70, PRICED));
+            const firstSession = bind(first);
+            await service.sessionCost(firstSession);
+
+            const secondSession = bind(second);
+            const cost = await service.sessionCost(secondSession);
+
+            expect(cost?.costUsd).toBeGreaterThan(0);
+        });
+
+        it('always syncs for the Usage report', async () => {
+            const { service, writeTranscript, bind } = await setup();
+            const agentSessionId = id('8b6a1f8e');
+            await writeTranscript(agentSessionId, claudeLine('m1', 100, PRICED));
+            const sessionId = bind(agentSessionId);
+            await service.sessionCost(sessionId);
+            const spy = syncSpy(service);
+
+            await service.report({ timeZone: 'UTC', range: 'all', scope: 'caxri' });
+
+            expect(spy).toHaveBeenCalledTimes(1);
+        });
     });
 });
