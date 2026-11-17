@@ -9,99 +9,28 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { FakeClaudeIo } from './fake-claude-io.ts';
+import {
+    resumeBackgroundAgent,
+    startWaitingBackgroundAgent,
+} from './fake-claude-resumed-agents.ts';
 import { recordSubagent } from './fake-claude-subagent-transcript.ts';
+import type { BackgroundTask, Json } from './fake-claude-task-state.ts';
+import {
+    childAssistant,
+    childFrame,
+    childStreamStart,
+    endBackground,
+    liveBackground,
+    tasks,
+} from './fake-claude-task-state.ts';
 import {
     workflowMemberTranscripts,
     workflowProgress,
     workflowRunRecord,
 } from './fake-claude-workflow.ts';
 
-type Json = Record<string, unknown>;
-
-interface BackgroundTask {
-    kind: 'agent' | 'shell' | 'workflow';
-    toolUseId: string;
-    description: string;
-    timer?: NodeJS.Timeout;
-}
-
-const tasks = {
-    nextTaskId: 1,
-    isForwardingSubagentText: false,
-    hasPerTaskStop: false,
-    background: new Map<string, BackgroundTask>(),
-    outputs: new Map<string, string>(),
-};
-
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function childFrame(io: FakeClaudeIo, parent: string, entry: Json): Json {
-    return io.frame({ ...entry, parent_tool_use_id: parent });
-}
-
-function childAssistant(io: FakeClaudeIo, parent: string, messageId: string, block: Json) {
-    if (block.type === 'text' && !tasks.isForwardingSubagentText) return;
-    io.send(
-        childFrame(io, parent, {
-            type: 'assistant',
-            message: {
-                id: messageId,
-                type: 'message',
-                role: 'assistant',
-                model: 'fake-haiku',
-                content: [block],
-                stop_reason: null,
-                usage: { input_tokens: 10, output_tokens: 5 },
-            },
-        }),
-    );
-}
-
-function childStreamStart(io: FakeClaudeIo, parent: string, messageId: string, text: string) {
-    if (!tasks.isForwardingSubagentText) return;
-    for (const event of [
-        { type: 'message_start', message: { id: messageId } },
-        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
-        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } },
-    ])
-        io.send(childFrame(io, parent, { type: 'stream_event', event }));
-}
-
-const TASK_TYPES = {
-    agent: 'local_agent',
-    shell: 'local_bash',
-    workflow: 'local_workflow',
-} as const;
-
-function liveBackground(): Json[] {
-    return [...tasks.background].map(([taskId, task]) => ({
-        task_id: taskId,
-        task_type: TASK_TYPES[task.kind],
-        description: task.description,
-        ...(task.kind === 'agent' && { subagent_type: 'general-purpose' }),
-    }));
-}
-
-function endBackground(io: FakeClaudeIo, taskId: string, status: 'completed' | 'stopped') {
-    const task = tasks.background.get(taskId);
-    if (!task) return;
-    clearInterval(task.timer);
-    tasks.background.delete(taskId);
-    io.system('task_updated', {
-        task_id: taskId,
-        patch: { status: status === 'stopped' ? 'killed' : 'completed', end_time: Date.now() },
-    });
-    io.system('task_notification', {
-        task_id: taskId,
-        tool_use_id: task.toolUseId,
-        status,
-        output_file: '',
-        summary: status === 'stopped' ? 'Stopped' : 'Finished',
-        usage: { total_tokens: 0, tool_uses: 0, duration_ms: 300 },
-    });
-    io.system('background_tasks_changed', { tasks: liveBackground() });
 }
 
 export async function runSubagent(io: FakeClaudeIo, startedAt: number) {
@@ -277,60 +206,6 @@ function startBackgroundAgent(io: FakeClaudeIo, startedAt: number, finishAfterMs
 }
 
 /**
- * A `SendMessage` that resumes a background subagent a previous Claude Code process launched, as after a Chat restart.
- * Like Claude Code, the resumed run's task frames name the `SendMessage` call, while the subagent's own frames still
- * name the original `Agent` call (one this process never reported) as `parent_tool_use_id`; its assistant frames carry
- * the task's `agent_id`, its `stream_event` frames do not.
- */
-function resumeBackgroundAgent(io: FakeClaudeIo, startedAt: number) {
-    const sendId = `toolu_${crypto.randomUUID()}`;
-    const originalId = `toolu_${crypto.randomUUID()}`;
-    const agentId = `a${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`;
-    const description = 'Audit the storage layer';
-    io.assistant(`msg_${crypto.randomUUID()}`, {
-        type: 'tool_use',
-        id: sendId,
-        name: 'SendMessage',
-        input: { to: agentId, summary: 'Resume the audit', message: 'Resume the audit.' },
-    });
-    tasks.background.set(agentId, { kind: 'agent', toolUseId: sendId, description });
-    io.system('background_tasks_changed', { tasks: liveBackground() });
-    io.system('task_started', {
-        task_id: agentId,
-        tool_use_id: sendId,
-        description,
-        subagent_type: 'general-purpose',
-        task_type: 'local_agent',
-        is_backgrounded: true,
-    });
-    io.toolResult(sendId, JSON.stringify({ success: true, resumedAgentId: agentId }));
-    io.result(startedAt, 'done');
-    setTimeout(() => {
-        const messageId = `msg_${crypto.randomUUID()}`;
-        childStreamStart(io, originalId, messageId, 'Resuming ');
-        io.send(
-            childFrame(io, originalId, {
-                type: 'assistant',
-                agent_id: agentId,
-                message: {
-                    id: messageId,
-                    type: 'message',
-                    role: 'assistant',
-                    model: 'fake-haiku',
-                    content: [{ type: 'text', text: 'Resuming the audit.' }],
-                    stop_reason: null,
-                    usage: { input_tokens: 10, output_tokens: 5 },
-                },
-            }),
-        );
-    }, 50);
-    setTimeout(() => {
-        endBackground(io, agentId, 'completed');
-        io.startAutoTurn();
-    }, 300);
-}
-
-/**
  * A background Bash command printing a tick every 100 ms. With `finishAfterMs` it ends on its own and wakes the main
  * thread; otherwise it runs until `stop_task`. As `Monitor`, the call is the Monitor tool, which runs its command as a
  * `local_bash` task too but has no `run_in_background` flag and lands in the timeline as a generic tool row.
@@ -473,6 +348,7 @@ export function didStartBackgroundTask(io: FakeClaudeIo, startedAt: number, text
     if (text.includes('resume the audit')) resumeBackgroundAgent(io, startedAt);
     else if (text.includes('quick workflow')) startWorkflow(io, startedAt, 300);
     else if (text.includes('workflow')) startWorkflow(io, startedAt);
+    else if (text.includes('waiting background agent')) startWaitingBackgroundAgent(io, startedAt);
     else if (text.includes('quick background agent')) startBackgroundAgent(io, startedAt, 300);
     else if (text.includes('background agent')) startBackgroundAgent(io, startedAt);
     else if (text.includes('monitor')) startBackgroundShell(io, startedAt, undefined, 'Monitor');
