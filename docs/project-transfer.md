@@ -38,8 +38,10 @@ Implemented in `apps/server/src/domains/project/transfer.ts`.
 - Each Project imports all of its Sessions or none: a failure partway removes what that Project
   already received (the Project itself too when the import created it), so importing the file
   again brings in every Session once.
-- Sessions get new IDs and keep their order and pins. A Session whose worktree is gone opens in
-  its Project root and is reported in `missingWorkbenchRoots`.
+- Sessions get new IDs and keep their order and pins. A Session whose worktree is gone, or whose
+  recorded folder is not a linked worktree of its Project's repository (the file is untrusted input),
+  opens in its Project root and is reported in `missingWorkbenchRoots`; no Project is registered for
+  that folder.
 - Agent Terminals are recreated parked, bound to the same conversation, and resume it when the
   Session opens, provided the provider still has that conversation on this machine. A working
   folder outside the Project and worktree roots falls back to the Session's root.

@@ -510,7 +510,8 @@ export function createServiceHandlers(services: {
         'diagnostics.exportPath': ({ destination }) => diagnostics.export(destination),
         'projectTransfer.exportPath': ({ destination }) =>
             writeProjectTransfer(database, destination),
-        'projectTransfer.importPath': ({ path }) => importProjectTransferFile(database, path, emit),
+        'projectTransfer.importPath': ({ path }) =>
+            importProjectTransferFile(database, path, emit, (root) => git.worktreeTopology(root)),
         'diagnostics.snapshot': () => diagnostics.snapshot(),
         'logs.query': (parameters) => introspection.logs.query(parameters),
     } satisfies Partial<DomainHandlers>;

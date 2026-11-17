@@ -24,6 +24,8 @@ import { readBoundedRegularFileText } from '@caxri/system';
 import { chatStateStore } from '../agent-chat';
 import { atomicWrite } from '../atomic-file';
 import type { AgentChatStateModel, CaxriDatabase } from '../db';
+import type { WorktreeTopologyReader } from '../session';
+import { worktreePlacement } from '../session';
 import { resolveOwnerProjectRoot } from './root-identity';
 
 type TransferDatabase = Pick<
@@ -156,9 +158,8 @@ export function parseProjectTransfer(source: string): ProjectTransferDocument {
 }
 
 /**
- * A worktree folder bound to the same filesystem object the import resolved, or `undefined` once it is gone. Workbench
- * Root validation later confirms it still belongs to the Project's repository and falls back to the Project root
- * otherwise.
+ * A worktree folder bound to the same filesystem object the import resolved, or `undefined` once it is gone. The caller
+ * then confirms through worktree topology that it is a linked worktree of the Project's repository.
  */
 async function resolveWorkbenchRoot(
     path: string,
@@ -182,6 +183,7 @@ async function importSession(
     project: ProjectRecord,
     exported: ProjectTransferSession,
     missingWorkbenchRoots: string[],
+    readTopology: WorktreeTopologyReader,
 ): Promise<SessionRecord> {
     // An automatic title starts as the Session's own, so the Agent's conversation name keeps replacing it.
     const { session } = database.createSession(project.id, null, undefined, {
@@ -192,9 +194,15 @@ async function importSession(
     if (exported.workbenchRootPath) {
         const workbench = await resolveWorkbenchRoot(exported.workbenchRootPath);
         if (workbench && workbench.path !== project.rootPath) {
-            const worktree = database.createProject(workbench.path, project.id);
-            database.selectWorkbenchProject(session.id, worktree.id, workbench.identity);
-            rootPath = workbench.path;
+            // An imported file is untrusted input: a folder is registered as a worktree Project only when the Project's
+            // repository lists it as a linked worktree, as a conversation import requires. Anything else is reported
+            // like a missing folder and the Session stays on the Project root.
+            const placement = await worktreePlacement([project], workbench.path, readTopology);
+            if (placement?.worktreeRoot === workbench.path) {
+                const worktree = database.createProject(workbench.path, project.id);
+                database.selectWorkbenchProject(session.id, worktree.id, workbench.identity);
+                rootPath = workbench.path;
+            } else missingWorkbenchRoots.push(exported.workbenchRootPath);
         } else if (!workbench) missingWorkbenchRoots.push(exported.workbenchRootPath);
     }
     for (const terminal of exported.terminals) {
@@ -233,6 +241,7 @@ async function importProjectSessions(
     rootPath: string,
     exported: ProjectTransferDocument['projects'][number],
     missingWorkbenchRoots: string[],
+    readTopology: WorktreeTopologyReader,
 ): Promise<Array<{ session: SessionRecord; pinned: boolean }>> {
     const isNewProject = database.findProjectByRootPath(rootPath) === undefined;
     const project = database.createProject(rootPath);
@@ -248,6 +257,7 @@ async function importProjectSessions(
                 project,
                 session,
                 missingWorkbenchRoots,
+                readTopology,
             );
             /* eslint-enable no-await-in-loop */
             imported.push({ session: created, pinned: session.pinned });
@@ -272,6 +282,7 @@ async function importProjectTransfer(
     chatState: TransferChatState,
     document: ProjectTransferDocument,
     emit: (event: ServerEvent) => void,
+    readTopology: WorktreeTopologyReader,
 ): Promise<ProjectTransferImportResult> {
     const result: ProjectTransferImportResult = {
         projectCount: 0,
@@ -310,6 +321,7 @@ async function importProjectTransfer(
                 rootPath,
                 exported,
                 result.missingWorkbenchRoots,
+                readTopology,
             );
             result.projectCount += 1;
             result.sessionCount += imported.length;
@@ -331,11 +343,32 @@ async function readProjectTransfer(path: string): Promise<ProjectTransferDocumen
     );
 }
 
+/**
+ * Shares one topology read between the Sessions of an import that name the same worktree folder.
+ */
+function memoizedTopologyReader(readTopology: WorktreeTopologyReader): WorktreeTopologyReader {
+    const reads = new Map<string, ReturnType<WorktreeTopologyReader>>();
+    return (path) => {
+        const cached = reads.get(path);
+        if (cached) return cached;
+        const read = readTopology(path);
+        reads.set(path, read);
+        return read;
+    };
+}
+
 export async function importProjectTransferFile(
     database: CaxriDatabase,
     path: string,
     emit: (event: ServerEvent) => void,
+    readTopology: WorktreeTopologyReader,
 ): Promise<ProjectTransferImportResult> {
     const document = await readProjectTransfer(path);
-    return importProjectTransfer(database, chatStateStore(database), document, emit);
+    return importProjectTransfer(
+        database,
+        chatStateStore(database),
+        document,
+        emit,
+        memoizedTopologyReader(readTopology),
+    );
 }
