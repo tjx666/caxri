@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
@@ -7,11 +7,16 @@ import process from 'node:process';
 import type { AppSettings, LastDatabaseRebuild } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, getMethodSpec, isLogProcess, logProcesses } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
+import { logEventCatalog, redactSecrets } from '@caxri/system';
 
 import { botDiagnostics } from './bot';
 import type { CaxriDatabase } from './db';
 import { diagnosticSettings } from './diagnostic-settings';
+import {
+    forEachRedactedLogChunk,
+    readDiagnosticLogTails,
+    redactedLogStream,
+} from './diagnostics-logs';
 import type { WatchHubSnapshot } from './watch';
 
 /**
@@ -355,6 +360,12 @@ function performanceRow(aggregate: PerformanceAggregate): PerformanceSummary {
 export function summarizePerformanceLogs(logs: string[]): PerformanceSummary[] {
     const aggregates = new Map<string, PerformanceAggregate>();
     for (const log of logs) accumulatePerformanceLogLines(log, aggregates);
+    return finishPerformanceSummary(aggregates);
+}
+
+function finishPerformanceSummary(
+    aggregates: Map<string, PerformanceAggregate>,
+): PerformanceSummary[] {
     const rows = foldPerformanceKeyTails(aggregates.values().toArray());
     const byTotal = (left: PerformanceAggregate, right: PerformanceAggregate) =>
         right.totalMs - left.totalMs;
@@ -384,6 +395,9 @@ export class DiagnosticsService {
         private readonly watchSnapshot?: () => WatchHubSnapshot,
     ) {}
 
+    /**
+     * Bounded tails (see `DIAGNOSTIC_LOG_TAIL_BYTES`) of every retained log file, for the recent-history readers.
+     */
     private async readLogs(): Promise<string[]> {
         const logDirectory = dirname(this.logger.path);
         let names: string[];
@@ -393,15 +407,7 @@ export class DiagnosticsService {
             names = [];
         }
         const logNames = pickDiagnosticLogNames(names);
-        return Promise.all(
-            logNames.map(async (name) => {
-                try {
-                    return await readFile(join(logDirectory, name), 'utf8');
-                } catch {
-                    return '';
-                }
-            }),
-        );
+        return readDiagnosticLogTails(logDirectory, logNames);
     }
 
     /**
@@ -474,13 +480,16 @@ export class DiagnosticsService {
         }));
         const logDirectory = dirname(this.logger.path);
         const logNames = pickDiagnosticLogNames(await readdir(logDirectory));
-        const redactedLogs = await Promise.all(
-            logNames.map(async (name) => ({
-                name,
-                content: redactLogValue(await readFile(join(logDirectory, name), 'utf8')),
-            })),
+        /**
+         * The export keeps every retained line (completeness is intentional) but never holds a file in memory: the
+         * performance summary is a first streaming pass over the redacted lines, and the archive entry is a second.
+         */
+        const aggregates = new Map<string, PerformanceAggregate>();
+        const logPaths = logNames.map((name) => join(logDirectory, name));
+        await forEachRedactedLogChunk(logPaths, (chunk) =>
+            accumulatePerformanceLogLines(chunk, aggregates),
         );
-        const performance = summarizePerformanceLogs(redactedLogs.map((log) => log.content));
+        const performance = finishPerformanceSummary(aggregates);
         const settings = diagnosticSettingsFile(this.getSettings());
 
         /**
@@ -520,8 +529,16 @@ export class DiagnosticsService {
             archive.append(json(terminals), { name: 'diagnostics/terminals.json' });
             archive.append(settings, { name: 'diagnostics/settings.json' });
             archive.append(json(performance), { name: 'diagnostics/performance.json' });
-            for (const log of redactedLogs)
-                archive.append(log.content, { name: `diagnostics/logs/${log.name}` });
+            for (const [index, name] of logNames.entries()) {
+                const log = redactedLogStream(logPaths[index]);
+                // archiver pipes an appended stream without forwarding its errors, so a log rotated away between the
+                // summary pass and this one would otherwise throw unhandled or leave the archive waiting forever.
+                log.once('error', (error) => {
+                    archive.abort();
+                    reject(error);
+                });
+                archive.append(log, { name: `diagnostics/logs/${name}` });
+            }
             // The Promise executor is a synchronous callback, so this cannot become `await`; the
             // `archive.on('error', reject)` listener above already rejects the outer Promise for
             // the same failure, so this `.catch()` only silences the now-redundant rejection.
