@@ -60,19 +60,25 @@ export function isClaudeCompactCommand(text: string): boolean {
 /**
  * User message content for a prompt with images: the text first when there is any, then the images, as the Claude Code
  * TUI sends a pasted image. The text names each image where it belongs as `[Image #N]`, counting the images in order.
+ *
+ * A `/command` message puts its images first instead: Claude Code reads a slash command only from the content's last
+ * text block and carries the blocks before it into the command's prompt, so text first would send `/skill` as plain
+ * words and the skill would never expand. The composer sends such a message rather than running the command, since a
+ * command carries no images (`parseAgentChatCommand`).
  */
 function claudeUserContent(
     text: string,
     images: readonly AgentChatImageInput[],
 ): string | Array<Record<string, unknown>> {
     if (images.length === 0) return text;
-    return [
-        ...(text ? [{ type: 'text', text }] : []),
-        ...images.map((image) => ({
-            type: 'image',
-            source: { type: 'base64', media_type: image.mediaType, data: image.data },
-        })),
-    ];
+    const textBlocks = text ? [{ type: 'text', text }] : [];
+    const imageBlocks = images.map((image) => ({
+        type: 'image',
+        source: { type: 'base64', media_type: image.mediaType, data: image.data },
+    }));
+    return text.trimStart().startsWith('/')
+        ? [...imageBlocks, ...textBlocks]
+        : [...textBlocks, ...imageBlocks];
 }
 
 /**

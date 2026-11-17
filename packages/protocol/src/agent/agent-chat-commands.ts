@@ -48,11 +48,17 @@ export function agentChatSlashQuery(draft: string): string | undefined {
 /**
  * The command a submitted draft runs: `/name` or `/name arguments` where `name` is listed. Any other draft, including
  * an unknown `/word`, is sent as an ordinary message.
+ *
+ * A draft with images attached is sent as an ordinary message too, still reading `/name ...`: a command carries only
+ * its text, so running it would drop the images. The provider still runs the command from the message, as Claude Code
+ * does for a typed `/skill` with a pasted image.
  */
 export function parseAgentChatCommand(
     draft: string,
     commands: readonly AgentChatCommand[] | undefined,
+    { hasImages }: { hasImages: boolean },
 ): { name: string; arguments?: string } | undefined {
+    if (hasImages) return undefined;
     const match = /^\/([\w:.-]+)(?:\s([\s\S]*))?$/u.exec(draft.trim());
     if (!match || !commands?.some((command) => command.name === match[1])) return undefined;
     const arguments_ = match[2]?.trim();

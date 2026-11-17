@@ -159,7 +159,12 @@ export function useAgentChatSubmit({
             return;
         }
         const composed = agentChatSessionHandoffMessage(sent, terminal, getBootstrap()?.sessions);
-        const command = composed === sent ? parseAgentChatCommand(sent, commands) : undefined;
+        const command =
+            composed === sent
+                ? parseAgentChatCommand(sent, commands, {
+                      hasImages: attachments.some(isAgentChatImageAttachment),
+                  })
+                : undefined;
         if (command) {
             await runCommand(sent, command);
             return;

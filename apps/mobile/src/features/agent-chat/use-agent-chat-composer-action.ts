@@ -177,7 +177,10 @@ export const useAgentChatComposerAction = ({
             return;
         }
         const command =
-            handoff === undefined && parseAgentChatCommand(draft, chat.snapshot?.commands);
+            handoff === undefined &&
+            parseAgentChatCommand(draft, chat.snapshot?.commands, {
+                hasImages: images.attachments.length > 0,
+            });
         if (command) {
             await commands.run(command);
             return;

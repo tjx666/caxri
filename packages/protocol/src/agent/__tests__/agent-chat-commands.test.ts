@@ -36,14 +36,21 @@ describe('Agent Chat commands', () => {
     });
 
     it('runs a listed command with its arguments and sends anything else as a message', () => {
-        expect(parseAgentChatCommand('/compact', commands)).toEqual({ name: 'compact' });
-        expect(parseAgentChatCommand('/compact  keep the plan\n', commands)).toEqual({
+        const noImages = { hasImages: false };
+        expect(parseAgentChatCommand('/compact', commands, noImages)).toEqual({ name: 'compact' });
+        expect(parseAgentChatCommand('/compact  keep the plan\n', commands, noImages)).toEqual({
             name: 'compact',
             arguments: 'keep the plan',
         });
-        expect(parseAgentChatCommand('/model gpt', commands)).toBeUndefined();
-        expect(parseAgentChatCommand('/compact', undefined)).toBeUndefined();
-        expect(parseAgentChatCommand('please /compact', commands)).toBeUndefined();
+        expect(parseAgentChatCommand('/model gpt', commands, noImages)).toBeUndefined();
+        expect(parseAgentChatCommand('/compact', undefined, noImages)).toBeUndefined();
+        expect(parseAgentChatCommand('please /compact', commands, noImages)).toBeUndefined();
+    });
+
+    it('sends a listed command with images attached as a message so the images go with it', () => {
+        expect(
+            parseAgentChatCommand('/compact [Image #1]', commands, { hasImages: true }),
+        ).toBeUndefined();
     });
 });
 
