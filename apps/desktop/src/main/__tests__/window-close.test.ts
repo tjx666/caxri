@@ -22,6 +22,7 @@ describe('resolveWindowClose', () => {
                 decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
                 detachAll,
                 logFailure: vi.fn(),
+                notifyStopFailure: vi.fn(),
                 terminateAll,
             });
 
@@ -42,10 +43,15 @@ describe('resolveWindowClose', () => {
             decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
             detachAll: vi.fn(),
             logFailure,
+            notifyStopFailure: vi.fn(),
             terminateAll: vi.fn(),
         });
 
-        expect(logFailure).toHaveBeenCalledWith(errorLogFields(new Error('Runtime unavailable')));
+        expect(logFailure).toHaveBeenCalledWith(
+            'countRunning',
+            errorLogFields(new Error('Runtime unavailable')),
+            expect.any(String),
+        );
         expect(close).toHaveBeenCalledOnce();
     });
 
@@ -60,6 +66,7 @@ describe('resolveWindowClose', () => {
             decideUnsavedEditors,
             detachAll: vi.fn(),
             logFailure: vi.fn(),
+            notifyStopFailure: vi.fn(),
             terminateAll: vi.fn(),
         });
 
@@ -69,6 +76,67 @@ describe('resolveWindowClose', () => {
         unsaved.resolve('continue');
         await Promise.all([first, second]);
         expect(close).toHaveBeenCalledOnce();
+    });
+});
+
+describe('resolveWindowClose stage failures', () => {
+    const base = () => ({
+        close: vi.fn(),
+        confirm: vi.fn().mockResolvedValue('terminate'),
+        countRunning: vi.fn().mockResolvedValue({ terminals: 1, chats: 0 }),
+        decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
+        detachAll: vi.fn().mockResolvedValue(undefined),
+        logFailure: vi.fn(),
+        notifyStopFailure: vi.fn().mockResolvedValue(undefined),
+        terminateAll: vi.fn().mockResolvedValue(undefined),
+    });
+
+    it('tells the user and then closes when an explicit Terminate fails', async () => {
+        const options = base();
+        const error = new Error('Server wedged');
+        options.terminateAll.mockRejectedValue(error);
+
+        await resolveWindowClose(options);
+
+        expect(options.logFailure).toHaveBeenCalledWith(
+            'terminate',
+            errorLogFields(error),
+            expect.any(String),
+        );
+        expect(options.notifyStopFailure).toHaveBeenCalledOnce();
+        expect(options.close).toHaveBeenCalledOnce();
+    });
+
+    it('closes without a notification when detaching fails', async () => {
+        const options = base();
+        options.confirm.mockResolvedValue('close');
+        options.detachAll.mockRejectedValue(new Error('detach failed'));
+
+        await resolveWindowClose(options);
+
+        expect(options.logFailure).toHaveBeenCalledWith(
+            'detach',
+            expect.anything(),
+            expect.any(String),
+        );
+        expect(options.notifyStopFailure).not.toHaveBeenCalled();
+        expect(options.close).toHaveBeenCalledOnce();
+    });
+
+    it('closes and detaches when the confirmation fails', async () => {
+        const options = base();
+        options.confirm.mockRejectedValue(new Error('dialog failed'));
+
+        await resolveWindowClose(options);
+
+        expect(options.logFailure).toHaveBeenCalledWith(
+            'confirm',
+            expect.anything(),
+            expect.any(String),
+        );
+        expect(options.terminateAll).not.toHaveBeenCalled();
+        expect(options.notifyStopFailure).not.toHaveBeenCalled();
+        expect(options.close).toHaveBeenCalledOnce();
     });
 });
 
@@ -105,6 +173,7 @@ describe('resolveWindowClose unsaved Editor buffers', () => {
             decideUnsavedEditors: vi.fn().mockResolvedValue('cancel'),
             detachAll: vi.fn(),
             logFailure: vi.fn(),
+            notifyStopFailure: vi.fn(),
             terminateAll: vi.fn(),
         });
 
@@ -131,6 +200,7 @@ describe('resolveWindowClose unsaved Editor buffers', () => {
                 return Promise.resolve();
             },
             logFailure: vi.fn(),
+            notifyStopFailure: vi.fn(),
             terminateAll: vi.fn(),
         });
 

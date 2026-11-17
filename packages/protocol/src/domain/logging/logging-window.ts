@@ -5,6 +5,12 @@
 export const windowLogEvents = {
     closeConfirmation: 'window.close_confirmation',
     closeDecision: 'window.close_decision',
+    /**
+     * Closing the primary window hit a failure, with the closed `stage` that failed (`unsavedEditors`, `countRunning`,
+     * `confirm`, `terminate`, `detach`, `notification`) plus the error fields. Only `terminate` (an explicit Terminate
+     * that did not stop the work) and `notification` reach the user; the other stages fail open and still close the
+     * window. Logged at `warn` for an `UNAVAILABLE` Server, `error` otherwise.
+     */
     closeFailed: 'window.close_failed',
     closed: 'window.closed',
     created: 'window.created',

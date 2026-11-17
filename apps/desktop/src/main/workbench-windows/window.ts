@@ -16,7 +16,11 @@ import {
     publishFullScreenState,
     zoomFactorForLevel,
 } from '../window-chrome';
-import { confirmWindowClose, createWindowCloseHandler } from '../window-close';
+import {
+    confirmWindowClose,
+    createWindowCloseHandler,
+    notifyWindowCloseStopFailure,
+} from '../window-close';
 import type { E2EWindowMode } from '../window-mode';
 import type { WindowPlacement } from '../window-placement';
 import { defaultWindowState, showWhenPlaced, trackWindowState } from '../window-placement';
@@ -164,8 +168,15 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
                   countRunning: () => supervisor().request('terminal.runningCount'),
                   decideUnsavedEditors: () => options.decideUnsavedEditors(),
                   detachAll: () => supervisor().request('terminal.detachAll'),
-                  logFailure: (fields) =>
-                      logger()?.write('error', logEventCatalog.window.closeFailed, { fields }),
+                  logFailure: (stage, fields, code) =>
+                      logger()?.write(
+                          code === 'UNAVAILABLE' ? 'warn' : 'error',
+                          logEventCatalog.window.closeFailed,
+                          {
+                              fields: { ...fields, stage },
+                          },
+                      ),
+                  notifyStopFailure: () => notifyWindowCloseStopFailure(dialog, window),
                   terminateAll: () =>
                       supervisor().request('terminal.terminateAll', { reason: 'windowClose' }),
               })
@@ -179,8 +190,15 @@ export function createWorkbenchWindowFactory(options: WorkbenchWindowFactoryOpti
                   countRunning: () => Promise.resolve({ chats: 0, terminals: 0 }),
                   decideUnsavedEditors: () => options.decideUnsavedEditors(windowKey),
                   detachAll: () => Promise.resolve(),
-                  logFailure: (fields) =>
-                      logger()?.write('error', logEventCatalog.window.closeFailed, { fields }),
+                  logFailure: (stage, fields, code) =>
+                      logger()?.write(
+                          code === 'UNAVAILABLE' ? 'warn' : 'error',
+                          logEventCatalog.window.closeFailed,
+                          {
+                              fields: { ...fields, stage },
+                          },
+                      ),
+                  notifyStopFailure: () => Promise.resolve(),
                   terminateAll: () => Promise.resolve(),
               });
         window.on('close', (event) => {

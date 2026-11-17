@@ -201,6 +201,10 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.windowClose.title': '关闭此窗口？',
     'desktop.windowClose.keepRunning': '保持运行',
     'desktop.windowClose.terminate': '终止并关闭',
+    'desktop.windowClose.stopFailureTitle': 'Caxri 未能停止所有任务',
+    'desktop.windowClose.stopFailureMessage': '部分任务可能仍在运行。',
+    'desktop.windowClose.stopFailureDetail': '重新打开 Caxri 以停止剩余任务。',
+    'desktop.windowClose.closeAnyway': '仍要关闭',
 
     'desktop.menuBar.tooltip': 'Caxri',
     'desktop.menuBar.workingNone': '没有 Agent 在工作',

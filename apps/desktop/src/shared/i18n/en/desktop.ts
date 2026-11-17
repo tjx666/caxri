@@ -213,6 +213,10 @@ export const desktop = {
     'desktop.windowClose.title': 'Close this window?',
     'desktop.windowClose.keepRunning': 'Keep Running',
     'desktop.windowClose.terminate': 'Terminate and Close',
+    'desktop.windowClose.stopFailureTitle': "Caxri Couldn't Stop All Tasks",
+    'desktop.windowClose.stopFailureMessage': 'Some tasks may still be running.',
+    'desktop.windowClose.stopFailureDetail': 'Reopen Caxri to stop them.',
+    'desktop.windowClose.closeAnyway': 'Close Anyway',
 
     'desktop.menuBar.tooltip': 'Caxri',
     'desktop.menuBar.workingNone': 'No Agents working',
