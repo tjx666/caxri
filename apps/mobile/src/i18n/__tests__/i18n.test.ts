@@ -35,4 +35,20 @@ describe('mobile locale resources', () => {
             Object.keys(enResources).toSorted(compareText),
         );
     });
+
+    it('starts each attachment tile accessible name with its visible caption', () => {
+        for (const resources of [enResources, zhCNResources] as Array<Record<string, string>>) {
+            const tiles = Object.keys(resources).filter((key) =>
+                key.startsWith('sessions.image.tile'),
+            );
+            expect(tiles.length).toBeGreaterThan(0);
+            for (const tileKey of tiles) {
+                const labelKey = tileKey.replace('sessions.image.tile', 'sessions.image.source');
+                expect(resources[labelKey], labelKey).toBeTruthy();
+                expect(resources[labelKey]?.startsWith(resources[tileKey] ?? ''), labelKey).toBe(
+                    true,
+                );
+            }
+        }
+    });
 });

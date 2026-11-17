@@ -213,7 +213,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.image.remove': '移除',
     'sessions.image.removeLabel': '移除第 {{index}} 张图片',
     'sessions.image.sourceCamera': '拍照',
-    'sessions.image.sourceClipboard': '从剪贴板粘贴',
+    'sessions.image.sourceClipboard': '粘贴剪贴板内容',
     'sessions.image.sourceFiles': '文件',
     'sessions.image.sourceLibrary': '照片和视频',
     'sessions.image.tileCamera': '拍照',

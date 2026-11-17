@@ -223,7 +223,7 @@ export const sessions = {
     'sessions.image.recentVideoDuration': 'Video {{index}} of {{total}}, {{duration}}',
     'sessions.image.remove': 'Remove',
     'sessions.image.removeLabel': 'Remove image {{index}}',
-    'sessions.image.sourceCamera': 'Take photo',
+    'sessions.image.sourceCamera': 'Camera, take a photo',
     'sessions.image.sourceClipboard': 'Paste from clipboard',
     'sessions.image.sourceFiles': 'Files',
     'sessions.image.sourceLibrary': 'Photos and videos',
