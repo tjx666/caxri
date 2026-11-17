@@ -1,9 +1,10 @@
-import type { AgentChatTask } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
 
-import { isRecord } from '../../chat-items';
+import { clip, isRecord } from '../../chat-items';
 
 /**
- * Maps the status fields of Claude Code's `system/task_*` frames onto a listed task. Inputs are untrusted JSON.
+ * Maps the fields of Claude Code's `system/task_*` frames, and of the timeline rows that started them, onto a listed
+ * task. Inputs are untrusted JSON.
  */
 
 /**
@@ -47,4 +48,30 @@ export function claudeTaskUsage(usage: unknown): AgentChatTask['usage'] | undefi
         ...(toolUses !== undefined && { toolUses }),
         ...(durationMs !== undefined && { durationMs }),
     };
+}
+
+/**
+ * The parent timeline row of the tool call that started a background shell, when that row is there.
+ */
+export function claudeShellRow(
+    items: readonly AgentChatItem[],
+    toolUseId: string | undefined,
+): AgentChatItem | undefined {
+    const id = toolUseId && clip(toolUseId, 200);
+    return id ? items.find((candidate) => candidate.id === id) : undefined;
+}
+
+/**
+ * The command line and description of the tool call that started a background shell: a Bash row, or a `Monitor` row, a
+ * generic tool row whose summary is the command it watches.
+ */
+export function claudeShellCall(
+    items: readonly AgentChatItem[],
+    toolUseId: string | undefined,
+): { command?: string; description?: string } | undefined {
+    const item = claudeShellRow(items, toolUseId);
+    if (item?.type === 'command') return { command: item.command, description: item.description };
+    return item?.type === 'toolCall' && item.name === 'Monitor'
+        ? { command: item.summary }
+        : undefined;
 }

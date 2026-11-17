@@ -365,6 +365,31 @@ describe('Claude Code background work in Agent Chat', () => {
         ]);
     });
 
+    it('lists a background subagent running again when it resumes after waiting on its own work', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'start a waiting background agent' });
+        // Claude Code reports the wait as `completed`, with an interim summary.
+        const waiting = await until((snapshot) => snapshot.tasks?.[0]?.status === 'completed');
+        const taskId = waiting.tasks?.[0]?.id ?? '';
+        const resumed = await until(
+            (snapshot) =>
+                snapshot.tasks?.[0]?.status === 'running' &&
+                snapshot.tasks[0].lastToolName === 'Edit',
+        );
+        expect(resumed.tasks).toHaveLength(1);
+        expect(resumed.tasks?.[0]).toMatchObject({
+            id: taskId,
+            title: 'Fix the review findings',
+            isBackground: true,
+            canStop: true,
+            usage: { totalTokens: 6000, toolUses: 4 },
+        });
+        expect(resumed.tasks?.[0]?.endedAt).toBeUndefined();
+
+        await service.stopTask(terminal.id, taskId);
+        await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+    });
+
     it('ends a subagent resumed after a restart instead of leaving its original call running', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'resume the audit' });

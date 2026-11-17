@@ -9,7 +9,7 @@ import { claudeAssistantItems, text } from './items';
 import { ClaudeShellOutput } from './shell-output';
 import { ClaudeStream } from './stream';
 import { ClaudeTaskFeedback } from './task-feedback';
-import { claudeTaskStatus, claudeTaskUsage } from './task-fields';
+import { claudeShellCall, claudeShellRow, claudeTaskStatus, claudeTaskUsage } from './task-fields';
 import { settleClaudeToolItem } from './tool-results';
 import { ClaudeWorkflowRuns, settleClaudeWorkflow } from './workflow';
 
@@ -192,36 +192,11 @@ export class ClaudeTasks {
         return this.known.get(claudeId)?.id;
     }
 
-    /**
-     * The parent timeline row of the tool call that started a background shell, when that row is there.
-     */
-    private shellRow(toolUseId: string | undefined) {
-        const id = toolUseId && clip(toolUseId, 200);
-        return id
-            ? this.options.host.read().items.find((candidate) => candidate.id === id)
-            : undefined;
-    }
-
-    /**
-     * The command line and description of the tool call that started a background shell: a Bash row, or a `Monitor`
-     * row, a generic tool row whose summary is the command it watches.
-     */
-    private shellCall(
-        toolUseId: string | undefined,
-    ): { command?: string; description?: string } | undefined {
-        const item = this.shellRow(toolUseId);
-        if (item?.type === 'command')
-            return { command: item.command, description: item.description };
-        return item?.type === 'toolCall' && item.name === 'Monitor'
-            ? { command: item.summary }
-            : undefined;
-    }
-
     private listShell(claudeId: string, known: KnownTask): void {
         const id = clip(claudeId, 200);
         this.known.set(claudeId, { ...known, id });
         this.claudeIds.set(id, claudeId);
-        const row = this.shellCall(known.toolUseId);
+        const row = claudeShellCall(this.options.host.read().items, known.toolUseId);
         const command = stringField(row?.command);
         // The call's description names the shell the way the Agent did; the command line stays for its tab, and its
         // presence tells the Renderer the title is words, not a command (`isAgentChatTaskTitleCommand`).
@@ -271,6 +246,8 @@ export class ClaudeTasks {
             const agentTitle = description || existing?.title || agentType || 'Agent';
             this.list.upsert(id, {
                 kind: 'agent',
+                // A started run is running, including one that re-registers a task an earlier run already ended.
+                status: 'running',
                 title: isWorkflow ? (stringField(message.workflow_name) ?? 'Workflow') : agentTitle,
                 ...(toolUseId && { itemId: id }),
                 ...(agentType && { agentType }),
@@ -310,9 +287,13 @@ export class ClaudeTasks {
         const isBackground =
             typeof patch.is_backgrounded === 'boolean' ? patch.is_backgrounded : task.isBackground;
         const description = stringField(patch.description);
+        // A subagent that paused on its own background work was reported `completed` with an interim result; when it
+        // resumes, Claude Code flips the same task back to `running` and notifies again once it really settles.
+        const isRunning = task.status === 'running' || status === 'running';
         this.list.upsert(task.id, {
+            ...(status === 'running' && { status }),
             isBackground,
-            ...(task.status === 'running' && { canStop: task.kind === 'shell' || isBackground }),
+            ...(isRunning && { canStop: task.kind === 'shell' || isBackground }),
             ...(description &&
                 task.kind === 'agent' &&
                 !known.isWorkflow && { title: description }),
@@ -449,7 +430,10 @@ export class ClaudeTasks {
         const claudeId = this.claudeIds.get(taskId);
         const known = claudeId === undefined ? undefined : this.known.get(claudeId);
         // Only a Bash row: a Monitor watch keeps its unknown-command standing, so it never starts holding the turn.
-        const row = known?.kind === 'shell' ? this.shellRow(known.toolUseId) : undefined;
+        const row =
+            known?.kind === 'shell'
+                ? claudeShellRow(this.options.host.read().items, known.toolUseId)
+                : undefined;
         return row?.type === 'command' ? stringField(row.command) : undefined;
     }
 
