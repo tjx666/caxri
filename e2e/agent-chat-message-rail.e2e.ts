@@ -135,6 +135,13 @@ test('The message rail sketches the conversation at the right edge and lists eve
         await expect(rows.nth(0)).toContainText('Fix the flaky build It breaks on CI');
         await expect(rows.nth(1)).toContainText('Summarize topic0');
         await expect(rows.nth(2)).toContainText('Thanks');
+        // A screen reader hears a list with a position for each row, and the settled list hides the transcript behind it.
+        await expect(rail.getByRole('list')).toHaveCount(1);
+        await expect(rail.getByRole('listitem')).toHaveCount(3);
+        await expect(list).toHaveCSS('opacity', '1');
+        expect(await list.evaluate((element) => getComputedStyle(element).backgroundColor)).toMatch(
+            /^rgb\(/u,
+        );
         const listBox = await box(list);
         expect(listBox.x + listBox.width).toBeLessThanOrEqual(logBox.x + logBox.width);
         await page.screenshot({ path: testInfo.outputPath('rail-list.png') });
