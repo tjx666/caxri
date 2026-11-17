@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { FilesNavigation } from '../files-navigation';
 import {
+    canSwitchWorktree,
     closePreview,
     editDraft,
     EMPTY_FILES_NAVIGATION,
@@ -58,5 +59,17 @@ describe('files navigation', () => {
         expect(next.preview).toBeNull();
         expect(next.draft).toBeNull();
         expect(next.stack.map((item) => item.name)).toEqual(['src']);
+    });
+});
+
+describe('canSwitchWorktree', () => {
+    it('lets a controller switch, including before the Session home reports the role', () => {
+        expect(canSwitchWorktree('control')).toBe(true);
+        expect(canSwitchWorktree(null)).toBe(true);
+    });
+
+    it('stops a role the Session home reports as unable to control', () => {
+        expect(canSwitchWorktree('view')).toBe(false);
+        expect(canSwitchWorktree('reply')).toBe(false);
     });
 });

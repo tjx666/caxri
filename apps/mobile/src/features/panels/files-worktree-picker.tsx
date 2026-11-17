@@ -8,6 +8,7 @@ import { BottomSheet, SheetAction, SheetCancel, SheetTitle } from '../../compone
 import { showToast } from '../../components/toast-store';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
+import { canSwitchWorktree } from './files-navigation';
 import { panelsStyles as styles } from './panels-styles';
 import { useWorkbenchRoots } from './use-workbench-roots';
 
@@ -42,7 +43,7 @@ export const FilesWorktreePicker = ({
     const { roots, select, switching } = useWorkbenchRoots(sessionId);
     if (roots.length < 2) return null;
     const current = roots.find((root) => root.isCurrent);
-    const canSwitch = deviceRole === 'control';
+    const canSwitch = canSwitchWorktree(deviceRole);
     const choose = async (root: MobileWorkbenchRoot): Promise<void> => {
         if (!root.projectId || root.isCurrent) return;
         try {

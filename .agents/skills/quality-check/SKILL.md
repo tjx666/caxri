@@ -71,8 +71,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--related
   the schema.
   A changed or removed top-level `e2e/*.e2e.ts` spec runs `scripts/__tests__/e2e-pools.test.ts`,
   which reads every spec's launch options to check its pool classification.
-  A locale catalog, Desktop-shared i18n copy, or protocol Agent Chat label file runs the three
-  Renderer i18n contracts (`i18n`, `zh-cn-terminology`, `english-counterpart-parity`), which reach
+  A locale catalog, Desktop-shared i18n copy, or protocol Agent Chat label file runs the four
+  Renderer i18n contracts (`i18n`, `zh-cn-terminology`, `zh-cn-typography`,
+  `english-counterpart-parity`), which reach
   those sources only through the aggregated locale resources. Any changed or removed executable
   source (the scope `scripts/reporters/ci-e2e-log-safety-scope.ts` defines) runs
   `scripts/__tests__/ci-e2e-log-safety.test.ts`, which scans every launcher for Playwright configs
@@ -211,8 +212,9 @@ violation fails locally instead of in CI: `scripts/__tests__/directory-density-r
 when a staged Renderer `.ts`/`.tsx` file or `scripts/react-compiler-*.ts` changed, together with
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` (DESIGN.md class rules that
 lint does not enforce). It also runs the
-three i18n contract tests when a staged path is a locale source
-(`scripts/staged-locale-contracts.ts`, the same selector as `check --test`).
+four i18n contract tests when a staged path is a locale source
+(`.agents/skills/quality-check/scripts/staged-locale-contracts.ts`, the same selector as
+`check --test`).
 
 All four also sit in the full CI platform-check manifest (`scripts/ci-platform-gates.ts`), so
 `bun run scripts/ci-platform-checks.ts` exercises them even outside a diff.

@@ -86,3 +86,11 @@ export const stepBack = (navigation: FilesNavigation): FilesBackStep => {
         return { kind: 'move', next: keepFolders(navigation, navigation.stack.length - 1) };
     return { kind: 'unhandled' };
 };
+
+/**
+ * Whether the Files worktree row opens its sheet. Only a role the Session home has confirmed as `view` or `reply` stops
+ * it: `null` means the home has not loaded yet (a Session opened straight from a notification), and a paired phone is a
+ * controller, so the sheet opens as before and the Server still refuses a switch the role does not allow.
+ */
+export const canSwitchWorktree = (deviceRole: 'control' | 'reply' | 'view' | null): boolean =>
+    deviceRole !== 'view' && deviceRole !== 'reply';

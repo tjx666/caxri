@@ -41,6 +41,7 @@ describe('direct import test selection', () => {
         const localeContracts = [
             'apps/desktop/src/renderer/src/i18n/__tests__/i18n.test.ts',
             'apps/desktop/src/renderer/src/i18n/__tests__/zh-cn-terminology.test.ts',
+            'apps/desktop/src/renderer/src/i18n/__tests__/zh-cn-typography.test.ts',
             'apps/desktop/src/renderer/src/i18n/__tests__/english-counterpart-parity.test.ts',
         ];
         const selections = await Promise.all(
