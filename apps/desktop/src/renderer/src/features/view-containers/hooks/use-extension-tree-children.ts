@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { caxri } from '../../../lib/caxri';
 import { isCancelledRequest } from '../../../stores/toasts';
 import type { ExtensionFailureReason } from '../extension-failure';
-import { extensionRequestFailureReason } from '../extension-failure';
+import { busyRetryDelay, extensionRequestFailureReason } from '../extension-failure';
 import type { ExtensionTreeScope } from '../extension-tree/extension-tree-client';
 import {
     cacheTreeChildren,
@@ -60,6 +60,17 @@ export function useExtensionTreeChildren(
     const isActive = useIsViewContainerActive();
     const requests = useRef(new Map<string, string>());
     const rootLoadRevision = useRef(0);
+    /**
+     * How many automatic retries each branch the Server rejected as busy has used; see `busyRetryDelay`.
+     */
+    const busyAttempts = useRef(new Map<string, number>());
+    /**
+     * Branches waiting for an automatic busy retry, with its delay. A pending branch stays loading instead of painting
+     * the failure.
+     */
+    const [pendingRetries, setPendingRetries] = useState<ReadonlyMap<string, number>>(
+        () => new Map(),
+    );
     /**
      * A remount re-enters the view with whatever this scope last loaded: the component is keyed by Session, so
      * switching Sessions and back would otherwise rebuild the tree from an empty state even though the cache still
@@ -133,6 +144,8 @@ export function useExtensionTreeChildren(
     );
 
     const resetLoadedChildren = useCallback((): void => {
+        busyAttempts.current.clear();
+        setPendingRetries(new Map());
         for (const requestId of requests.current.values()) cancelTreeChildrenRequest(requestId);
         requests.current.clear();
         const empty = new Map<string, readonly TreeItemDto[]>();
@@ -157,6 +170,13 @@ export function useExtensionTreeChildren(
                 parentHandle === ROOT_HANDLE ? (rootLoadRevision.current += 1) : undefined;
             if (currentRootLoad !== undefined)
                 setRootLoads((current) => ({ ...current, started: currentRootLoad }));
+            // A manual retry or refresh replaces a pending automatic one; the attempt count carries over.
+            setPendingRetries((current) => {
+                if (!current.has(parentHandle)) return current;
+                const next = new Map(current);
+                next.delete(parentHandle);
+                return next;
+            });
             const previousRequestId = requests.current.get(parentHandle);
             if (previousRequestId) cancelTreeChildrenRequest(previousRequestId);
             const requestId = crypto.randomUUID();
@@ -180,7 +200,20 @@ export function useExtensionTreeChildren(
             } catch (error) {
                 outcome = { ok: false, error };
             }
+            let isRetryPending = false;
             if (requests.current.get(parentHandle) === requestId) {
+                const reason =
+                    !outcome.ok && !isCancelledRequest(outcome.error)
+                        ? extensionRequestFailureReason(outcome.error)
+                        : undefined;
+                const attempt = busyAttempts.current.get(parentHandle) ?? 0;
+                const retryDelay = reason === 'busy' ? busyRetryDelay(attempt) : undefined;
+                if (retryDelay === undefined) busyAttempts.current.delete(parentHandle);
+                else {
+                    isRetryPending = true;
+                    busyAttempts.current.set(parentHandle, attempt + 1);
+                    setPendingRetries((current) => new Map(current).set(parentHandle, retryDelay));
+                }
                 if (outcome.ok) {
                     const { result } = outcome;
                     if (result.reset) resetLoadedChildren();
@@ -196,18 +229,19 @@ export function useExtensionTreeChildren(
                             next = focusTreeItem(next, result.items[0]);
                         return next;
                     });
-                } else if (!isCancelledRequest(outcome.error)) {
+                } else if (reason && !isRetryPending) {
                     /**
-                     * CANCELLED (skipped above) means this tree's Session scope was retired on the Server: the view is
+                     * CANCELLED (no reason) means this tree's Session scope was retired on the Server: the view is
                      * being retired, so the read is superseded rather than failed and must not paint an error into the
                      * branch.
                      */
-                    const reason = extensionRequestFailureReason(outcome.error);
                     setErrors((current) => new Map(current).set(parentHandle, reason));
                 }
             }
             if (requests.current.get(parentHandle) === requestId) {
                 requests.current.delete(parentHandle);
+                // The branch keeps its loading state until the pending retry settles it.
+                if (isRetryPending) return;
                 if (currentRootLoad !== undefined)
                     setRootLoads((current) => ({
                         ...current,
@@ -222,6 +256,18 @@ export function useExtensionTreeChildren(
         },
         [isActive, replaceLoadedChildren, resetLoadedChildren, scope, updateTreeState],
     );
+    useEffect(() => {
+        // A hidden tree waits: showing it again reloads the root, and any branch still pending retries then.
+        if (!isActive || pendingRetries.size === 0) return;
+        // One timer for every pending branch: they were rejected by the same busy Server, so they retry together.
+        const timer = setTimeout(
+            () => {
+                for (const handle of pendingRetries.keys()) void loadChildren(handle);
+            },
+            Math.min(...pendingRetries.values()),
+        );
+        return () => clearTimeout(timer);
+    }, [isActive, loadChildren, pendingRetries]);
 
     useEffect(() => {
         // Hidden keep-alive trees keep their last children on screen and drop in-flight provider work. Showing the

@@ -6,8 +6,12 @@ import type { CaxriDatabase } from '../db';
  * cost grows with total history; the sidebar cards, the Delegated Sessions strip, and phone clients each read once per
  * Session and would otherwise repeat that full pass per read. A running Agent Session's transcript is at most this
  * stale on those surfaces; the Usage report always syncs.
+ *
+ * Matches the sidebar card's 30s query stale time. At 5s, with a pass taking 5 to 20s and a card read every few
+ * seconds, passes still ran nearly back to back on a long history, stalled Server Core, and filled the per-client
+ * admission limit until view reads failed with `CAPACITY`.
  */
-const LEDGER_READ_MIN_INTERVAL_MS = 5_000;
+export const LEDGER_READ_MIN_INTERVAL_MS = 30_000;
 
 /**
  * A ledger pass slower than this is logged at info instead of debug, so a history that has outgrown the pass shows up

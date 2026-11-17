@@ -54,6 +54,21 @@ export function extensionRequestFailureReason(error: unknown): ExtensionFailureR
     }
 }
 
+/**
+ * Waits before each automatic retry of a read the Server rejected as busy. `CAPACITY` means the Server's admission
+ * limit was full at that instant and is retryable; painting it as a failure left Project Status on an error screen the
+ * user had to retry by hand after the Server had already recovered.
+ */
+const BUSY_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000] as const;
+
+/**
+ * Delay before automatic retry number `attempt` (zero-based) of a busy read, or undefined once the budget is spent and
+ * the failure should be shown.
+ */
+export function busyRetryDelay(attempt: number): number | undefined {
+    return BUSY_RETRY_DELAYS_MS[attempt];
+}
+
 export function describeExtensionFailureReason(
     reason: ExtensionFailureReason,
     t: Translate,

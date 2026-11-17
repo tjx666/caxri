@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../i18n';
 import {
+    busyRetryDelay,
     describeExtensionFailure,
     describeExtensionFailureReason,
     extensionRequestFailureReason,
@@ -45,5 +46,10 @@ describe('extension failure recovery', () => {
         );
         expect(extensionRequestFailureReason(new CaxriError('INTERNAL', 'x'))).toBe('generic');
         expect(extensionRequestFailureReason(new Error('boom'))).toBe('generic');
+    });
+    it('backs off busy retries and then gives up so the failure is shown', () => {
+        const delays = [0, 1, 2, 3].map((attempt) => busyRetryDelay(attempt));
+        expect(delays).toEqual([1_000, 2_000, 4_000, 8_000]);
+        expect(busyRetryDelay(4)).toBeUndefined();
     });
 });
