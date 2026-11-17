@@ -10,7 +10,7 @@ export const unattendedSettingsSpec = [
         key: 'power.keepAwakeWhileAgentsWork',
         title: 'Keep Mac awake while Agents work',
         description:
-            'Stop idle sleep while an Agent works or waits for a plan limit to reset; the display can still sleep, and a closed lid on battery still sleeps.',
+            "Stops your Mac from sleeping while an Agent is working or waiting for your plan's limit to reset. The screen can still turn off, and closing the lid on battery still puts the Mac to sleep.",
         category: 'general',
         keywords: ['sleep', 'caffeinate', 'awake', 'power', 'night', 'unattended', 'background'],
         default: true,

@@ -77,6 +77,16 @@ export interface MenuBarMode {
 export const MENU_BAR_REFRESH_MS = 300;
 
 /**
+ * Events that can change the menu. A Keychain dialog opening or closing changes the Needs You list without a state
+ * change, so the Session signals event redraws too.
+ */
+const REDRAW_EVENTS: ReadonlySet<ServerEvent['event']> = new Set([
+    'state.changed',
+    'settings.changed',
+    'terminal.sessionSignalsChanged',
+]);
+
+/**
  * Caxri's unattended presence: with the window closed and work still running, Caxri leaves the Dock and keeps a status
  * item in the menu bar that says how many Agents work and which Sessions need the user. The Renderer, the largest idle
  * cost, is gone with its window; Main stays so notifications keep arriving and the user can come back in one click. The
@@ -163,8 +173,7 @@ export function createMenuBarMode(options: MenuBarModeOptions): MenuBarMode {
         observe: (event) => {
             if (!tray) return;
             if (event.event === 'settings.changed') void recheckSetting();
-            if (event.event === 'state.changed' || event.event === 'settings.changed')
-                scheduleRedraw();
+            if (REDRAW_EVENTS.has(event.event)) scheduleRedraw();
         },
         quitting: () => {
             isQuitting = true;

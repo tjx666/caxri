@@ -21,6 +21,10 @@ export interface RecordQuerySource {
     projects(): readonly ProjectRecord[];
     sessions(): readonly SessionRecord[];
     terminals(): readonly TerminalRecord[];
+    /**
+     * Sessions with an open Keychain dialog right now, for the menu bar's Needs You list.
+     */
+    keychainBlockedSessionIds?(): ReadonlySet<string>;
 }
 
 interface SelectableRecord {
@@ -233,6 +237,7 @@ export class RecordQueryService {
             projects: this.source.projects(),
             sessions: this.source.sessions(),
             terminals: this.source.terminals(),
+            keychainBlockedSessionIds: this.source.keychainBlockedSessionIds?.() ?? new Set(),
         });
     }
 

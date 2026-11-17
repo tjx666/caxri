@@ -23,6 +23,7 @@ export function createIntrospectionServices(
      * Chat continues after a plan limit resets and whether an Agent only waits on its own background work.
      */
     liveTerminalRecord: (terminal: TerminalRecord) => TerminalRecord,
+    keychainBlockedSessionIds: () => ReadonlySet<string>,
 ) {
     return {
         logs: new LogQueryService(dirname(logger.path)),
@@ -42,6 +43,7 @@ export function createIntrospectionServices(
                 projects: () => database.listVisibleProjects(),
                 sessions: () => database.listVisibleSessions(),
                 terminals: () => database.listTerminals().map(liveTerminalRecord),
+                keychainBlockedSessionIds,
             },
             homedir(),
         ),

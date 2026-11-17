@@ -229,6 +229,7 @@ export async function createDomainServices(
         logger,
         presence,
         liveTerminalRecord,
+        terminalSupervision.keychainBlockedSessionIds,
     );
     const forgetSessionRuntime = createSessionRuntimeForgetter({
         agentChat,

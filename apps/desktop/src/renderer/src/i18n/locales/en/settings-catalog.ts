@@ -87,7 +87,7 @@ export const settingsCatalog = {
 
     'settings.power.keepAwakeWhileAgentsWork.title': 'Keep Mac awake while Agents work',
     'settings.power.keepAwakeWhileAgentsWork.description':
-        'Stop idle sleep while an Agent works or waits for a plan limit to reset; the display can still sleep, and a closed lid on battery still sleeps.',
+        "Stops your Mac from sleeping while an Agent is working or waiting for your plan's limit to reset. The screen can still turn off, and closing the lid on battery still puts the Mac to sleep.",
     'settings.window.menuBarWhenClosed.title': 'Keep running in the menu bar',
     'settings.window.menuBarWhenClosed.description':
         'When you close the window while work is running, hide the Dock icon and keep Caxri in the menu bar.',
