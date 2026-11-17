@@ -4,6 +4,7 @@ import {
     attachesAsFile,
     formatMediaDuration,
     recentMediaAccessStep,
+    recentMediaLabel,
     recentMediaMimeType,
 } from '../recent-media';
 
@@ -16,8 +17,25 @@ describe('recentMediaAccessStep', () => {
         expect(recentMediaAccessStep({ granted: false, status: 'undetermined' })).toBe('ask');
     });
 
-    it('never asks again after the user declined', () => {
-        expect(recentMediaAccessStep({ granted: false, status: 'denied' })).toBe('skip');
+    it('points at Settings instead of asking again after the user declined', () => {
+        expect(recentMediaAccessStep({ granted: false, status: 'denied' })).toBe('denied');
+    });
+});
+
+describe('recentMediaLabel', () => {
+    it('tells each photo apart by position', () => {
+        expect(recentMediaLabel({ kind: 'image' }, 2, 16)).toEqual({
+            key: 'sessions.image.recentPhoto',
+            params: { index: 3, total: 16 },
+        });
+    });
+
+    it('adds a video length when known', () => {
+        expect(recentMediaLabel({ durationMs: 12_000, kind: 'video' }, 1, 16)).toEqual({
+            key: 'sessions.image.recentVideoDuration',
+            params: { duration: '0:12', index: 2, total: 16 },
+        });
+        expect(recentMediaLabel({ kind: 'video' }, 0, 3).key).toBe('sessions.image.recentVideo');
     });
 });
 

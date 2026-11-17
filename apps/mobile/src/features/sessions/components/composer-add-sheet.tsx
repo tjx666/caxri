@@ -1,9 +1,17 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useRef } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { LucideIcon } from 'lucide-react-native';
-import { Camera, ChevronRight, ClipboardPaste, FolderOpen, Images } from 'lucide-react-native';
+import {
+    Camera,
+    ChevronRight,
+    ClipboardPaste,
+    FolderOpen,
+    Images,
+    Play,
+    Video,
+} from 'lucide-react-native';
 
 import { BottomSheet, SheetCancel, SheetTitle } from '../../../components/bottom-sheet';
 import type { TranslationKey } from '../../../i18n';
@@ -13,7 +21,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { useVideoCover } from '../hooks/use-attachment-cover';
 import { useRecentMedia } from '../hooks/use-recent-media';
 import type { RecentMedia } from '../recent-media';
-import { formatMediaDuration } from '../recent-media';
+import { formatMediaDuration, recentMediaLabel } from '../recent-media';
 
 /**
  * Where the next composer attachment comes from. The library offers photos and videos; `files` is the system document
@@ -114,7 +122,7 @@ export const ComposerAddSheet = ({
     const picked = useRef<Picked | null>(null);
     const hiddenSources = new Set(hidden);
     const tiles = canAttach ? sources.filter(({ source }) => !hiddenSources.has(source)) : [];
-    const recent = useRecentMedia(
+    const { isDenied, items: recent } = useRecentMedia(
         onPickRecent !== undefined && tiles.some(({ source }) => source === 'library'),
     );
     return (
@@ -142,10 +150,12 @@ export const ComposerAddSheet = ({
                             testID="image-source-recent"
                         >
                             {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- At most RECENT_MEDIA_LIMIT (16) thumbnails; older media stays behind the full library picker. */}
-                            {recent.map((media) => (
+                            {recent.map((media, index) => (
                                 <RecentThumbnail
+                                    index={index}
                                     key={media.id}
                                     media={media}
+                                    total={recent.length}
                                     onPress={() => {
                                         picked.current = { kind: 'recent', media };
                                         dismiss();
@@ -154,6 +164,29 @@ export const ComposerAddSheet = ({
                                 />
                             ))}
                         </ScrollView>
+                    ) : isDenied ? (
+                        <Pressable
+                            accessibilityRole="link"
+                            onPress={() => {
+                                void Linking.openSettings();
+                            }}
+                            style={({ pressed }) => [
+                                styles.access,
+                                {
+                                    backgroundColor: theme.elevated,
+                                    opacity: pressed ? PRESSED_OPACITY : 1,
+                                },
+                            ]}
+                            testID="image-source-recent-access"
+                        >
+                            <Images color={theme.muted} size={18} />
+                            <Text
+                                numberOfLines={2}
+                                style={[styles.accessLabel, { color: theme.muted }]}
+                            >
+                                {t('sessions.image.recentAccess')}
+                            </Text>
+                        </Pressable>
                     ) : null}
                     {tiles.length > 0 ? (
                         <View style={styles.tiles}>
@@ -213,13 +246,20 @@ export const ComposerAddSheet = ({
  * One recent photo or video: the photo itself, or a video's first frame with its length in the corner.
  */
 const RecentThumbnail = ({
+    index,
     media,
     onPress,
     theme,
+    total,
 }: {
+    /**
+     * Zero-based position in the row, read aloud with the total so each tile has its own label.
+     */
+    index: number;
     media: RecentMedia;
     onPress: () => void;
     theme: MobileTheme;
+    total: number;
 }) => {
     const { t } = useTranslation();
     const videoCover = useVideoCover(media.kind === 'video' ? media.uri : undefined);
@@ -228,13 +268,10 @@ const RecentThumbnail = ({
         media.kind === 'video' && media.durationMs !== undefined
             ? formatMediaDuration(media.durationMs)
             : undefined;
+    const label = recentMediaLabel(media, index, total);
     return (
         <Pressable
-            accessibilityLabel={t(
-                media.kind === 'video'
-                    ? 'sessions.image.recentVideo'
-                    : 'sessions.image.recentPhoto',
-            )}
+            accessibilityLabel={t(label.key, label.params)}
             accessibilityRole="button"
             onPress={onPress}
             style={({ pressed }) => [
@@ -243,16 +280,20 @@ const RecentThumbnail = ({
             ]}
             testID={`image-source-recent-${media.kind}`}
         >
-            {cover ? <Image source={{ uri: cover }} style={styles.thumbnailImage} /> : null}
+            {cover ? (
+                <Image source={{ uri: cover }} style={styles.thumbnailImage} />
+            ) : media.kind === 'video' ? (
+                <View style={styles.thumbnailPlaceholder}>
+                    <Video color={theme.muted} size={24} />
+                </View>
+            ) : null}
             {duration ? (
-                <Text
-                    style={[
-                        styles.thumbnailDuration,
-                        { backgroundColor: theme.overlay, color: theme.onScrim },
-                    ]}
-                >
-                    {duration}
-                </Text>
+                <View style={[styles.thumbnailDuration, { backgroundColor: theme.overlay }]}>
+                    <Play color={theme.onScrim} fill={theme.onScrim} size={10} />
+                    <Text style={[styles.thumbnailDurationText, { color: theme.onScrim }]}>
+                        {duration}
+                    </Text>
+                </View>
             ) : null}
         </Pressable>
     );
@@ -324,15 +365,28 @@ const styles = StyleSheet.create({
         width: THUMBNAIL_SIZE,
     },
     thumbnailImage: { height: '100%', width: '100%' },
+    thumbnailPlaceholder: { alignItems: 'center', flex: 1, justifyContent: 'center' },
     thumbnailDuration: {
-        ...mobileType.caption,
+        alignItems: 'center',
         borderRadius: mobileRadius.sm,
         bottom: mobileSpace.xs,
-        overflow: 'hidden',
+        flexDirection: 'row',
+        gap: mobileSpace.xs,
         paddingHorizontal: mobileSpace.xs,
         position: 'absolute',
         right: mobileSpace.xs,
     },
+    thumbnailDurationText: { ...mobileType.caption },
+    access: {
+        alignItems: 'center',
+        borderRadius: mobileRadius.lg,
+        flexDirection: 'row',
+        gap: mobileSpace.sm,
+        marginBottom: mobileSpace.sm,
+        minHeight: 44,
+        paddingHorizontal: mobileSpace.md,
+    },
+    accessLabel: { ...mobileType.meta, flex: 1 },
     tiles: { flexDirection: 'row', gap: mobileSpace.sm, marginBottom: mobileSpace.md },
     tile: {
         alignItems: 'center',

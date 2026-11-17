@@ -61,7 +61,11 @@ export const FilesWorktreePicker = ({
                 })}
                 accessibilityRole="button"
                 disabled={switching}
-                onPress={() => setIsOpen(true)}
+                onPress={() => {
+                    // Every option would be disabled, so say why instead of opening a sheet that cannot be used.
+                    if (canSwitch) setIsOpen(true);
+                    else showToast('error', t('panels.worktreeNeedsControl'));
+                }}
                 style={({ pressed }) => [
                     styles.crumbs,
                     styles.worktreeRow,
@@ -73,14 +77,17 @@ export const FilesWorktreePicker = ({
                 testID="files-worktree"
             >
                 <FolderGit2 color={theme.muted} size={16} />
-                <Text numberOfLines={1} style={[styles.rowText, { color: theme.text }]}>
+                <Text
+                    numberOfLines={1}
+                    style={[styles.rowText, { color: canSwitch ? theme.text : theme.muted }]}
+                >
                     {switching
                         ? t('panels.worktreeSwitching')
                         : current
                           ? rootLabel(current)
                           : t('panels.worktreeUnknown')}
                 </Text>
-                <ChevronDown color={theme.muted} size={16} />
+                {canSwitch ? <ChevronDown color={theme.muted} size={16} /> : null}
             </Pressable>
             {isOpen ? (
                 <BottomSheet
