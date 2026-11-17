@@ -194,6 +194,11 @@ bar, the sidebar sweep, and Source Control pay for a field only the Status panel
   (marked `<!-- codex-pull-request-review-summary -->`). Its table rows become `codexReviews`: the
   review's status, the commit it covered, and its trigger, which is the only record of a Codex review
   that left no comment. The `Review` group is therefore shown on every open or draft pull request.
+- The same query also reads the first and last 10 reviews for the summary an ALint run keeps
+  (marked `<!-- alint-summary -->`, an issue comment in ALint's older shape). ALint comments inline
+  only on lines inside the diff, so each table row becomes an unresolved review row (and counts
+  toward `reviewThreadCount`) unless a thread carrying that finding's `<!-- alint-finding:… -->`
+  marker exists, resolved or not. The newest summary wins, so a clean run's rewrite clears the rows.
 - Records are cached per pull request for 90s (the pull-request record's TTL) so an automatic
   refresh that reuses the PR record also reuses its threads. A manual refresh always asks again.
 - A failed read is never cached and never becomes a GitHub error row: the pull request goes out

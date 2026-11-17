@@ -7,7 +7,12 @@ import { parseReviewFeedback, ReviewThreadStore } from '../review-threads';
 const PR_URL = 'https://github.com/example/example/pull/7';
 const CONTEXT = { owner: 'example', repo: 'example' };
 
-function response(nodes: unknown[], early?: unknown[], recent?: unknown[]): string {
+function response(
+    nodes: unknown[],
+    early?: unknown[],
+    recent?: unknown[],
+    reviews?: unknown[],
+): string {
     return JSON.stringify({
         data: {
             repository: {
@@ -15,11 +20,31 @@ function response(nodes: unknown[], early?: unknown[], recent?: unknown[]): stri
                     reviewThreads: { nodes },
                     ...(early && { early: { nodes: early } }),
                     ...(recent && { recent: { nodes: recent } }),
+                    ...(reviews && { recentReviews: { nodes: reviews } }),
                 },
             },
         },
     });
 }
+
+/**
+ * ALint's summary review as GitHub returns it: one row per finding, with a `\|` escaped inside the finding's text.
+ */
+const ALINT_SUMMARY = [
+    '<!-- alint-summary -->',
+    '### ⚠️ ALint · 1 error, 2 warnings',
+    '',
+    '| | Location | Rule | Finding |',
+    '| --- | --- | --- | --- |',
+    '| ❌ | [`src/app.ts:12`](https://github.com/example/example/blob/abc1234/src/app.ts#L12) | `no-dynamic-import` | Imports `a \\| b` lazily. |',
+    '| ⚠️ | [`src/app.test.ts:41`](https://github.com/example/example/blob/abc1234/src/app.test.ts#L41) | `no-self-proving-tests` | The case asserts its own mock.<br><sub>💡 Drive the real reducer.</sub> |',
+    '| ⚠️ | [`src/other.ts:3`](https://github.com/example/example/blob/abc1234/src/other.ts#L3) | `button-hierarchy` | Two primary buttons. |',
+    '',
+    'Errors fail the ALint check.',
+    '',
+    '<sub>Commit `abc1234` · [run](https://github.com/example/example/actions/runs/1)</sub>',
+].join('\n');
+const ALINT_URL = `${PR_URL}#pullrequestreview-1`;
 
 /**
  * Codex's summary comment as it appears on GitHub, trimmed to the parts the parser reads.
@@ -162,6 +187,73 @@ describe('Codex review summary placement and markup', () => {
             name: 'Code Review',
             url: summaryUrl,
         });
+    });
+});
+
+describe('ALint summary findings', () => {
+    it('lists each finding as an unresolved review row, counted with the threads', () => {
+        const output = response([thread({ isResolved: true })], undefined, undefined, [
+            { body: 'Looks good.', url: `${PR_URL}#pullrequestreview-0` },
+            { body: ALINT_SUMMARY, url: ALINT_URL, author: { login: 'github-actions' } },
+        ]);
+        const feedback = parseReviewFeedback(output);
+        expect(feedback.threadCount).toBe(4);
+        expect(
+            feedback.threads.map(({ path, line, url, author }) => ({ path, line, url, author })),
+        ).toEqual([
+            { path: 'src/app.ts', line: 12, url: ALINT_URL, author: 'github-actions' },
+            { path: 'src/app.test.ts', line: 41, url: ALINT_URL, author: 'github-actions' },
+            { path: 'src/other.ts', line: 3, url: ALINT_URL, author: 'github-actions' },
+        ]);
+        expect(feedback.threads[0]?.body).toContain(
+            '**ALint** `no-dynamic-import` (error): Imports `a | b` lazily.',
+        );
+        expect(feedback.threads[1]?.body).toBe(
+            [
+                '**ALint** `no-self-proving-tests` (warning): The case asserts its own mock.',
+                '',
+                '💡 Drive the real reducer.',
+                '',
+                'Location: https://github.com/example/example/blob/abc1234/src/app.test.ts#L41',
+            ].join('\n'),
+        );
+    });
+
+    it('skips a finding ALint already commented inline, resolved or not, and a file it aggregated', () => {
+        const inline = (key: string, isResolved: boolean) =>
+            thread({ isResolved }, { body: `<!-- alint-finding:${key} -->\nFinding.` });
+        const output = response(
+            [inline('src/app.ts:12', false), inline('src/app.test.ts', true)],
+            undefined,
+            undefined,
+            [{ body: ALINT_SUMMARY, url: ALINT_URL }],
+        );
+        const feedback = parseReviewFeedback(output);
+        expect(feedback.threads.map((item) => `${item.path}:${item.line}`)).toEqual([
+            'src/app.ts:12',
+            'src/other.ts:3',
+        ]);
+        // The inline thread is the `src/app.ts:12` row; the summary adds only `src/other.ts`.
+        expect(feedback.threads[0]?.body).toContain('Finding.');
+        expect(feedback.threadCount).toBe(3);
+    });
+
+    it('reads the older comment shape, and a clean rewritten summary lists nothing', () => {
+        const legacy = response([], [{ body: ALINT_SUMMARY, url: `${PR_URL}#issuecomment-5` }]);
+        expect(parseReviewFeedback(legacy).threads).toHaveLength(3);
+
+        const clean = response(
+            [],
+            [{ body: ALINT_SUMMARY, url: `${PR_URL}#issuecomment-5` }],
+            [],
+            [
+                {
+                    body: '<!-- alint-summary -->\n### ✅ ALint · No findings on the changed lines\n\nChecked the changed lines at `abc1234`.',
+                    url: ALINT_URL,
+                },
+            ],
+        );
+        expect(parseReviewFeedback(clean)).toMatchObject({ threads: [], threadCount: 0 });
     });
 });
 

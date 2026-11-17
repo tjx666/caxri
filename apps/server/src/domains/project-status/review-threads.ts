@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import type { ExternalStatusCommandTelemetry, ExternalStatusRunner } from '../external-status';
 import { parseExternalJson } from '../external-status';
+import { alintFindingKeys, isAlintSummary, parseAlintReviewSummary } from './alint-review-summary';
 import { parseCodexReviewSummary } from './codex-review-summary';
 
 type PullRequest = ProjectStatusRepository['pullRequest'];
@@ -32,14 +33,23 @@ const THREAD_PAGE_SIZE = 50;
  */
 const EARLY_COMMENT_COUNT = 20;
 const RECENT_COMMENT_COUNT = 10;
+/**
+ * ALint keeps its summary in one review it creates at its first run with findings and edits on every push after; the
+ * same two ends of the review list find it whether that run came with the pull request or after a long review.
+ */
+const EARLY_REVIEW_COUNT = 10;
+const RECENT_REVIEW_COUNT = 10;
+
+const COMMENT_FIELDS = 'nodes{body url author{login}}';
 
 /**
  * A thread's `comments(first: 1)` is its opening comment: the one that states what needs addressing. The pull request's
- * own `comments` are the conversation, read for Codex's review summary.
+ * own `comments` are the conversation, read for Codex's review summary and ALint's summary in its older comment shape;
+ * its `reviews` are read for ALint's summary.
  *
  * @see https://docs.github.com/en/graphql/reference/objects#pullrequestreviewthread
  */
-const REVIEW_THREADS_QUERY = `query ReviewThreads($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:${THREAD_PAGE_SIZE}){nodes{isResolved isOutdated path line comments(first:1){nodes{body url createdAt author{login}}}}} early:comments(first:${EARLY_COMMENT_COUNT}){nodes{body url}} recent:comments(last:${RECENT_COMMENT_COUNT}){nodes{body url}}}}}`;
+const REVIEW_THREADS_QUERY = `query ReviewThreads($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:${THREAD_PAGE_SIZE}){nodes{isResolved isOutdated path line comments(first:1){nodes{body url createdAt author{login}}}}} early:comments(first:${EARLY_COMMENT_COUNT}){${COMMENT_FIELDS}} recent:comments(last:${RECENT_COMMENT_COUNT}){${COMMENT_FIELDS}} earlyReviews:reviews(first:${EARLY_REVIEW_COUNT}){${COMMENT_FIELDS}} recentReviews:reviews(last:${RECENT_REVIEW_COUNT}){${COMMENT_FIELDS}}}}}`;
 
 const commentSchema = z.object({
     body: z.string().nullish(),
@@ -57,12 +67,19 @@ const threadSchema = z.object({
 });
 
 const threadsSchema = z.object({ nodes: z.array(threadSchema.nullable()) });
-const conversationCommentSchema = z.object({ body: z.string().nullish(), url: z.url().nullish() });
+const conversationCommentSchema = z.object({
+    body: z.string().nullish(),
+    url: z.url().nullish(),
+    author: z.object({ login: z.string().nullish() }).nullish(),
+});
 const conversationSchema = z.object({ nodes: z.array(conversationCommentSchema.nullable()) });
+type ConversationComment = z.infer<typeof conversationCommentSchema>;
 const pullRequestSchema = z.object({
     reviewThreads: threadsSchema,
     early: conversationSchema.nullish(),
     recent: conversationSchema.nullish(),
+    earlyReviews: conversationSchema.nullish(),
+    recentReviews: conversationSchema.nullish(),
 });
 const repoSchema = z.object({ pullRequest: pullRequestSchema.nullable() });
 
@@ -71,8 +88,29 @@ const responseSchema = z.object({
 });
 
 /**
- * What a pull request's review left behind: its unresolved threads, how many threads it has in total, and Codex's
- * review summary rows.
+ * ALint's current findings, read from the newest summary: its review, or the conversation comment an older ALint wrote
+ * (a run under the review shape deletes that comment). The newest summary wins even when it lists nothing, because a
+ * clean run rewrites the same body rather than removing it.
+ */
+function alintFindings(
+    reviews: ReadonlyArray<ConversationComment | null>,
+    comments: ReadonlyArray<ConversationComment | null>,
+    inlineKeys: ReadonlySet<string>,
+): ProjectStatusReviewThread[] {
+    const isSummary = (node: ConversationComment | null) =>
+        !!node?.body && !!node.url && isAlintSummary(node.body);
+    const summary = reviews.findLast(isSummary) ?? comments.findLast(isSummary);
+    if (!summary?.body || !summary.url) return [];
+    return parseAlintReviewSummary(
+        summary.body,
+        { url: summary.url, ...(summary.author?.login && { author: summary.author.login }) },
+        inlineKeys,
+    );
+}
+
+/**
+ * What a pull request's review left behind: its unresolved threads (ALint's summary findings included), how many
+ * threads it has in total, and Codex's review summary rows.
  */
 export interface ReviewFeedback {
     threads: ProjectStatusReviewThread[];
@@ -103,15 +141,28 @@ export function parseReviewFeedback(output: string): ReviewFeedback {
             ...(thread.line && thread.line > 0 && { line: thread.line }),
         });
     }
+    const conversation = [
+        ...(pullRequest?.early?.nodes ?? []),
+        ...(pullRequest?.recent?.nodes ?? []),
+    ];
     // Codex keeps one summary comment and edits it in place; the last one wins if a pull request somehow has several.
-    const summary = [...(pullRequest?.early?.nodes ?? []), ...(pullRequest?.recent?.nodes ?? [])]
+    const summary = conversation
         .map((comment) =>
             comment?.body && comment.url ? parseCodexReviewSummary(comment.body, comment.url) : [],
         )
         .findLast((reviews) => reviews.length > 0);
+    // Every thread's opening comment counts, resolved ones included: a finding whose inline comment was resolved is done.
+    const inlineKeys = alintFindingKeys(
+        nodes.flatMap((thread) => thread?.comments.nodes.at(0)?.body ?? []),
+    );
+    const findings = alintFindings(
+        [...(pullRequest?.earlyReviews?.nodes ?? []), ...(pullRequest?.recentReviews?.nodes ?? [])],
+        conversation,
+        inlineKeys,
+    );
     return {
-        threads,
-        threadCount: nodes.filter((thread) => thread !== null).length,
+        threads: [...threads, ...findings],
+        threadCount: nodes.filter((thread) => thread !== null).length + findings.length,
         codexReviews: summary ?? [],
     };
 }
