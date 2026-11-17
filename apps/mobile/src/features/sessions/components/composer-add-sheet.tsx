@@ -32,7 +32,8 @@ export type AttachmentSource = 'camera' | 'clipboard' | 'files' | 'library';
 const sources: Array<{
     icon: LucideIcon;
     /**
-     * The tile's short caption; the full name is its accessible label.
+     * The tile's short caption; the full name is its accessible label. The label starts with the caption, so a voice
+     * command that names the visible word ("tap Camera") still reaches the tile (WCAG 2.5.3, Label in Name).
      */
     captionKey: TranslationKey;
     labelKey: TranslationKey;
