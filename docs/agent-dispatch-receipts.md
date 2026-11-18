@@ -43,10 +43,13 @@ Reasons distinguish launch readiness/failure, process failure/exit, Host or Term
 idle or untouched suspension, Session archive, and user detach. Logs exclude executable paths,
 arguments, prompts, Terminal contents, and Endpoint credentials.
 
-Before a Claude Code or Antigravity PTY launch, `agent_dispatch.folder_trust_prepared` records the `provider` and the
+Before a Claude Code, Antigravity, or Grok Build PTY launch, `agent_dispatch.folder_trust_prepared` records the `provider` and the
 closed outcome of marking the validated working directory trusted in that provider's config: Claude Code's
 `projects.<path>.hasTrustDialogAccepted`, or `trustedWorkspaces` in `~/.gemini/antigravity-cli/settings.json` for `agy`,
-which is never created when missing (warn unless `granted` or `already_trusted`).
+which is never created when missing, or a `[folders."<canonical path>"]` table appended to
+`$GROK_HOME/trusted_folders.toml` for Grok Build, which never overrides a folder the user declined and skips any store
+layout it does not recognize (warn unless `granted` or `already_trusted`). Grok keys trust on the exact canonical
+folder and never shares it across Git repositories, so without this every new linked worktree stops on its prompt.
 
 Idle suspension cannot use Server age as evidence against an Agent still starting without an
 activation timestamp. Such a launch is governed by its launch timeout. After activation, the

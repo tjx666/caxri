@@ -80,6 +80,8 @@ export { probeOpenCodexSessionIds } from './providers/codex/open-sessions';
 export { resolveCodexHome } from './providers/codex/paths';
 export { parseCodexRolloutName } from './providers/codex/rollouts';
 export { locateEarlierCodexRollouts } from './providers/codex/transcript';
+export type { GrokFolderTrustOutcome } from './providers/grok/folder-trust';
+export { grantGrokFolderTrust } from './providers/grok/folder-trust';
 export { grokHome } from './providers/grok/paths';
 export { agentCommandEnvironment } from './rename';
 export {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -61,6 +61,27 @@ describe('folderTrustPreparer', () => {
             'debug',
             logEventCatalog.agentDispatch.folderTrustPrepared,
             { fields: { provider: 'antigravity', outcome: 'granted' } },
+        );
+    });
+
+    it('trusts the working directory of a Grok Build launch', async () => {
+        const { home, prepare, write } = await fixture();
+        await mkdir(join(home, '.grok'));
+        await mkdir(join(home, 'new-app'));
+        const workspace = await realpath(join(home, 'new-app'));
+
+        await prepare('grok', join(home, 'new-app'));
+
+        expect(await readFile(join(home, '.grok', 'trusted_folders.toml'), 'utf8')).toMatch(
+            new RegExp(
+                String.raw`^\[folders\."${workspace}"\]\ntrusted = true\ndecided_at = \d+\n$`,
+                'u',
+            ),
+        );
+        expect(write).toHaveBeenCalledWith(
+            'debug',
+            logEventCatalog.agentDispatch.folderTrustPrepared,
+            { fields: { provider: 'grok', outcome: 'granted' } },
         );
     });
 
