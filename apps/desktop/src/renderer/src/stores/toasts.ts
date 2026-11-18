@@ -272,10 +272,14 @@ const errnoReasons: Partial<Record<string, TranslationKey>> = {
  * GitHub's `Head branch was modified` is the refusal `gh pr merge --match-head-commit` gets when the pull request
  * received a push after its Status row was drawn, the common reason a panel merge fails. The `GIT` reason "the Git
  * operation failed" hid that the remedy is simply to review the new commits and merge again.
+ *
+ * `Could not reach GitHub` is the Server's `UNAVAILABLE` merge failure after the network dropped `gh`; the code's "not
+ * ready" reason would hide that retrying the merge is the remedy.
  */
 const messageReasons: ReadonlyArray<readonly [RegExp, TranslationKey]> = [
     [/\bBinary files cannot be opened in the (?:diff )?editor\b/u, 'toasts.failure.binaryFile'],
     [/\bHead branch was modified\b/u, 'toasts.failure.pullRequestHeadMoved'],
+    [/\bCould not reach GitHub\b/u, 'toasts.failure.githubUnreachable'],
 ];
 
 /**

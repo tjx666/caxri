@@ -106,8 +106,32 @@ async function isMergedDespiteFailure(
     }
 }
 
+/**
+ * Reads the repository's allowed merge methods, retrying once after a network failure. The read changes nothing, and a
+ * local proxy dropping one request made the user's merge click fail in 0.1 seconds while the next click merged. The
+ * merge call itself is never retried: GitHub may have accepted it before the connection dropped.
+ */
+async function readMergeSettings(
+    slug: string,
+    cwd: string,
+    run: ExternalStatusRunner,
+): Promise<string> {
+    const read = () => run('gh', ['repo', 'view', slug, '--json', REPO_MERGE_SETTINGS_FIELDS], cwd);
+    try {
+        return await read();
+    } catch (error) {
+        if (!(error instanceof ExternalStatusCliError) || error.kind !== 'network') throw error;
+        return read();
+    }
+}
+
 function mergeFailure(error: unknown): CaxriError {
     if (error instanceof ExternalStatusCliError) {
+        if (error.kind === 'network')
+            return new CaxriError(
+                'UNAVAILABLE',
+                'Could not reach GitHub; check the network and merge again',
+            );
         if (error.kind === 'not-found')
             return new CaxriError('UNAVAILABLE', 'GitHub CLI is not available on PATH');
         if (error.kind === 'not-logged-in')
@@ -157,13 +181,7 @@ export async function mergeGitHubPullRequestAt(
     let recoveredFrom: MergeFailureReason | undefined;
     try {
         const settings = repoMergeSettingsSchema.parse(
-            JSON.parse(
-                await dependencies.run(
-                    'gh',
-                    ['repo', 'view', slug, '--json', REPO_MERGE_SETTINGS_FIELDS],
-                    target.cwd,
-                ),
-            ),
+            JSON.parse(await readMergeSettings(slug, target.cwd, dependencies.run)),
         );
         method = chooseMergeMethod(settings);
         if (!method) throw new NoMergeMethodError();

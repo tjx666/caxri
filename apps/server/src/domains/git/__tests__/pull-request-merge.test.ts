@@ -165,6 +165,76 @@ describe('mergeGitHubPullRequest', () => {
         await expect(merge()).rejects.toMatchObject({ code: 'GIT' });
     });
 
+    it('retries the merge-settings read once when the network dropped it, then merges', async () => {
+        const { failureRecords, merge, run } = harness({ squashMergeAllowed: true });
+        const settingsRead = run.getMockImplementation()!;
+        run.mockImplementationOnce(() =>
+            Promise.reject(
+                new ExternalStatusCliError(
+                    'gh',
+                    'network',
+                    'Post "https://api.github.com/graphql": EOF',
+                    1,
+                ),
+            ),
+        ).mockImplementation(settingsRead);
+
+        await expect(merge()).resolves.toMatchObject({ method: 'squash' });
+        expect(run.mock.calls.map(([, arguments_]) => arguments_.slice(0, 2))).toEqual([
+            ['repo', 'view'],
+            ['repo', 'view'],
+            ['pr', 'merge'],
+        ]);
+        expect(failureRecords()).toEqual([]);
+    });
+
+    it('names an unreachable GitHub instead of a Git failure when the retry also fails', async () => {
+        const { failureRecords, merge, run } = harness({ squashMergeAllowed: true });
+        run.mockImplementation(() =>
+            Promise.reject(
+                new ExternalStatusCliError(
+                    'gh',
+                    'network',
+                    'Post "https://api.github.com/graphql": EOF',
+                    1,
+                ),
+            ),
+        );
+
+        await expect(merge()).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+            message: 'Could not reach GitHub; check the network and merge again',
+        });
+        expect(run).toHaveBeenCalledTimes(2);
+        expect(failureRecords()).toEqual([
+            expect.objectContaining({
+                fields: {
+                    operation: 'pr.merge',
+                    step: 'repo.view',
+                    reason: 'network',
+                    exitCode: 1,
+                },
+            }),
+        ]);
+    });
+
+    it('never retries the merge call itself after a network failure', async () => {
+        const { merge, run } = harness(
+            { squashMergeAllowed: true },
+            new ExternalStatusCliError(
+                'gh',
+                'network',
+                'Post "https://api.github.com/graphql": EOF',
+            ),
+            { headRefOid: HEAD, state: 'OPEN' },
+        );
+
+        await expect(merge()).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        expect(run.mock.calls.filter(([, arguments_]) => arguments_[1] === 'merge')).toHaveLength(
+            1,
+        );
+    });
+
     it('refuses before calling GitHub when the repository allows no merge method', async () => {
         const { failureRecords, merge, run } = harness({});
 

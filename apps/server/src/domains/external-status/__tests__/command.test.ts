@@ -101,6 +101,10 @@ describe('runExternalStatusCommand', () => {
             'Post "https://api.github.com/graphql": dial tcp: lookup api.github.com: no such host',
             'network',
         ],
+        // A local proxy that drops the connection mid-request leaves Go's HTTP client with a bare EOF.
+        ['Post "https://api.github.com/graphql": EOF', 'network'],
+        ['Post "https://api.github.com/graphql": unexpected EOF', 'network'],
+        ['read tcp 127.0.0.1:52144->127.0.0.1:7890: read: connection reset by peer', 'network'],
         ['certificate has expired', 'tls'],
         // Each provider words being signed out differently; all of them name the login command, so that is what is
         // matched. Getting this wrong costs the user the one sentence that would have fixed it.

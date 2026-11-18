@@ -35,6 +35,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.errno.ECONNREFUSED': '服务拒绝了连接。',
     'toasts.failure.binaryFile': '二进制文件无法在编辑器中打开。',
     'toasts.failure.pullRequestHeadMoved': '这个 Pull Request 有新的提交，请确认后重新合并。',
+    'toasts.failure.githubUnreachable': '无法连接 GitHub，请检查网络后重试。',
     'toasts.muteFailed': '无法静音通知',
 
     'toasts.action.copyDetails': '复制详细信息',

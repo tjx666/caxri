@@ -36,6 +36,7 @@ export const toasts = {
     'toasts.failure.binaryFile': "Binary files can't be opened in the editor.",
     'toasts.failure.pullRequestHeadMoved':
         'The pull request has new commits. Review them, then merge again.',
+    'toasts.failure.githubUnreachable': "Couldn't reach GitHub. Check the network, then try again.",
     'toasts.muteFailed': 'Unable to mute notifications',
 
     // stores/toast-actions.ts: follow-up buttons

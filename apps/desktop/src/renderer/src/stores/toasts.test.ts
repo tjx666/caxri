@@ -487,6 +487,16 @@ describe('Sonner notification adapter', () => {
             );
         });
 
+        it('names an unreachable GitHub instead of a not-ready Server when a merge lost the network', () => {
+            const error = new CaxriError(
+                'UNAVAILABLE',
+                'Could not reach GitHub; check the network and merge again',
+            );
+            expect(describeFailureNotice(error, '无法合并 #42', translate).message).toBe(
+                '无法合并 #42：无法连接 GitHub，请检查网络后重试。',
+            );
+        });
+
         it('tryCommand offers the hidden raw text through Copy details', async () => {
             await tryCommand('保存失败', () =>
                 Promise.reject(new CaxriError('CONFLICT', 'Branch main already exists')),

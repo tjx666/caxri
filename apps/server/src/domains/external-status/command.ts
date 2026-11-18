@@ -129,10 +129,12 @@ export function failureReason(error: unknown): FailureReason {
     /*
      * `gh` is a Go binary: offline it prints "error connecting to api.github.com / check your internet connection" or a
      * Go dialer error ("dial tcp: lookup ...: no such host", "i/o timeout"), none of which carries a Node errno. Those
-     * fell through to `other`, so a 90-minute outage in production read as 222 unexplained `pr.list` failures.
+     * fell through to `other`, so a 90-minute outage in production read as 222 unexplained `pr.list` failures. A local
+     * HTTP proxy that drops the connection mid-request leaves Go's client with `Post "<url>": EOF` (or
+     * `unexpected EOF`, `connection reset by peer`); a panel merge failed that way as a generic Git error.
      */
     if (
-        /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|network|fetch failed|socket hang up|error connecting to|check your internet connection|dial tcp|no such host|i\/o timeout|connection refused/i.test(
+        /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|network|fetch failed|socket hang up|error connecting to|check your internet connection|dial tcp|no such host|i\/o timeout|connection refused|connection reset by peer|"https?:\/\/[^"]+": (?:unexpected )?EOF\b/i.test(
             message,
         )
     )
