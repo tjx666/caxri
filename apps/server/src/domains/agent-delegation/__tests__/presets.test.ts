@@ -210,6 +210,25 @@ describe('delegation presets and caller admission', () => {
         ).rejects.toThrow();
     });
 
+    it('refuses computer use bound to the caller’s own provider unless the provider is named', async () => {
+        const f = await fixture();
+        const { session, terminal } = f.database.createSession(f.input.projectId, 'codex');
+        const codex = { ...f.agent, callerTerminalId: terminal!.id };
+        const input = { ...f.input, sessionId: session.id, type: 'computer-use' as const };
+        await expect(f.service.create(randomUUID(), codex, input)).rejects.toThrow(
+            /own computer-use tools/u,
+        );
+        expect(f.start).not.toHaveBeenCalled();
+        const named = await f.service.create(randomUUID(), codex, { ...input, provider: 'codex' });
+        expect(named.selection).toMatchObject({ provider: 'codex', type: 'computer-use' });
+        // A Claude caller still hands computer use to Codex.
+        const claude = await f.service.create(randomUUID(), f.agent, {
+            ...f.input,
+            type: 'computer-use',
+        });
+        expect(claude.selection).toMatchObject({ provider: 'codex', type: 'computer-use' });
+    });
+
     it('rejects forged caller identity before revealing its roster or launching', async () => {
         const f = await fixture();
         expect(() => f.service.presets(f.agent, { ...f.input, callerProvider: 'codex' })).toThrow(

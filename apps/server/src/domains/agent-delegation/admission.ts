@@ -349,6 +349,22 @@ export function resolveDelegationAdmission(options: {
                 : delegationTypeBinding(settings, input.type, caller)),
             type: input.type,
         };
+        /**
+         * A child on the caller's own provider runs the same CLI with the same launch settings, so it has exactly the
+         * computer-use tools the caller already has: delegating only adds a Session, a cold start, and a second
+         * context. Refuse it so the caller operates the app itself. An explicit `--provider` is the user naming the
+         * Agent and still runs.
+         */
+        if (
+            caller &&
+            !input.provider &&
+            input.type === 'computer-use' &&
+            selection.provider === caller
+        )
+            throw new CaxriError(
+                'VALIDATION',
+                `Computer use is bound to ${caller}, the Agent you already are: operate the app with your own computer-use tools instead of delegating`,
+            );
         instructions = DELEGATION_TYPE_INSTRUCTIONS[input.type];
     } else if (input.preset) {
         const preset = roster.presets.find((entry) => entry.name === input.preset);

@@ -326,7 +326,9 @@ with `--type` set to `second-opinion`, `review`, `computer-use`, or `x-search`.
   comprehensive review, slow on large diffs, or a quick single pass. It reports findings and changes
   no files. Do not use it for a lint or style pass your own tools already cover.
 - **`computer-use`**: operating the user's signed-in Chrome or another desktop app. Use it only when
-  no CLI, API, or browser tool of your own can do the step, and never to move a secret such as an API
+  no CLI, API, browser, or computer-use tool of your own can do the step: when its binding is your
+  own provider (Codex by default, so a Codex caller), operate the app yourself, since Caxri refuses
+  that delegation. Never use it to move a secret such as an API
   key between pages: anything on screen lands in the model's context, so leave that step to the user.
   In the task, pre-approve each irreversible action the user already authorized by account, target,
   and exact items (for example "create these two DNS records in zone example.com"); anything unnamed

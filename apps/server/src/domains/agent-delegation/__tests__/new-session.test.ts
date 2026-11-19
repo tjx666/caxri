@@ -314,15 +314,27 @@ describe('Delegation of a type', () => {
     it.each([
         { type: 'second-opinion' as const, relation: 'consult' },
         { type: 'review' as const, relation: 'consult' },
-        { type: 'computer-use' as const, relation: 'consult' },
+        // The fixture caller is Codex, which may not delegate computer use to itself; name another Agent.
+        { type: 'computer-use' as const, relation: 'consult', provider: 'claude' as const },
         { type: 'x-search' as const, relation: 'consult' },
     ])(
         'runs $type in the Project of the caller’s own Session as a $relation Session',
-        async ({ type, relation }) => {
+        async ({
+            type,
+            relation,
+            provider,
+        }: {
+            type: DelegationType;
+            relation: string;
+            provider?: 'claude';
+        }) => {
             const { database, service, agentAuthority, callerSessionId } = await fixture();
             const callerProjectId = database.getSession(callerSessionId)!.projectId;
 
-            const receipt = await service.create(randomUUID(), agentAuthority, typed(type));
+            const receipt = await service.create(randomUUID(), agentAuthority, {
+                ...typed(type),
+                ...(provider && { provider }),
+            });
 
             expect(database.getSession(receipt.sessionId)).toMatchObject({
                 projectId: callerProjectId,
