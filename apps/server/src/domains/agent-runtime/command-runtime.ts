@@ -30,6 +30,7 @@ import {
 import { botHandoverAccess, createBotSession, discardBotSession } from '../bot';
 import { coreRouted } from '../core-routed';
 import { resolveDelegationFolder } from '../project';
+import type { WorktreeTopologyReader } from '../session';
 import { createBackgroundSession, discardEmptySession } from '../session';
 import { didPasteAndSubmitAgentText } from '../terminal';
 import type { AgentUsageGuards } from '../usage';
@@ -73,6 +74,11 @@ export function createAgentCommandRuntime(
          * can construct this runtime without one.
          */
         pullRequests?: DelegationPullRequestSource;
+        /**
+         * Reads a folder's linked-worktree topology, so a delegation naming an unregistered worktree of a visible
+         * Project runs under that owner instead of adding the checkout as a top-level Project.
+         */
+        readTopology: WorktreeTopologyReader;
         /**
          * Feeds every announced delegation receipt change to Caxri Bot's completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
@@ -211,6 +217,7 @@ export function createAgentCommandRuntime(
                     options.database,
                     (event) => options.emit(event),
                     absolutePath,
+                    options.readTopology,
                 ),
             prepareWorktree: (projectId, branch) => {
                 const project = options.database

@@ -330,6 +330,7 @@ export async function createDomainServices(
         endpoints: dependencies.agentEndpoints,
         launchSettings: agentLaunchSettings,
         pullRequests: settlementWiring,
+        readTopology: (path) => git.worktreeTopology(path),
         terminalDirectoryIdentity,
         terminalWorkingDirectory,
         terminals,

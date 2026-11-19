@@ -76,11 +76,14 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
 - `--project-path <dir>` replaces `--project <id>` and `project add` with one request (only with
   `--new-session`, so a `--handoff` or `--consult` still passes it too). The CLI resolves the folder
   against its working directory; the Server adds it exactly as `project add` does, so the Project is
-  visible, an existing Project is reused, a hidden one comes back, and an auto-registered worktree
-  Project becomes top-level. Only a managed Agent, the owner's CLI, and the Desktop may use it: it is
-  the `project.add` authority, so an external delegation client, a paired device, and Caxri Bot are
-  refused with `FORBIDDEN` before anything is added. The stored task and the Session still reference
-  the Project by ID and never carry the path.
+  visible, an existing Project is reused, and a hidden one comes back. A linked worktree of a visible
+  Project is the exception: the new Session belongs to that owner and works in the worktree, whether
+  the worktree was already registered or an Agent created it with plain `git worktree add`, which
+  registers it under the owner instead of adding a top-level Project beside it. A registered
+  worktree whose owner is hidden becomes top-level. Only a managed Agent, the owner's CLI, and the
+  Desktop may use it: it is the `project.add` authority, so an external delegation client, a paired
+  device, and Caxri Bot are refused with `FORBIDDEN` before anything is added. The stored task and
+  the Session still reference the Project by ID and never carry the path.
 
   ```sh
   caxri agent delegate create --project-path ../other-repo --new-session --title "Fix login retry" \
@@ -95,8 +98,8 @@ caxri agent delegate create --project <project-id> --new-session --title "Fix lo
   unknown preset or a failed `--worktree` branch, keeps the Project: it may already have existed or
   been opened since, and removing a Project never touches the folder. The Server logs
   `agent_delegation.project_added` with a closed outcome (`created`, `existing`, `unhidden`,
-  `adopted_worktree`), the caller kind, and a duration, never the path. `project add` stays the way
-  to register a folder without delegating.
+  `adopted_worktree`, `worktree`, `registered_worktree`), the caller kind, and a duration, never the
+  path. `project add` stays the way to register a folder without delegating.
 
 - `--new-session --title` creates a plain Session, named manually, without moving the Workbench
   selection, right before its Agent Terminal, so the Session never sits empty. A retry with the same

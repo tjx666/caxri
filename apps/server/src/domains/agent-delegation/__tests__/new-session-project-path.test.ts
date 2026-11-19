@@ -103,6 +103,48 @@ describe('Delegation by folder (`projectPath`)', () => {
         expect(projectAddedFields(logger)).toMatchObject([{ outcome: 'worktree' }]);
     });
 
+    it('registers an unregistered linked worktree under its owner instead of adding it at top level', async () => {
+        const { database, service, agentAuthority, path, pathRequest, project, logger, topology } =
+            await pathFixture();
+        const root = await realPath(path);
+        topology.current = {
+            repositoryKey: join(project.rootPath, '.git'),
+            worktrees: [
+                { branch: 'main', rootPath: project.rootPath, isMain: true },
+                { branch: 'feat', rootPath: root },
+            ],
+        };
+
+        const receipt = await service.create(randomUUID(), agentAuthority, pathRequest);
+
+        const worktree = database.findProjectByRootPath(root)!;
+        expect(worktree.ownerProjectId).toBe(project.id);
+        expect(receipt.projectId).toBe(project.id);
+        const session = database.getSession(receipt.sessionId)!;
+        expect(session.projectId).toBe(project.id);
+        expect(session.workbenchRootProjectId).toBe(worktree.id);
+        expect(projectAddedFields(logger)).toMatchObject([{ outcome: 'registered_worktree' }]);
+    });
+
+    it('adds a linked worktree whose repository no visible Project owns as a Project', async () => {
+        const { database, service, agentAuthority, path, pathRequest, directory, topology } =
+            await pathFixture();
+        const root = await realPath(path);
+        topology.current = {
+            repositoryKey: join(directory, 'elsewhere', '.git'),
+            worktrees: [
+                { branch: 'main', rootPath: join(directory, 'elsewhere'), isMain: true },
+                { branch: 'feat', rootPath: root },
+            ],
+        };
+
+        const receipt = await service.create(randomUUID(), agentAuthority, pathRequest);
+
+        const added = database.findProjectByRootPath(root)!;
+        expect(added.ownerProjectId).toBeUndefined();
+        expect(receipt.projectId).toBe(added.id);
+    });
+
     it('adds a registered worktree of a hidden Project the way `project add` does', async () => {
         const { database, service, agentAuthority, path, pathRequest, project, logger } =
             await pathFixture();
