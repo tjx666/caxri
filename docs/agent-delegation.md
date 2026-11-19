@@ -663,6 +663,10 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
   `gpt-6.1-terra` at `medium`, and an X search on Grok `grok-4.7` at `medium`. `agent delegate presets` returns the
   effective binding per type in `types`. `--provider` (with optional `--model` and `--effort`) runs
   the type on that Agent instead, for a user who names one.
+- **No computer use on yourself.** When `computer-use` resolves to the caller's own provider
+  (by default, a Codex caller), admission refuses it with `VALIDATION`: the child would run the same
+  CLI with the same launch settings and so the same computer-use tools, and the caller should
+  operate the app itself. An explicit `--provider` still runs.
 - **Relation.** Every type opens a `consult` Session (`newSessionRelation`): it takes no sidebar
   row, and the user reaches it from the asking Chat instead. Computer use changes state outside the
   repository and may wait for the user to sign in, but that needs the child's Chat in view, not a
