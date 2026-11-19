@@ -298,6 +298,9 @@ function githubRestOperation(endpoint: string): string {
     const path = endpoint.replace(/^\//u, '').replace(/\?.*$/u, '');
     if (/^repos\/[^/]+\/[^/]+\/compare\/.+$/u.test(path)) return 'rest.compare';
     if (/^repos\/[^/]+\/[^/]+\/issues\/\d+$/u.test(path)) return 'rest.issue.get';
+    if (/^repos\/[^/]+\/[^/]+\/deployments$/u.test(path)) return 'rest.deployments.list';
+    if (/^repos\/[^/]+\/[^/]+\/deployments\/\d+\/statuses$/u.test(path))
+        return 'rest.deployment_statuses.list';
     return 'unknown';
 }
 

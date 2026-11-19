@@ -46,7 +46,7 @@ import type { PullRequestTarget, SessionPullRequestResolver } from './session-pu
 import { repoPullRequestNumber, resolvePullRequestTarget } from './session-pull-request';
 import { StalePullRequestHeadTracker } from './stale-pull-request-head';
 import { ProjectStatusSummaryObservers } from './summary-observers';
-import { VercelDeploymentStore } from './vercel-store';
+import { VercelDeploymentStore } from './vercel';
 import type { WatchOutcome, WatchRound } from './watch';
 import { deliveryKeys, DeliveryWatch, isWatchFresh } from './watch';
 
@@ -229,19 +229,18 @@ export class ProjectStatusService {
         );
         const [githubState, vercelState, branchState] = await Promise.all([
             github,
-            (async () => {
-                const state = await github;
-                return this.vercel.deployments(
+            (async () =>
+                this.vercel.deployments(
                     {
                         onParseFailure: (error) => this.logExternalParseFailure('vc', error),
                         run: (arguments_, cwd) => this.runCommand('vc', arguments_, cwd),
+                        github: (arguments_) => this.runCommand('gh', arguments_, homedir()),
                     },
                     prepared.context,
                     prepared.repository.rootPath,
-                    state.mergeCommit,
+                    (await github).mergeCommit,
                     isForced,
-                );
-            })(),
+                ))(),
             readBranchPublication(
                 prepared.context,
                 (source, arguments_, cwd) => this.runCommand(source, arguments_, cwd),

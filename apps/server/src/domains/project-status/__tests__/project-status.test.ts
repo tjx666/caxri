@@ -95,7 +95,12 @@ describe('ProjectStatusService', () => {
         };
         const forcedSettlement = observeForcedSettlement();
         await vi.waitFor(() =>
-            expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(2),
+            // Pull request lookups only; `gh api` calls are the Vercel fallback reading GitHub deployments.
+            expect(
+                runner.mock.calls.filter(
+                    ([command, arguments_]) => command === 'gh' && arguments_[0] !== 'api',
+                ),
+            ).toHaveLength(2),
         );
         expect(isForcedSettled).toBe(false);
         forcedGithub.resolve(

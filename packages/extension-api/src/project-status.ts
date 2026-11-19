@@ -330,6 +330,11 @@ export interface ProjectStatusRepository {
     linearIssues: ProjectStatusLinearIssue[];
     acceptances: ProjectStatusAcceptance[];
     deployments?: {
+        /**
+         * `github` when the tree was rebuilt from the deployments Vercel records on the GitHub repository because the
+         * Vercel CLI could not read the project. Absent for the Vercel CLI's own answer.
+         */
+        source?: 'github';
         url: string;
         branchDeployments: ProjectStatusDeployment[];
         production?: ProjectStatusDeployment;

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { BranchPublicationContext } from '../branch';
-import type { VercelDependencies } from '../vercel';
-import { VercelDeploymentStore } from '../vercel-store';
+import type { ExternalStatusRunner } from '../../../external-status';
+import { ExternalStatusCliError } from '../../../external-status';
+import type { BranchPublicationContext } from '../../branch';
+import type { VercelDependencies } from '../deployments';
+import { VercelDeploymentStore } from '../store';
 
 const head = 'a'.repeat(40);
 const context: BranchPublicationContext = {
@@ -78,5 +80,49 @@ describe('VercelDeploymentStore branch deployments', () => {
         expect(run).toHaveBeenCalledTimes(calls * 2);
         await read(false, { ...context, head: 'b'.repeat(40) });
         expect(run.mock.calls.length).toBeGreaterThan(calls * 2);
+    });
+});
+
+describe('VercelDeploymentStore production', () => {
+    it("reads production from Vercel's GitHub records when vc is denied", async () => {
+        const merged = 'b'.repeat(40);
+        const runner = vi.fn<ExternalStatusRunner>((source, arguments_) => {
+            if (source === 'vc')
+                return Promise.reject(
+                    new ExternalStatusCliError('vc', 'permission-denied', 'denied'),
+                );
+            const endpoint = arguments_.at(-1) ?? '';
+            return Promise.resolve(
+                JSON.stringify(
+                    endpoint.includes('/statuses')
+                        ? [{ state: 'success' }]
+                        : [
+                              {
+                                  id: 1,
+                                  sha: merged,
+                                  environment: 'Production',
+                                  created_at: '2026-11-19T05:05:38Z',
+                                  creator: { login: 'vercel[bot]' },
+                              },
+                          ],
+                ),
+            );
+        });
+        const store = new VercelDeploymentStore(runner);
+
+        await expect(store.production('acme', 'widget')).resolves.toEqual({
+            commitSha: merged,
+            state: 'success',
+        });
+    });
+
+    it('does not ask GitHub when vc failed transiently', async () => {
+        const runner = vi.fn<ExternalStatusRunner>(() =>
+            Promise.reject(new ExternalStatusCliError('vc', 'network', 'offline')),
+        );
+        const store = new VercelDeploymentStore(runner);
+
+        await expect(store.production('acme', 'widget')).resolves.toBeUndefined();
+        expect(runner.mock.calls.every(([source]) => source === 'vc')).toBe(true);
     });
 });

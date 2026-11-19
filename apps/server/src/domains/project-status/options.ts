@@ -2,7 +2,7 @@ import type { AppSettings, ServerEvent } from '@caxri/protocol';
 
 import type { GitHubPullRequestStore } from '../external-status';
 import type { SessionTranscriptContext } from '../session';
-import type { VercelDeploymentStore } from './vercel-store';
+import type { VercelDeploymentStore } from './vercel';
 
 export interface ProjectStatusServiceOptions {
     cacheLimit?: number;

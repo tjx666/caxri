@@ -313,6 +313,22 @@ describe('externalStatusCommandOperation', () => {
                 'api',
                 '--hostname',
                 'github.com',
+                'repos/acme/private-repo/deployments?sha=abc1234&per_page=20',
+            ]),
+        ).toBe('rest.deployments.list');
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                '--hostname',
+                'github.com',
+                'repos/acme/private-repo/deployments/42/statuses?per_page=1',
+            ]),
+        ).toBe('rest.deployment_statuses.list');
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                '--hostname',
+                'github.com',
                 'repos/acme/private-repo/issues/42',
             ]),
         ).toBe('rest.issue.get');
