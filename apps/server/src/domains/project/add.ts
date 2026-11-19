@@ -4,6 +4,8 @@ import type { ProjectRecord, ServerEvent } from '@caxri/protocol';
 import { isTopLevelProject } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
+import type { WorktreeTopologyReader } from '../session';
+import { worktreePlacement } from '../session';
 import { resolveOwnerProjectRoot } from './root-identity';
 
 /**
@@ -38,37 +40,70 @@ async function addProjectFolderWithOutcome(
  */
 export interface DelegationFolder {
     projectId: string;
-    outcome: ProjectAddOutcome | 'worktree';
+    /**
+     * `worktree`: the folder was already a registered worktree of a visible Project. `registered_worktree`: it was an
+     * unregistered linked worktree of a visible Project's repository and was registered under that owner just now.
+     */
+    outcome: ProjectAddOutcome | 'worktree' | 'registered_worktree';
     worktree?: { projectId: string; identity: { device: string; inode: string } };
+}
+
+async function worktreeOf(
+    root: string,
+    projectId: string,
+): Promise<NonNullable<DelegationFolder['worktree']>> {
+    const stats = await lstat(root, { bigint: true });
+    return {
+        projectId,
+        identity: { device: stats.dev.toString(), inode: stats.ino.toString() },
+    };
 }
 
 /**
  * Resolves a delegation's `projectPath`. Naming a folder there says where the task runs, not that the user chose to
- * show it in the sidebar, so a folder already registered as a visible Project's linked worktree keeps its owner: the
- * Session belongs to that owner and works in the worktree (`worktree` outcome), as a Session whose Agent moved into
- * that worktree does. Promoting it (`adopted_worktree`) put the worktree beside its owner as a top-level Project with
- * nothing in it. Any other folder is added the way `project add` adds it.
+ * show it in the sidebar, so a linked worktree of a visible Project stays under that owner: the Session belongs to the
+ * owner and works in the worktree, as a Session whose Agent moved into that worktree does. That holds for a worktree
+ * already registered (`worktree`) and for one an Agent created with plain `git worktree add` and never registered
+ * (`registered_worktree`). Adding the latter as a top-level Project would put it beside its owner, and leave an empty
+ * row there once the checkout is removed. A registered worktree whose owner is hidden is promoted (`adopted_worktree`).
+ * Any other folder is added the way `project add` adds it.
  */
 export async function resolveDelegationFolder(
-    database: Pick<CaxriDatabase, 'createProject' | 'findProjectByRootPath' | 'getProject'>,
+    database: Pick<
+        CaxriDatabase,
+        'createProject' | 'findProjectByRootPath' | 'getProject' | 'listVisibleProjects'
+    >,
     emit: (event: ServerEvent) => void,
     absolutePath: string,
+    readTopology: WorktreeTopologyReader,
 ): Promise<DelegationFolder> {
     const root = await resolveOwnerProjectRoot(absolutePath);
     const registered = database.findProjectByRootPath(root);
     const owner = registered?.ownerProjectId
         ? database.getProject(registered.ownerProjectId)
         : undefined;
-    if (registered && owner && registered.hiddenAt === undefined && owner.hiddenAt === undefined) {
-        const stats = await lstat(root, { bigint: true });
+    if (registered && owner && registered.hiddenAt === undefined && owner.hiddenAt === undefined)
         return {
             projectId: owner.id,
             outcome: 'worktree',
-            worktree: {
-                projectId: registered.id,
-                identity: { device: stats.dev.toString(), inode: stats.ino.toString() },
-            },
+            worktree: await worktreeOf(root, registered.id),
         };
+    if (!registered) {
+        const placement = await worktreePlacement(
+            database.listVisibleProjects(),
+            root,
+            readTopology,
+        );
+        // Only the worktree root itself: a subfolder of a checkout is not a Workbench Root and is added as before.
+        if (placement?.worktreeRoot === root) {
+            const worktree = database.createProject(root, placement.project.id);
+            emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.create' } });
+            return {
+                projectId: placement.project.id,
+                outcome: 'registered_worktree',
+                worktree: await worktreeOf(root, worktree.id),
+            };
+        }
     }
     const { project, outcome } = await addProjectFolderWithOutcome(database, emit, root);
     return { projectId: project.id, outcome };

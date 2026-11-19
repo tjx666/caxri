@@ -9,6 +9,7 @@ import { onTestFinished, vi } from 'vitest';
 import type { AgentDispatchService } from '../../agent-dispatch';
 import { createBotSession, discardBotSession } from '../../bot';
 import { CaxriDatabase } from '../../db';
+import type { GitWorktreeTopology } from '../../git';
 import { resolveDelegationFolder } from '../../project';
 import { createBackgroundSession, discardEmptySession } from '../../session';
 import { AgentDelegationService } from '../service';
@@ -38,6 +39,14 @@ export async function newSessionFixture() {
     });
     const project = database.createProject(workRoot);
     const events: ServerEvent[] = [];
+    /**
+     * The linked-worktree topology the folder step reads. Unset, every folder reads as outside a Git repository.
+     */
+    const topology: { current?: GitWorktreeTopology } = {};
+    const readTopology = () =>
+        topology.current
+            ? Promise.resolve(topology.current)
+            : Promise.reject(new Error('not a git repository'));
     const logger = { write: vi.fn() } as unknown as StructuredLogger;
     const service = new AgentDelegationService({
         database,
@@ -73,7 +82,12 @@ export async function newSessionFixture() {
                 return sessionId;
             },
             addProject: (absolutePath) =>
-                resolveDelegationFolder(database, (event) => events.push(event), absolutePath),
+                resolveDelegationFolder(
+                    database,
+                    (event) => events.push(event),
+                    absolutePath,
+                    readTopology,
+                ),
             prepareWorktree: (projectId, branch) => {
                 if (branch === 'refused') return Promise.reject(new Error('git refused'));
                 const worktree = database.createProject(join(directory, `wt-${branch}`), projectId);
@@ -134,5 +148,6 @@ export async function newSessionFixture() {
         callerTerminalId: caller.terminal!.id,
         project,
         request,
+        topology,
     };
 }

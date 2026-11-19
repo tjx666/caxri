@@ -67,6 +67,7 @@ function createRuntime(
         emit,
         launchSettings: vi.fn(),
         logger: { write: vi.fn() } as never,
+        readTopology: vi.fn(),
         settings: () => ({}) as never,
         terminalDirectoryIdentity: vi.fn(),
         terminals: {} as never,
