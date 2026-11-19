@@ -35,6 +35,8 @@ import {
     deploymentEnvironmentLabel,
     deploymentIcon,
     deploymentRowLabel,
+    deploymentsDescription,
+    deploymentsSourceRows,
     deploymentTooltip,
     linearBadgeTones,
     linearIcon,
@@ -255,7 +257,8 @@ function buildRepoChildren(
     }
     const review = reviewNode(repo, prefix);
     if (repo.deployments) {
-        const { branchDeployments, production, preview, url: deploymentsUrl } = repo.deployments;
+        const { branchDeployments, production, preview, source } = repo.deployments;
+        const deploymentsUrl = repo.deployments.url;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
         /**
          * Whether `deployment`, a `branchDeployments` row, is also the branch's current Production or Preview build, so
@@ -288,21 +291,12 @@ function buildRepoChildren(
         if (!isDetachedWithNothingDeployed)
             nodes.push(
                 item(`${prefix}:deployments`, l10n.t('Deployments'), {
-                    description:
-                        environments.length === 1
-                            ? environments[0] === 'production'
-                                ? l10n.t('{count} on production', {
-                                      count: branchDeployments.length,
-                                  })
-                                : l10n.t('{count} on preview', { count: branchDeployments.length })
-                            : l10n.t('{count} on {branch}', {
-                                  count: branchDeployments.length,
-                                  branch: repo.branch,
-                              }),
+                    description: deploymentsDescription(repo.branch, repo.deployments),
                     icon: 'rocket',
                     tooltip: {
                         rows: [
                             { label: l10n.t('branch'), value: repo.branch },
+                            ...deploymentsSourceRows(source),
                             ...environments.map((environment) => ({
                                 label:
                                     environment === 'production'

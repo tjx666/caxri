@@ -80,7 +80,7 @@ describe('Status extension Deployments row', () => {
             state: 'success' as const,
             url: 'https://app-git-branch.example.vercel.app',
         };
-        // A merge-commit Production build (`mergeCommit` in `project-status/vercel.ts`) can land outside this
+        // A merge-commit Production build (`mergeCommit` in `project-status/vercel/deployments.ts`) can land outside this
         // branch's own `branchDeployments` history entirely, so it stays a real, non-duplicate fact worth its own row.
         const production = {
             environment: 'production' as const,
@@ -254,5 +254,33 @@ describe('Status extension Deployments row', () => {
         expect(project?.value.endsWith('…')).toBe(true);
         // The clamp is display-only: the row still opens the complete destination.
         expect(project?.url).toBe(deploymentsUrl);
+    });
+
+    it('says a tree rebuilt from GitHub deployments came from GitHub', () => {
+        const preview = {
+            environment: 'preview' as const,
+            hostname: 'widget-abc.example.vercel.app',
+            state: 'success' as const,
+            url: 'https://widget-abc.example.vercel.app/',
+        };
+        const root = buildRepoNode({
+            id: 'fixture',
+            kind: 'primary',
+            name: 'project',
+            branch: 'feat/panel',
+            acceptances: [],
+            linearIssues: [],
+            errors: [],
+            deployments: {
+                source: 'github',
+                url: 'https://github.com/acme/widget/deployments',
+                branchDeployments: [preview],
+                preview,
+            },
+        });
+        const deployments = root.children?.find((node) => node.item.label === 'Deployments');
+        expect(deployments?.item.description).toBe('1 on preview · via GitHub');
+        const rows = (deployments?.item.tooltip as TreeItemRichTooltip).rows ?? [];
+        expect(rows.map((row) => row.label)).toContain('source');
     });
 });

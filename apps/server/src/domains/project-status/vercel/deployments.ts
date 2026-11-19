@@ -9,17 +9,20 @@ import type {
 } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
-import { ExternalStatusCliError, parseExternalJson } from '../external-status';
-import type { BranchPublicationContext } from './branch';
-import type { VercelLink } from './external';
+import type { CliFailureKind } from '../../external-status';
+import { ExternalStatusCliError, parseExternalJson } from '../../external-status';
+import type { BranchPublicationContext } from '../branch';
+import type { VercelLink } from '../external';
 import {
     hasLocalVercelLink,
     projectStatusCliError,
     projectStatusNoDeploymentsError,
     vcListArguments,
     vercelInspectorUrl,
-} from './external';
-import { parseVercelList, vercelTeamListSchema } from './parse';
+} from '../external';
+import { parseVercelList, vercelTeamListSchema } from '../parse';
+import type { GitHubApiRunner } from './github';
+import { hasRecentVercelDeployment, loadGitHubDeployments } from './github';
 
 /**
  * Caps the process-lifetime project-link cache so long-running sessions can't grow it unbounded.
@@ -59,6 +62,7 @@ export interface VercelLinkCacheOptions {
 export class VercelLinkCache {
     private readonly links = new Map<string, VercelLink>();
     private readonly unlinked = new Map<string, number>();
+    private readonly absentOnGitHub = new Map<string, number>();
     private readonly discovering = new Map<string, Promise<VercelLink | undefined>>();
     private teamList?: { fetchedAt: number; value: Promise<string[]> };
     /**
@@ -110,9 +114,28 @@ export class VercelLinkCache {
         return this.forgetTeamsOnFailure(entry);
     }
 
+    /**
+     * Whether GitHub recently had no Vercel deployment for this repository either. A repository `vc` cannot find is
+     * usually one that is simply not on Vercel, and without this memo every Status refresh of it would ask GitHub again
+     * for deployments that do not exist. `isFresh` (a forced refresh) asks again.
+     */
+    isAbsentOnGitHub(key: string, isFresh = false): boolean {
+        const absentAt = this.absentOnGitHub.get(key);
+        return (
+            !isFresh &&
+            absentAt !== undefined &&
+            this.now() - absentAt < (this.options.unlinkedTtlMs ?? UNLINKED_TTL_MS)
+        );
+    }
+
+    rememberAbsentOnGitHub(key: string): void {
+        rememberBounded(this.absentOnGitHub, key, this.now(), VERCEL_LINK_CACHE_LIMIT);
+    }
+
     clear(): void {
         this.links.clear();
         this.unlinked.clear();
+        this.absentOnGitHub.clear();
         this.discovering.clear();
         this.teamList = undefined;
         this.generation += 1;
@@ -169,6 +192,65 @@ export interface VercelDependencies {
     isForced?: boolean;
     onParseFailure: (error: unknown) => void;
     run: (arguments_: readonly string[], cwd: string) => Promise<string>;
+    /**
+     * Reads the deployments Vercel records on the GitHub repository when `vc` cannot answer; see
+     * {@link loadGitHubDeployments}. Without it a `vc` failure is reported as is.
+     */
+    github?: GitHubApiRunner;
+}
+
+/**
+ * The `vc` failures that say this account cannot see the project, as opposed to a transient one. Only these fall back
+ * to GitHub: a rate limit or an outage would put the same question to GitHub for nothing, and the panel's retry copy
+ * already covers them.
+ */
+const GITHUB_FALLBACK_KINDS = new Set<CliFailureKind>([
+    'not-found',
+    'not-linked',
+    'not-logged-in',
+    'permission-denied',
+]);
+
+export function isGitHubFallbackFailure(error: unknown): boolean {
+    return error instanceof ExternalStatusCliError && GITHUB_FALLBACK_KINDS.has(error.kind);
+}
+
+type BranchDeploymentsResult = Pick<ProjectStatusRepository, 'deployments'> & {
+    errors: ProjectStatusError[];
+};
+
+/**
+ * Replaces a `vc` failure with the deployments GitHub recorded, when it has any. A GitHub failure is only logged: the
+ * panel then keeps the original `vc` error, which is the one the user can act on.
+ */
+async function withGitHubFallback(
+    dependencies: VercelDependencies,
+    context: BranchPublicationContext & { owner: string; repo: string },
+    mergeCommit: string | undefined,
+    failure: BranchDeploymentsResult,
+): Promise<BranchDeploymentsResult> {
+    const key = `${context.owner}/${context.repo}`;
+    if (!dependencies.github || dependencies.links.isAbsentOnGitHub(key, dependencies.isForced))
+        return failure;
+    try {
+        const deployments = await loadGitHubDeployments(dependencies.github, {
+            owner: context.owner,
+            repo: context.repo,
+            head: context.head,
+            mergeCommit,
+        });
+        if (deployments) return { deployments, errors: [] };
+        /**
+         * Nothing for these commits proves little on its own: the build may not be registered yet. Only a repository
+         * with no recent Vercel deployment at all is remembered as one GitHub cannot help with.
+         */
+        if (!(await hasRecentVercelDeployment(dependencies.github, context.owner, context.repo)))
+            dependencies.links.rememberAbsentOnGitHub(key);
+        return failure;
+    } catch (error) {
+        dependencies.onParseFailure(error);
+        return failure;
+    }
 }
 
 interface VercelDeploymentMeta {
@@ -286,12 +368,14 @@ export async function loadVercelDeployments(
     context: BranchPublicationContext,
     rootPath: string,
     mergeCommit?: string,
-): Promise<Pick<ProjectStatusRepository, 'deployments'> & { errors: ProjectStatusError[] }> {
-    if (!context.owner || !context.repo) return { errors: [] };
+): Promise<BranchDeploymentsResult> {
+    const { owner, repo } = context;
+    if (!owner || !repo) return { errors: [] };
+    const fallbackTarget = { ...context, owner, repo };
     try {
-        const link = await findVercelLink(dependencies, context.owner, context.repo);
+        const link = await findVercelLink(dependencies, owner, repo);
         if (!link)
-            return {
+            return await withGitHubFallback(dependencies, fallbackTarget, mergeCommit, {
                 errors: [
                     // A missing project is ambiguous on its own: the repository may be linked but not deployed yet.
                     // The local link file is what separates "nothing shipped" from "never linked".
@@ -299,8 +383,8 @@ export async function loadVercelDeployments(
                         ? projectStatusNoDeploymentsError()
                         : projectStatusCliError('vc', 'not-linked'),
                 ],
-            };
-        const baseMeta = { githubOrg: context.owner, githubRepo: context.repo };
+            });
+        const baseMeta = { githubOrg: owner, githubRepo: repo };
         const [branchListOutput, productionListOutput] = await Promise.all([
             dependencies.run(
                 vcListArguments(link.team, { ...baseMeta, githubCommitRef: context.branch }),
@@ -368,9 +452,12 @@ export async function loadVercelDeployments(
             error instanceof ExternalStatusCliError
                 ? error
                 : new ExternalStatusCliError('vc', 'other', String(error));
-        return {
+        const result = {
             errors: [projectStatusCliError('vc', failure.kind, { retryAt: failure.retryAt })],
         };
+        return GITHUB_FALLBACK_KINDS.has(failure.kind)
+            ? withGitHubFallback(dependencies, fallbackTarget, mergeCommit, result)
+            : result;
     }
 }
 

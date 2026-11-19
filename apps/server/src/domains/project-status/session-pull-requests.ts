@@ -60,7 +60,7 @@ import {
     parseSessionPullRequest,
     selectBranchPullRequest,
 } from './session-pull-request-parse';
-import { VercelDeploymentStore } from './vercel-store';
+import { VercelDeploymentStore } from './vercel';
 
 export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;

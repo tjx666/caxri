@@ -3,18 +3,21 @@ import { homedir } from 'node:os';
 import type { ProjectStatusState } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
-import type { ExternalStatusRunner } from '../external-status';
-import type { BranchPublicationContext } from './branch';
-import { vcListArguments } from './external';
-import { parseVercelList } from './parse';
-import type { VercelDependencies } from './vercel';
+import type { ExternalStatusRunner } from '../../external-status';
+import type { BranchPublicationContext } from '../branch';
+import type { VercelLink } from '../external';
+import { vcListArguments } from '../external';
+import { parseVercelList } from '../parse';
+import type { VercelDependencies } from './deployments';
 import {
     findVercelLink,
+    isGitHubFallbackFailure,
     loadVercelDeployments,
     mapProjectStatusDeployment,
     UNLINKED_TTL_MS,
     VercelLinkCache,
-} from './vercel';
+} from './deployments';
+import { loadGitHubProduction } from './github';
 
 /**
  * Production moves only when something is merged and rebuilt, so a minute-old answer is still the right one to draw a
@@ -110,8 +113,19 @@ export class VercelDeploymentStore {
             onParseFailure: () => {},
             run: (arguments_: readonly string[], cwd: string) => this.run('vc', arguments_, cwd),
         };
-        const link = await findVercelLink(dependencies, owner, repo);
-        if (!link) return undefined;
+        let link: VercelLink | undefined;
+        try {
+            link = await findVercelLink(dependencies, owner, repo);
+        } catch (error) {
+            // `vc` cannot see the project (missing, signed out, or denied); GitHub may still know.
+            if (!isGitHubFallbackFailure(error)) throw error;
+        }
+        if (!link)
+            return loadGitHubProduction(
+                (arguments_) => this.run('gh', arguments_, homedir()),
+                owner,
+                repo,
+            );
         const output = await dependencies.run(
             vcListArguments(link.team, { githubOrg: owner, githubRepo: repo }, 'production'),
             homedir(),

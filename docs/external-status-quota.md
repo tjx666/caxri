@@ -52,7 +52,10 @@ Local identity costs one `git` process per repository per round. HEAD and the br
 repository root for five minutes (`RepoRemoteCache` in `apps/server/src/domains/project-status/branch.ts`); a manual
 refresh reads them again. Only the same-named tracking ref is read every round, because a push or
 fetch moves it. Vercel costs two `vc api` calls per repository: HEAD's preview is taken from the
-branch deployment list, and only a HEAD that list does not carry gets its own query.
+branch deployment list, and only a HEAD that list does not carry gets its own query. When `vc`
+cannot read the project, the GitHub fallback (`apps/server/src/domains/project-status/vercel/github.ts`)
+spends REST, never GraphQL: one deployment list plus one status read per commit it reports, and one
+30-deployment probe that, when it finds no Vercel deployment, parks the repository for half an hour.
 
 An inaccessible repository, malformed response, authentication failure, or offline refresh shows
 `Unknown` and suppresses the branch link. Only an accessible repository with a null ref proves

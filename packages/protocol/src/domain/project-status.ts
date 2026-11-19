@@ -357,6 +357,11 @@ const projectStatusRepoSchema = z.object({
     acceptances: z.array(projectStatusAcceptanceSchema),
     deployments: z
         .object({
+            /**
+             * `github` when the tree was rebuilt from the deployments Vercel records on the GitHub repository because
+             * the Vercel CLI could not read the project. Absent for the Vercel CLI's own answer.
+             */
+            source: z.literal('github').optional(),
             url: z.url(),
             branchDeployments: z.array(projectStatusDeploymentSchema),
             production: projectStatusDeploymentSchema.optional(),

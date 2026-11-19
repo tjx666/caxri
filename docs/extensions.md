@@ -351,6 +351,14 @@ checked-out branch's latest production attempt. Preview still represents the loc
 preview attempt. A branch with neither a matching merged PR build nor its own production build
 shows no Production row rather than the default branch's live build under a "shipped" glyph. Opening details does not substitute an older successful
 deployment.
+When `vc` cannot read the project (not installed, signed out, denied, or no linked project), Server
+Core rebuilds the tree from the deployments Vercel's GitHub integration records on the repository
+(`vercel[bot]` entries in GitHub's Deployments REST API), so a contributor to a repository deployed
+from someone else's Vercel team still sees the build. That tree holds only HEAD's preview and the
+merged PR's production build, because Vercel records each GitHub deployment against a commit
+rather than a branch; the Deployments row says `via GitHub` and its hover card names the source.
+Its rows open the deployed site, or Vercel's build page for a build that produced none. A
+repository GitHub has no recent Vercel deployment for is not asked again for half an hour.
 Canceled deployments retain neutral aggregation semantics but display a muted circle-slash icon
 and explicit `canceled` text in the environment summary and hover-card badge. Branch deployment
 children use a trailing environment icon (circle-arrow-up for production, eye-with-magnifier for preview)

@@ -273,6 +273,45 @@ export function deploymentEnvironmentLabel(
 }
 
 /**
+ * The `Deployments` parent row's description: how many builds the branch list holds and in which environment.
+ */
+export function deploymentsDescription(
+    branch: string,
+    { branchDeployments, source }: NonNullable<ProjectStatusRepository['deployments']>,
+): string {
+    const environments = new Set(branchDeployments.map(({ environment }) => environment));
+    const count = branchDeployments.length;
+    const [environment] = environments;
+    const summary =
+        environments.size === 1
+            ? environment === 'production'
+                ? l10n.t('{count} on production', { count })
+                : l10n.t('{count} on preview', { count })
+            : l10n.t('{count} on {branch}', { count, branch });
+    /**
+     * A tree rebuilt from GitHub lists only the head commit's build, so it says so on the parent row rather than
+     * letting the short list read as the branch's full history.
+     */
+    return source === 'github' ? `${summary} · ${l10n.t('via GitHub')}` : summary;
+}
+
+/**
+ * Names where a deployment tree rebuilt from GitHub came from, and why, on the Deployments hover card.
+ */
+export function deploymentsSourceRows(
+    source: NonNullable<ProjectStatusRepository['deployments']>['source'],
+): TreeItemTooltipRow[] {
+    return source === 'github'
+        ? [
+              {
+                  label: l10n.t('source'),
+                  value: l10n.t('GitHub deployments (Vercel CLI cannot read this project)'),
+              },
+          ]
+        : [];
+}
+
+/**
  * The `Deployments` child row's own description: which environment this is and whether it is the branch's current
  * Production or Preview, as text a reader can select and a screen reader can announce instead of a bare trailing glyph
  * (#1291). The short SHA stays on the hover card: next to the commit subject it is a hash a person does not read.
