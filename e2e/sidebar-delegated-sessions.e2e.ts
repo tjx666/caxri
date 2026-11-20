@@ -238,3 +238,57 @@ test('archiving a nested Session or its host returns what remains to its own Pro
         await fixture.cleanup();
     }
 });
+
+test('a host folds its nested Sessions from its chevron or the arrow keys, counts what it hides, and keeps the fold after a reload', async () => {
+    const testInfo = test.info();
+    const fixture = await launchDelegatedSessions('caxri-sidebar-delegated-collapse');
+    const { page } = fixture.running;
+    try {
+        const group = nestedGroup(page, 'Coordinator');
+        const host = sessionCard(page, fixture.host);
+        const hiddenCount = page.locator(
+            `.session-row:has([data-row-id="${fixture.host}"]) .session-children-count`,
+        );
+        await expect(group.locator('.session-card')).toHaveCount(2);
+        await expect(host).toHaveAttribute('aria-expanded', 'true');
+
+        // The chevron folds every nested row away; the host row says how many it hides, with the warning dot because
+        // one of them failed.
+        await host.hover();
+        await page
+            .getByRole('tree')
+            .first()
+            .screenshot({ path: testInfo.outputPath('sidebar-delegated-expanded-hover.png') });
+        await page.getByRole('button', { name: 'Collapse rows under Coordinator' }).click();
+        await expect(group).toHaveCount(0);
+        await expect(host).toHaveAttribute('aria-expanded', 'false');
+        await expect(host).toBeFocused();
+        await expect(hiddenCount).toHaveText('2');
+        await expect(hiddenCount.locator('.bg-warning')).toHaveCount(1);
+        await page
+            .getByRole('tree')
+            .first()
+            .screenshot({ path: testInfo.outputPath('sidebar-delegated-collapsed.png') });
+
+        // Right unfolds a folded host and Left folds it again, before either key moves focus.
+        await page.keyboard.press('ArrowRight');
+        await expect(host).toHaveAttribute('aria-expanded', 'true');
+        await expect(group.locator('.session-card')).toHaveCount(2);
+        await expect(host).toBeFocused();
+        await page.keyboard.press('ArrowLeft');
+        await expect(host).toHaveAttribute('aria-expanded', 'false');
+        await expect(group).toHaveCount(0);
+
+        // The fold is view state every window shares and a reload keeps.
+        await page.reload();
+        await expect(sessionCard(page, fixture.host)).toHaveAttribute('aria-expanded', 'false');
+        await expect(group).toHaveCount(0);
+
+        // Selecting a nested Session under a folded host keeps that one row on screen, and only that one.
+        await selectSession(page, fixture.reviewer);
+        await expect(nestedRow(page, fixture.reviewer)).toBeVisible();
+        await expect(group.locator('.session-card')).toHaveCount(1);
+    } finally {
+        await fixture.cleanup();
+    }
+});

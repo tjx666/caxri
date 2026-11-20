@@ -9,8 +9,10 @@ import {
     sessionTerminalIndex,
 } from '../../../session/session-agent-terminal';
 import type { PrimarySidebarDelegatedNode } from '../../primary-sidebar-tree';
+import { useSessionChildrenCollapseStore } from '../../session-children/session-children-collapse';
 import { sessionStatus } from '../../session-status';
-import { delegatedChildWindow } from '../delegated-child-window';
+import type { DelegatedHostSummary } from '../delegated-child-window';
+import { delegatedChildWindow, delegatedHostSummary } from '../delegated-child-window';
 
 interface UseDelegatedChildrenInput {
     /**
@@ -40,6 +42,10 @@ export interface DelegatedChildrenModel {
      */
     rowNodes: ReadonlyMap<string, PrimarySidebarDelegatedNode>;
     /**
+     * What each host row says about its nested Sessions (`delegatedHostSummary`), keyed by host Session id.
+     */
+    summaries: ReadonlyMap<string, DelegatedHostSummary>;
+    /**
      * Each host's window: the visible nested Sessions, plus the counts the reveal row shows.
      */
     windows: ReadonlyMap<string, SessionListWindow<SessionRecord>>;
@@ -48,8 +54,9 @@ export interface DelegatedChildrenModel {
 /**
  * Owns how many settled nested Sessions each host shows. A nested Session with a status to show (running, unread or
  * waiting for you, usage wait, detached, failed) is always listed; the settled ones fold behind the host's `Show N
- * more` row after the newest few. Revealed counts live in memory only, like every other window in this sidebar: a
- * relaunch starts from the short list again.
+ * more` row after the newest few. A host the user collapsed (`session-children-collapse.ts`) lists only the selected
+ * one. Revealed counts live in memory only, like every other window in this sidebar: a relaunch starts from the short
+ * list again.
  */
 export function useDelegatedChildren({
     approvalSessionIds,
@@ -60,11 +67,14 @@ export function useDelegatedChildren({
 }: UseDelegatedChildrenInput): DelegatedChildrenModel {
     const { t } = useTranslation();
     const [revealedCounts, setRevealedCounts] = useState<Record<string, number>>({});
-    const windows = useMemo(() => {
+    const collapsedHosts = useSessionChildrenCollapseStore((state) => state.collapsed);
+    const { summaries, windows } = useMemo(() => {
         const built = new Map<string, SessionListWindow<SessionRecord>>();
-        if (nestedByHost.size === 0) return built;
+        const builtSummaries = new Map<string, DelegatedHostSummary>();
+        if (nestedByHost.size === 0) return { summaries: builtSummaries, windows: built };
         const terminalIndex = sessionTerminalIndex(terminals);
         for (const [hostSessionId, children] of nestedByHost) {
+            const statusKinds = new Map<string, string>();
             const activeSessionIds = new Set<string>();
             for (const child of children) {
                 const status = sessionStatus(
@@ -77,20 +87,27 @@ export function useDelegatedChildren({
                         nested: true,
                     },
                 );
+                statusKinds.set(child.id, status.kind);
                 if (status.kind !== 'default') activeSessionIds.add(child.id);
             }
+            builtSummaries.set(
+                hostSessionId,
+                delegatedHostSummary(children, statusKinds, selectedSessionId),
+            );
             built.set(
                 hostSessionId,
                 delegatedChildWindow(children, {
                     activeSessionIds,
+                    isCollapsed: collapsedHosts[hostSessionId] === true,
                     revealedCount: revealedCounts[hostSessionId],
                     selectedSessionId,
                 }),
             );
         }
-        return built;
+        return { summaries: builtSummaries, windows: built };
     }, [
         approvalSessionIds,
+        collapsedHosts,
         failedSessionIds,
         nestedByHost,
         revealedCounts,
@@ -113,5 +130,5 @@ export function useDelegatedChildren({
             [hostSessionId]: nextRevealedSessionCount(windowCount),
         }));
     }, []);
-    return { revealMore, rowNodes, windows };
+    return { revealMore, rowNodes, summaries, windows };
 }

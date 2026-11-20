@@ -8,6 +8,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
+import type { DelegatedHostSummary } from './delegated/delegated-child-window';
+import { delegatedHostRowProperties as delegatedHostRowProperties } from './delegated/delegated-child-window';
 import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import { useHeldModifierChord } from './hooks/use-held-modifier-chord';
 import type { SessionOrderController } from './hooks/use-session-order';
@@ -48,6 +50,10 @@ interface PinnedSessionGroupProperties {
      */
     showFewerIndex?: number;
     onToggle: () => void;
+    /**
+     * What each host row says about its nested Sessions, keyed by host Session id.
+     */
+    delegatedSummaries?: ReadonlyMap<string, DelegatedHostSummary>;
     /**
      * Renders the Sessions nested under a host Session, right after the host's row.
      */
@@ -110,6 +116,7 @@ export function PinnedSessionGroup({
     showFewerIndex,
     onToggle,
     projects,
+    delegatedSummaries,
     renderDelegatedRows,
     renameError,
     renameSuggestingSessionId,
@@ -242,6 +249,10 @@ export function PinnedSessionGroup({
                                         renaming={rowId === renamingRowId}
                                         roving={rowId === rovingRowId}
                                         inPinnedGroup
+                                        {...delegatedHostRowProperties(
+                                            delegatedSummaries,
+                                            session.id,
+                                        )}
                                         rowId={rowId}
                                         selected={session.id === selectedSessionId}
                                         session={session}

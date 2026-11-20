@@ -19,6 +19,10 @@ import {
 import { useSubagentExpansionStore } from './subagent-expansion-store';
 
 interface SessionSubagentRowsProperties {
+    /**
+     * True when the user folded the Session's child rows from its disclosure chevron (`session-children-collapse.ts`).
+     */
+    isCollapsed: boolean;
     sessionId: string;
     /**
      * The Session's Agent Terminal record; its own `subagents` array keeps its identity across a refresh that changed
@@ -48,6 +52,7 @@ const ROW_CLASS_NAME =
  * and opens the task beside its Chat; nothing here starts a provider.
  */
 export function SessionSubagentRows({
+    isCollapsed,
     sessionId,
     terminal,
     showSubagents,
@@ -66,7 +71,7 @@ export function SessionSubagentRows({
         return activeSubagentTaskId(layout && activeTab(layout)?.resource, terminal?.id);
     });
     const subagents = sessionSubagentSummaries(terminal, showSubagents);
-    if (!terminal || subagents.length === 0) return null;
+    if (isCollapsed || !terminal || subagents.length === 0) return null;
     const terminalId = terminal.id;
     const { visible, toggleIndex, hiddenCount } = subagentWindow(subagents, isExpanded);
     const moreRowId = primarySidebarSubagentMoreRowId(sessionId);

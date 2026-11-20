@@ -15,6 +15,8 @@ import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-se
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { HostConnectionRows } from '../ssh-host/host-connection-rows';
 import { ProjectHeadingHostMarks } from '../ssh-host/project-heading-host-marks';
+import type { DelegatedHostSummary } from './delegated/delegated-child-window';
+import { delegatedHostRowProperties as delegatedHostRowProperties } from './delegated/delegated-child-window';
 import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
@@ -87,6 +89,10 @@ interface ProjectGroupProperties {
      */
     projectSessions: readonly SessionRecord[];
     projectDropTarget?: ProjectDropTarget;
+    /**
+     * What each host row says about its nested Sessions, keyed by host Session id.
+     */
+    delegatedSummaries?: ReadonlyMap<string, DelegatedHostSummary>;
     /**
      * Renders the Sessions nested under a host Session, right after the host's row.
      */
@@ -215,6 +221,7 @@ export function ProjectGroup({
     members = [project],
     projectSessions,
     projectDropTarget,
+    delegatedSummaries,
     renderDelegatedRows,
     renameError,
     renameSuggestingSessionId,
@@ -240,9 +247,7 @@ export function ProjectGroup({
     const { t } = useTranslation();
     const disclosureLabel = t(
         expanded ? 'primarySidebar.project.collapse' : 'primarySidebar.project.expand',
-        {
-            title: project.title,
-        },
+        { title: project.title },
     );
     /**
      * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
@@ -441,6 +446,10 @@ export function ProjectGroup({
                                         projectId={memberOf(session).id}
                                         projectRootPath={memberOf(session).rootPath}
                                         showHostMark={isMerged}
+                                        {...delegatedHostRowProperties(
+                                            delegatedSummaries,
+                                            session.id,
+                                        )}
                                         renameError={renameError}
                                         renameSuggesting={session.id === renameSuggestingSessionId}
                                         renameValue={renameValue}

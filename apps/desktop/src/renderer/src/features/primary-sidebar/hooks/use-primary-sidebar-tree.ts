@@ -11,6 +11,10 @@ import {
     PINNED_GROUP_ROW_ID,
     rovingPrimarySidebarRowId,
 } from '../primary-sidebar-tree';
+import {
+    sessionChildrenExpanded,
+    useSessionChildrenCollapseStore,
+} from '../session-children/session-children-collapse';
 import type { ProjectSessionWindow } from './use-project-session-windows';
 import { useVanishedRowFocus } from './use-vanished-row-focus';
 
@@ -46,6 +50,10 @@ interface PrimarySidebarTreeInput {
     selectedFallbackRowIds: readonly string[];
     selectedProjectId: string | undefined;
     selectedSessionId: string | undefined;
+    /**
+     * Rendered Sessions that have subagent rows to show, folded or not (`useSessionSubagentNodes`).
+     */
+    subagentHostIds: ReadonlySet<string>;
     /**
      * The subagent rows each rendered Session shows, keyed by Session id; empty when the Setting is off.
      */
@@ -91,6 +99,7 @@ export function usePrimarySidebarTree({
     selectedFallbackRowIds,
     selectedProjectId,
     selectedSessionId,
+    subagentHostIds,
     subagentNodes,
     treeReference,
 }: PrimarySidebarTreeInput): PrimarySidebarTreeModel {
@@ -98,6 +107,7 @@ export function usePrimarySidebarTree({
      * The last tree row the user actually focused; feeds `rovingPrimarySidebarRowId`'s roving-tabindex resolution.
      */
     const [focusedRowId, setFocusedRowId] = useState<string>();
+    const collapsedHosts = useSessionChildrenCollapseStore((state) => state.collapsed);
 
     /**
      * Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
@@ -120,9 +130,17 @@ export function usePrimarySidebarTree({
                 },
                 subagentNodes,
                 delegatedNodes,
+                (sessionId) =>
+                    sessionChildrenExpanded(
+                        sessionId,
+                        subagentHostIds.has(sessionId) || delegatedNodes.has(sessionId),
+                        collapsedHosts,
+                    ),
             ),
         [
+            collapsedHosts,
             delegatedNodes,
+            subagentHostIds,
             projectWindows,
             isProjectExpanded,
             hasHiddenPinnedSessions,

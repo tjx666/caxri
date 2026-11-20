@@ -674,6 +674,13 @@ beneath it, wherever it runs. The rules:
   level-3 `Show N more` row, built from the same `SessionRevealRow`, which reveals ten more per
   activation. The selected nested Session always renders, and selecting one holds its host inside
   the Project's or the Pinned group's window, so a selection never hides behind `Show N more`.
+- **Host fold.** A row with child rows (nested Sessions or subagent rows) carries a `ChevronDown`
+  disclosure in the gutter left of its icon, shown on hover while expanded and always while folded
+  (`ChevronRight`). Folding hides every child row, status-bearing ones included, except a selected
+  nested Session; the host row then trails its child-row count in `--muted` tabular numerals, led by a
+  `--warning` dot when a hidden nested Session waits for you, failed, or waits on usage. Left on an
+  expanded host folds it and Right on a folded host unfolds it, before either key moves focus; the
+  row carries `aria-expanded`. The fold persists per host Session and is shared by every window.
 - **Rollups.** A collapsed Project heading counts the nested and hidden Sessions its hosts carry in
   its running arc and unread dot, so folding a group cannot hide delegated work that needs a
   person. Auto-collapse protection counts them the same way. A Session still belongs to its own

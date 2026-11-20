@@ -1,5 +1,6 @@
 import type { ProjectRecord, TerminalRecord } from '@caxri/protocol';
 
+import type { DelegatedHostSummary } from './delegated/delegated-child-window';
 import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import type { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
@@ -10,6 +11,10 @@ import { shouldHeadingHoldSelection } from './project-heading';
 
 interface ProjectGroupListProperties {
     animatedProjectIds: ReadonlySet<string>;
+    /**
+     * What each host row says about its nested Sessions, keyed by host Session id.
+     */
+    delegatedSummaries: ReadonlyMap<string, DelegatedHostSummary>;
     isProjectExpanded: (projectId: string) => boolean;
     onRevealMoreSessions: (sessionWindow: ProjectSessionWindow) => void;
     onShowFewerSessions: (sessionWindow: ProjectSessionWindow) => void;
@@ -42,6 +47,7 @@ interface ProjectGroupListProperties {
  */
 export function ProjectGroupList({
     animatedProjectIds,
+    delegatedSummaries,
     isProjectExpanded,
     onRevealMoreSessions,
     onShowFewerSessions,
@@ -107,6 +113,7 @@ export function ProjectGroupList({
                         ? projectOrder.projectDropTarget
                         : undefined
                 }
+                delegatedSummaries={delegatedSummaries}
                 renderDelegatedRows={renderDelegatedRows}
                 renameError={sessionRename.renameError}
                 renameSuggestingSessionId={sessionRename.renameSuggestingSessionId}

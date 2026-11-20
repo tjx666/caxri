@@ -55,6 +55,11 @@ export interface PrimarySidebarTreeRow {
      */
     sessionId?: string;
     /**
+     * On a `session` row that has child rows (subagents or nested Sessions): whether they are shown. Absent on a row
+     * with no children, which Left and Right never fold or unfold.
+     */
+    childrenExpanded?: boolean;
+    /**
      * The Session row a `subagent`, `subagentMore`, `delegatedSession`, or `delegatedReveal` row nests under, which
      * Left returns to. Its own id rather than a Session id because a pinned Session's row carries a namespaced one.
      */
@@ -204,6 +209,10 @@ export interface PrimarySidebarPinnedNode {
  * first. Nested Sessions are never hosts themselves and show no subagent rows: a delegation chain flattens onto one
  * level.
  *
+ * `childrenExpanded` answers, per Session id, whether a Session row with child rows shows them (`undefined` for a row
+ * without children). It is stamped on the Session row for Left and Right; the child nodes already leave out what a
+ * folded host hides.
+ *
  * An expanded Project with no visible Sessions renders the "New Session" row in place of that list, so it takes the
  * Session rows' place here too. The condition is read straight off `sessionIds` rather than a separate emptiness flag:
  * `ProjectGroup` renders that row on exactly the same test, and two sources of truth for one row would eventually
@@ -215,8 +224,23 @@ export function flattenPrimarySidebarRows(
     pinned?: PrimarySidebarPinnedNode,
     subagents?: ReadonlyMap<string, PrimarySidebarSubagentNode>,
     delegated?: ReadonlyMap<string, PrimarySidebarDelegatedNode>,
+    childrenExpanded?: (sessionId: string) => boolean | undefined,
 ): PrimarySidebarTreeRow[] {
     const rows: PrimarySidebarTreeRow[] = [];
+    const sessionRow = (
+        id: string,
+        projectId: string,
+        sessionId: string,
+    ): PrimarySidebarTreeRow => {
+        const expanded = childrenExpanded?.(sessionId);
+        return {
+            id,
+            kind: 'session',
+            projectId,
+            sessionId,
+            ...(expanded !== undefined && { childrenExpanded: expanded }),
+        };
+    };
     /**
      * A host's nested Session rows follow its subagent rows, one level deeper, closed by the reveal row when the child
      * window hides some. The host's row id is passed in because a pinned Session's differs from its id.
@@ -295,12 +319,13 @@ export function flattenPrimarySidebarRows(
         if (pinned.expanded) {
             for (const [index, sessionId] of pinned.sessionIds.entries()) {
                 if (index === pinned.showFewerIndex) pushShowFewer(PINNED_GROUP_ROW_ID);
-                rows.push({
-                    id: primarySidebarPinnedRowId(sessionId),
-                    kind: 'session',
-                    projectId: PINNED_GROUP_ROW_ID,
-                    sessionId,
-                });
+                rows.push(
+                    sessionRow(
+                        primarySidebarPinnedRowId(sessionId),
+                        PINNED_GROUP_ROW_ID,
+                        sessionId,
+                    ),
+                );
                 const rowId = primarySidebarPinnedRowId(sessionId);
                 pushSubagentRows(sessionId, rowId, PINNED_GROUP_ROW_ID);
                 pushDelegatedRows(sessionId, rowId, PINNED_GROUP_ROW_ID);
@@ -318,7 +343,7 @@ export function flattenPrimarySidebarRows(
         if (!isExpanded(project.id)) continue;
         for (const [index, sessionId] of project.sessionIds.entries()) {
             if (index === project.showFewerIndex) pushShowFewer(project.id);
-            rows.push({ id: sessionId, kind: 'session', projectId: project.id, sessionId });
+            rows.push(sessionRow(sessionId, project.id, sessionId));
             pushSubagentRows(sessionId, sessionId, project.id);
             pushDelegatedRows(sessionId, sessionId, project.id);
         }
@@ -382,15 +407,19 @@ export interface PrimarySidebarHorizontalIntent {
      * Present when Left/Right should move roving focus to a different row.
      */
     focusRowId?: string;
+    /**
+     * Present when Left/Right should fold (`false`) or unfold (`true`) a host Session row's child rows.
+     */
+    sessionChildrenExpanded?: boolean;
 }
 
 /**
  * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project and
- * steps into the first row of an already open one, Left closes an open Project. Any other row is not a collapse/expand
- * target (a host's nested Sessions are always listed), so Left moves focus to its parent row (a Session, reveal, or
- * "New Session" row goes to its Project heading; a subagent, nested Session, or nested reveal row goes to its host
- * Session row) and Right steps into the row's first child, which only a Session row that lists subagents or nested
- * Sessions has. Right on a row without children does nothing.
+ * steps into the first row of an already open one, Left closes an open Project. A host Session row with child rows
+ * folds and unfolds them the same way (`childrenExpanded`). Any other row is not a collapse/expand target, so Left
+ * moves focus to its parent row (a Session, reveal, or "New Session" row goes to its Project heading; a subagent,
+ * nested Session, or nested reveal row goes to its host Session row) and Right steps into the row's first child, which
+ * only a Session row that lists subagents or nested Sessions has. Right on a row without children does nothing.
  *
  * Right on an already expanded Project used to be a dead key, which is the half of the pattern that leaves a user who
  * opened a Project with the arrow keys no way to continue into it with the same key.
@@ -406,6 +435,14 @@ export function primarySidebarHorizontalIntent(
         const target = treeNavigationTarget(rows, index, action, primarySidebarRowModel);
         return target === undefined ? undefined : rows[target].id;
     };
+    /**
+     * A host Session row folds like a group heading: Left closes its open child rows and only a second Left moves to
+     * the heading, Right opens folded ones before it steps inside.
+     */
+    if (row.childrenExpanded !== undefined) {
+        if (key === 'ArrowLeft' && row.childrenExpanded) return { sessionChildrenExpanded: false };
+        if (key === 'ArrowRight' && !row.childrenExpanded) return { sessionChildrenExpanded: true };
+    }
     if (row.kind !== 'project') {
         const targetRowId = targetId(key === 'ArrowLeft' ? 'parent' : 'firstChild');
         return targetRowId ? { focusRowId: targetRowId } : {};
