@@ -33,7 +33,6 @@ export const projectMobileDashboard = (
         groupTotals: dashboard.groupTotals,
         sessions: dashboard.sessions,
         total: dashboard.total,
-        truncated: dashboard.truncated,
     }),
 });
 

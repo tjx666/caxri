@@ -121,7 +121,6 @@ export const useSessionShow = (sessionId: string | null, shouldFetch: boolean) =
                           {
                               sessions: [query.data.session],
                               total: 1,
-                              truncated: false,
                           },
                           t,
                       ),

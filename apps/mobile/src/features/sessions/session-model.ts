@@ -53,7 +53,6 @@ export interface MobileSessionSections {
      */
     groupTotals: MobileDashboardResult['groupTotals'];
     total: number;
-    truncated: boolean;
 }
 
 export const emptyMobileGroupTotals = (): MobileDashboardResult['groupTotals'] => ({
@@ -170,7 +169,6 @@ export const buildMobileSessionSections = (
         groupTotals?: MobileDashboardResult['groupTotals'];
         sessions: MobileSession[];
         total: number;
-        truncated: boolean;
     },
     t: Translate = translate,
     now = Date.now(),
@@ -215,7 +213,6 @@ export const buildMobileSessionSections = (
         },
         sessions,
         total: input.total,
-        truncated: input.truncated,
     };
 };
 

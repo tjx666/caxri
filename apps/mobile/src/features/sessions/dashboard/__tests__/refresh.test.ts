@@ -34,7 +34,7 @@ describe('fetchMobileSessionDashboard', () => {
             hostDisplayName: 'Test computer',
             projectId: null,
             projects: [{ id: 'project-one', title: 'Empty Project' }],
-            sections: buildMobileSessionSections({ sessions: [], total: 0, truncated: false }),
+            sections: buildMobileSessionSections({ sessions: [], total: 0 }),
         });
     });
 });

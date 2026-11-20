@@ -39,7 +39,6 @@ const emptySections: MobileSessionSections = {
     groupTotals: emptyMobileGroupTotals(),
     sessions: [],
     total: 0,
-    truncated: false,
 };
 
 /**
