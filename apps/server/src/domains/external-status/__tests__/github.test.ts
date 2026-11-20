@@ -18,6 +18,7 @@ function pullRequest(overrides: Record<string, unknown> = {}): string {
         statusCheckRollup: [{ name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' }],
         baseRefName: 'main',
         headRefName: 'feat/search',
+        isCrossRepository: false,
         baseRefOid: 'a'.repeat(40),
         headRefOid: 'b'.repeat(40),
         ...overrides,
@@ -51,6 +52,31 @@ describe('GitHubPullRequestStore', () => {
         await store.view({ branch: 'feat/search', cwd: '/project', owner: OWNER, repo: REPO });
 
         expect(runner).toHaveBeenCalledOnce();
+    });
+
+    it('never answers a branch read with a fork pull request that shares the branch name', async () => {
+        // A contributor's fork PR opened from their own `main` reports `headRefName: main`, but it is not this
+        // repository's `main` branch; `gh pr view main` itself correctly finds no pull request for it.
+        const fork = pullRequest({ headRefName: 'main', isCrossRepository: true, number: 19_366 });
+        const runner = vi.fn<ExternalStatusRunner>((_command, arguments_) =>
+            arguments_[2] === '19366'
+                ? Promise.resolve(fork)
+                : Promise.reject(
+                      new ExternalStatusCliError(
+                          'gh',
+                          'other',
+                          'no pull requests found for branch "main"',
+                      ),
+                  ),
+        );
+        const store = createStore(runner);
+
+        await store.view({ cwd: '/project', number: 19_366, owner: OWNER, repo: REPO });
+
+        await expect(
+            store.view({ branch: 'main', cwd: '/project', owner: OWNER, repo: REPO }),
+        ).resolves.toBeUndefined();
+        expect(runner).toHaveBeenCalledTimes(2);
     });
 
     it('coalesces concurrent reads of the same reference', async () => {
@@ -253,7 +279,7 @@ describe('GitHubPullRequestStore', () => {
             '--repo',
             'example/example',
             '--json',
-            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid,mergeCommit,mergedAt,mergeable,mergeStateStatus,changedFiles',
+            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,isCrossRepository,baseRefOid,headRefOid,mergeCommit,mergedAt,mergeable,mergeStateStatus,changedFiles',
         ]);
     });
 });

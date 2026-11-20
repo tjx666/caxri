@@ -10,10 +10,11 @@ import { isNoPullRequest } from './command';
  * pull-request diff adds the base/head refs and OIDs; the sidebar's deployment badge adds `mergeCommit`, which is the
  * only way to tell whether the project's current production deployment was built from _this_ delivery; the Status
  * panel's merge action adds `mergeable` and `mergeStateStatus`, which decide whether it is offered and confirmed; the
- * Delegated Sessions strip adds `changedFiles`, a plain count that costs no more GraphQL points than the scalars above.
- * Fetching the union once and sharing the record replaces the four independent `gh pr view` calls those surfaces used
- * to issue for the same pull request: `statusCheckRollup`, by far the most expensive field in GraphQL points, is now
- * paid for once per pull request per TTL.
+ * Delegated Sessions strip adds `changedFiles`; the store itself reads `isCrossRepository`, so a fork's head branch
+ * name is never mistaken for this repository's branch. Both are plain scalars that cost no more GraphQL points than the
+ * ones above. Fetching the union once and sharing the record replaces the four independent `gh pr view` calls those
+ * surfaces used to issue for the same pull request: `statusCheckRollup`, by far the most expensive field in GraphQL
+ * points, is now paid for once per pull request per TTL.
  */
 const PULL_REQUEST_FIELDS = [
     'number',
@@ -25,6 +26,7 @@ const PULL_REQUEST_FIELDS = [
     'statusCheckRollup',
     'baseRefName',
     'headRefName',
+    'isCrossRepository',
     'baseRefOid',
     'headRefOid',
     'mergeCommit',
@@ -52,6 +54,7 @@ const MAX_REF_ALIASES = 512;
 
 const recordIdentitySchema = z.object({
     headRefName: z.string().min(1).optional(),
+    isCrossRepository: z.boolean().optional(),
     number: z.number().int().positive().optional(),
 });
 
@@ -191,7 +194,12 @@ export class GitHubPullRequestStore {
         );
         if (recordKey !== lookupKey)
             rememberBounded(this.refAliases, lookupKey, recordKey, MAX_REF_ALIASES);
-        if (identity.headRefName)
+        /**
+         * A fork pull request reports its head branch by bare name (`canary` for a contributor's `fork:canary`), which
+         * collides with this repository's own branch of that name. `gh pr view canary` correctly finds no pull request
+         * there, so aliasing the fork onto it would show a stranger's pull request on the default branch.
+         */
+        if (identity.headRefName && identity.isCrossRepository === false)
             rememberBounded(
                 this.refAliases,
                 `${slug}@${identity.headRefName}`,
