@@ -81,11 +81,12 @@ test('shows a report at the tail of a long Agent conversation on the first statu
 
         const acceptance = running.page.getByRole('link', { name: /Open acceptance report/ });
         await expect(acceptance).toBeVisible({ timeout: 15_000 });
+        // The chip follows the report's latest round, so the round the transcript's link pinned (`?r=7`) is dropped.
         await expect(acceptance).toHaveAttribute(
             'href',
-            `https://app.lobehub.com/acceptance/${REPORT_ID}?turn=7`,
+            `https://app.lobehub.com/acceptance/${REPORT_ID}`,
         );
-        await expect(acceptance).toHaveAttribute('aria-label', /Round 7/);
+        await expect(acceptance).not.toHaveAttribute('aria-label', /Round 7/);
         await running.page.screenshot({ path: 'test-results/statusbar-long-acceptance.png' });
     } finally {
         try {
