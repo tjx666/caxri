@@ -1,6 +1,7 @@
 import type {
     AgentLaunchSettings,
     AgentProvider,
+    AgentSessionInstructionSettings,
     AgentThroughput,
     AppLocale,
     ProcessState,
@@ -43,9 +44,10 @@ export interface AgentChatServiceOptions {
      */
     longRunningShellCommands?: () => readonly string[];
     /**
-     * The current `agents.sessionInstructions`, read when each Chat starts. Omitted, a Chat adds no instructions.
+     * The current `agents.sessionInstructions.*` settings, read when each Chat starts. Omitted, a Chat adds no
+     * instructions.
      */
-    sessionInstructions?: () => string | null;
+    sessionInstructions?: () => AgentSessionInstructionSettings;
     /**
      * Caxri's interface language, named after the session instructions so a delegated task file reads in it.
      */

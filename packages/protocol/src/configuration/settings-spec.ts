@@ -87,12 +87,6 @@ export interface StringSettingSpec extends SettingSpecBase {
      * Prose that spans lines, edited in a resizable text area instead of a one-line field.
      */
     multiline?: boolean;
-    /**
-     * Text a nullable setting stands for while it is `null`: the control shows it, and editing the field back to it
-     * stores `null` again. `settings.jsonc` holds every default, so a preset stored as the default itself would freeze
-     * in each profile at its first write and never follow a newer Caxri; `null` keeps tracking the installed preset.
-     */
-    preset?: string;
 }
 
 /**

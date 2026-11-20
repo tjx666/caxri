@@ -1,6 +1,6 @@
 import {
     agentDisplayLanguageInstruction,
-    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+    BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
 } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -48,17 +48,18 @@ describe('Agent Chat Endpoint', () => {
         await until((snapshot) => snapshot.status === 'ready');
 
         expect((await threadOpens()).at(-1)).toMatchObject({
-            developerInstructions: DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+            developerInstructions: BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
         });
     });
 
-    it('sends the instructions the user wrote in Settings instead of the preset', async () => {
+    it("sends only the user's own instructions once Caxri's are turned off", async () => {
         const lease = endpoint({
             environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
         });
         const { service, terminal, threadOpens, until } = await fixture({
             endpoint: lease,
-            sessionInstructions: () => '  Reply in haiku.\n',
+            sessionInstructions: () => ({ includeBuiltIn: false, custom: '  Reply in haiku.\n' }),
+            displayLocale: () => 'zh-CN',
         });
         service.read(terminal.id);
         await until((snapshot) => snapshot.status === 'ready');
@@ -68,30 +69,30 @@ describe('Agent Chat Endpoint', () => {
         });
     });
 
-    it("names Caxri's interface language after the instructions", async () => {
+    it("names Caxri's interface language after the built-in instructions", async () => {
         const lease = endpoint({
             environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
         });
         const { service, terminal, threadOpens, until } = await fixture({
             endpoint: lease,
-            sessionInstructions: () => 'Reply in haiku.',
+            sessionInstructions: () => ({ includeBuiltIn: true, custom: 'Reply in haiku.' }),
             displayLocale: () => 'zh-CN',
         });
         service.read(terminal.id);
         await until((snapshot) => snapshot.status === 'ready');
 
         expect((await threadOpens()).at(-1)).toMatchObject({
-            developerInstructions: `Reply in haiku.\n\n${agentDisplayLanguageInstruction('zh-CN')}`,
+            developerInstructions: `${BUILT_IN_AGENT_SESSION_INSTRUCTIONS}\n\n${agentDisplayLanguageInstruction('zh-CN')}\n\nReply in haiku.`,
         });
     });
 
-    it('adds no instructions when the user cleared them in Settings', async () => {
+    it('adds no instructions when the user turned both off in Settings', async () => {
         const lease = endpoint({
             environment: vi.fn(() => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' })),
         });
         const { service, terminal, threadOpens, until } = await fixture({
             endpoint: lease,
-            sessionInstructions: () => ' \n ',
+            sessionInstructions: () => ({ includeBuiltIn: false, custom: ' \n ' }),
         });
         service.read(terminal.id);
         await until((snapshot) => snapshot.status === 'ready');

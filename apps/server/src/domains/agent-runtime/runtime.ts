@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider, ServerEvent } from '@caxri/protocol';
-import { isChatTerminal } from '@caxri/protocol';
+import { agentSessionInstructionSettings, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { errorLogFields, logEventCatalog } from '@caxri/system';
 
@@ -165,7 +165,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     const attentionAutoAllow = createPermissionAutoAllowController({ logger, send });
     const turnContext = new AgentTurnContext(
         database,
-        () => configuration.getSettings().value['agents.sessionInstructions'],
+        () => agentSessionInstructionSettings(configuration.getSettings().value),
         displayLocaleReader(configuration, dependencies),
     );
     const agentHooks = new AgentHookManager({
@@ -188,6 +188,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             coordinator.beginTerminalLaunch(terminalId, launchId),
         turnContext: (signal) => turnContext.for(signal),
         onSignal: async (rawSignal) => {
+            // Before any decision: a keep-alive compaction is kept out of Session state but still drops the context.
+            turnContext.observe(rawSignal);
             // Only Codex reaches the transcript read here (issue caxri#1345): every other provider's own StopFailure
             // hook already classifies its failure, so `resolvePrimaryTurnFailure` is unset and this returns immediately.
             const signal = await reconcilePrimaryTurnFailure(database, agentEnvironment, rawSignal);

@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import { defaultAgentProviderSettings } from '../../agent/agents.js';
 import {
+    agentDisplayLanguageInstruction,
     agentSessionInstructions,
-    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+    agentSessionInstructionSettings,
+    BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
     MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
 } from '../agent-session-instructions.js';
 import {
@@ -29,37 +31,45 @@ describe('settings spec and schema agreement', () => {
         ).toBe(' ,');
     });
 
-    it("defaults Agent session instructions to Caxri's preset and keeps a user's text verbatim", () => {
-        // `null` stands for the preset, so a profile keeps following a newer Caxri's text.
-        expect(appSettingsFileSchema.parse({})['agents.sessionInstructions']).toBeNull();
-        expect(agentSessionInstructions(null)).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
-        expect(agentSessionInstructions(' \n ')).toBeUndefined();
-        expect(agentSessionInstructions(' \n ', 'zh-CN')).toBeUndefined();
-        expect(agentSessionInstructions(' Mine. ', 'zh-CN')).toBe(
-            "Mine.\n\nCaxri's interface language is Simplified Chinese. Write the task file and title of every Session you create in Simplified Chinese, since the new Session shows the task file as its first message; keep code, identifiers, paths, and commands as they are.",
+    it("adds Caxri's built-in Session instructions by default and appends a user's text after them", () => {
+        // The built-in text is never stored, so a profile keeps following a newer Caxri's text.
+        const defaults = agentSessionInstructionSettings(appSettingsFileSchema.parse({}));
+        expect(defaults).toEqual({ includeBuiltIn: true, custom: null });
+        expect(agentSessionInstructions(defaults)).toBe(BUILT_IN_AGENT_SESSION_INSTRUCTIONS);
+        expect(agentSessionInstructions({ includeBuiltIn: true, custom: ' Mine. ' }, 'zh-CN')).toBe(
+            `${BUILT_IN_AGENT_SESSION_INSTRUCTIONS}\n\n${agentDisplayLanguageInstruction('zh-CN')}\n\nMine.`,
         );
-        for (const value of ['Line one.\n\nLine two.\n', '']) {
+        // The language line only matters next to the built-in text.
+        expect(
+            agentSessionInstructions({ includeBuiltIn: false, custom: ' Mine. ' }, 'zh-CN'),
+        ).toBe('Mine.');
+        expect(
+            agentSessionInstructions({ includeBuiltIn: false, custom: ' \n ' }, 'zh-CN'),
+        ).toBeUndefined();
+        for (const value of ['Line one.\n\nLine two.\n', ' \n ']) {
             expect(
-                appSettingsFileSchema.parse({ 'agents.sessionInstructions': value })[
-                    'agents.sessionInstructions'
+                appSettingsFileSchema.parse({ 'agents.sessionInstructions.custom': value })[
+                    'agents.sessionInstructions.custom'
                 ],
             ).toBe(value);
         }
         expect(
             appSettingsSchema.safeParse({
-                'agents.sessionInstructions': 'x'.repeat(MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH + 1),
+                'agents.sessionInstructions.custom': 'x'.repeat(
+                    MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH + 1,
+                ),
             }).success,
         ).toBe(false);
     });
 
     it('keeps same-repository work in subagents and sends another repository to its own Project', () => {
-        expect(DEFAULT_AGENT_SESSION_INSTRUCTIONS).toContain(
+        expect(BUILT_IN_AGENT_SESSION_INSTRUCTIONS).toContain(
             'Work in this repository stays in this Session',
         );
-        expect(DEFAULT_AGENT_SESSION_INSTRUCTIONS).toContain(
+        expect(BUILT_IN_AGENT_SESSION_INSTRUCTIONS).toContain(
             "Changes to another repository belong to a Session in that repository's Project",
         );
-        expect(DEFAULT_AGENT_SESSION_INSTRUCTIONS.length).toBeLessThan(
+        expect(BUILT_IN_AGENT_SESSION_INSTRUCTIONS.length).toBeLessThan(
             MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
         );
     });

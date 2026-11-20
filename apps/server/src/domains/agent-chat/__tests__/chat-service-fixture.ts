@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { AgentChatSnapshot, ServerEvent } from '@caxri/protocol';
+import type {
+    AgentChatSnapshot,
+    AgentSessionInstructionSettings,
+    ServerEvent,
+} from '@caxri/protocol';
 import { applyAgentChatPatch, defaultAgentProviderSettings } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { expect, onTestFinished, vi } from 'vitest';
@@ -56,9 +60,9 @@ export async function fixture(
         turnRequestTimeoutMs?: number;
         endpoint?: AgentChatEndpoint;
         /**
-         * The `agents.sessionInstructions` value each start reads; Caxri's preset when omitted, as in the Server.
+         * The `agents.sessionInstructions.*` settings each start reads; their defaults when omitted, as in the Server.
          */
-        sessionInstructions?: () => string | null;
+        sessionInstructions?: () => AgentSessionInstructionSettings;
         /**
          * Caxri's interface language each start reads; omitted, no language line is added.
          */
@@ -161,7 +165,8 @@ export async function fixture(
                 turnRequestTimeoutMs: options.turnRequestTimeoutMs,
             }),
             ...(options.endpoint && { endpoint: options.endpoint }),
-            sessionInstructions: options.sessionInstructions ?? (() => null),
+            sessionInstructions:
+                options.sessionInstructions ?? (() => ({ includeBuiltIn: true, custom: null })),
             displayLocale: options.displayLocale,
             onAgentStateChanged: options.onAgentStateChanged,
             delegation: options.delegation,
