@@ -86,7 +86,7 @@ describe('Session Activity persistence', () => {
         );
         const unread = database.getSession(agent.session.id)!;
         expect(
-            database.markSessionAttentionRead(agent.session.id, unread.attentionGeneration),
+            database.attentionMarks.read(agent.session.id, unread.attentionGeneration),
         ).toMatchObject({ acknowledged: true });
         expect(database.getSession(agent.session.id)?.sessionActivityAt).toBe(
             unread.sessionActivityAt,

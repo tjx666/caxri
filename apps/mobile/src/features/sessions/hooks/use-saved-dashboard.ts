@@ -5,8 +5,8 @@ import type { MobileDashboardResult } from '@caxri/protocol';
 import { useReadCache } from '../../read-cache/read-cache-context';
 import type { ReadCacheEntry } from '../../read-cache/read-cache-model';
 import { cachedDashboardSchema } from '../../read-cache/read-cache-model';
-import type { MobileDashboardSnapshot } from '../session-refresh';
-import { projectMobileDashboard } from '../session-refresh';
+import type { MobileDashboardSnapshot } from '../dashboard';
+import { projectMobileDashboard } from '../dashboard';
 
 interface SavedDashboard {
     entry: ReadCacheEntry<MobileDashboardResult>;

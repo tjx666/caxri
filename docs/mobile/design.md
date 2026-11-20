@@ -194,7 +194,26 @@ no background of its own keeps its default dark text readable.
   `Completed`, `Idle`, `Unknown`) stay in the accessible name instead of the visible row. Do not
   expose provider lifecycle jargon.
 - Filter chips list granted Projects in Desktop order; `All` is the default. The choice survives
-  navigation within the app session.
+  navigation within the app session. The strip shows only Projects active in the last 14 days (the
+  later of a Project's newest Session activity and its last visit), plus the chosen one. A trailing
+  `More` chip, present only while some Projects are hidden, opens a `Projects` sheet that lists
+  every granted Project. Dragging a chip to reorder lands it beside the shown chip it was dropped
+  next to; hidden Projects keep their places in Desktop's order.
+- The list reads `mobile.dashboard` for the chosen filter: the Server applies the Project filter,
+  so a filtered list reaches every Session of that Project. The first read answers up to 15 rows
+  per group, chosen round-robin across `PINNED`, attention, working, and idle so a large backlog in
+  one group never hides a new Session in another. Every reply stays within one 48 KB frame budget.
+  Each reply also carries `groupTotals`, the per-group count on the Server. Group headings show that
+  count. A group with rows the phone has not loaded gets a `Show 10 more` row, even a group that
+  otherwise lists everything. Revealing past the loaded rows makes the phone read `page:
+{group, offset}` (up to 50 rows each) until the group holds what was revealed. Later polls repeat
+  those pages, so a background refresh keeps the revealed rows. Choosing another Project starts
+  every group's window over and keeps what was collapsed. A filter for a Project the device can no
+  longer see falls back to `All`. The saved offline copy is the unfiltered first read, narrowed on
+  the phone.
+- The Server neither sends nor counts the delegated and second-opinion Sessions the home list hides
+  (`isSessionListedOnMobileHome`). It still answers `mobile.session.show` for them, so a link to
+  one opens.
 - The New Session button is a round button that sits bottom-right above the system gesture inset.
 - The home has no title row: the phone pairs one computer, so its name would only cost a row. The
   computer menu names it in a caption above its actions (Agent usage, Computer status, Archived
@@ -204,21 +223,14 @@ no background of its own keeps its default dark text readable.
   Inbox has open items and opens it; with none it is absent rather than an empty menu entry.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- Swiping the list left or right, including its empty state, outside a swipeable row's own left drag, pages to the next or previous Project
-  filter in chip order (All first), like the paged main tabs of WeChat for Android: the whole list
-  follows the finger one to one and the neighboring Project's real list slides in from the edge.
-  Release past `20%` of the width or on a fling settles on that page in `240ms`; a shorter drag
-  springs back. Either end resists at `30%` of the drag and springs back instead of wrapping. A
-  chip tap jumps without animation, and a newly shown Project starts at the top of its list. The
-  swipe starts only after `24dp` of sideways travel and gives way to a scroll that moves `16dp`
-  vertically first, so a vertical scroll that drifts sideways keeps scrolling (`MOB-CHAT-27`). The filter strip scrolls to center the selected chip.
+- A sideways swipe on the list never changes the Project filter; only a chip, or the `Projects`
+  sheet, does. A newly chosen Project starts at the top of its list. The filter strip scrolls to
+  center the selected chip, and its highlight glides to the new chip in `240ms` (`MOB-CHAT-27`).
 - Swiping a Session row left reveals its actions: **Done** (Mark as Done, Desktop's Activity row
   check) while it has Pending Attention, then **Archive**. Done needs reply or control access and
   Archive needs control, both on a live list; a row with neither does not swipe. Only a tap on an
   action runs it, Archive offers the usual Undo toast, and one row is open at a time (opening
-  another row or scrolling closes it). A left drag that starts on a swipeable row belongs to the
-  row, so paging to the next Project from there goes through a chip tap or a drag on a group
-  heading or the list's empty space; a right drag on a closed row still pages back, and on an open row closes it
+  another row or scrolling closes it). A right drag on an open row closes it
   (`MOB-SESSION-ROW-MARK-DONE-01`). The screen reader reaches the same actions on the row.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 

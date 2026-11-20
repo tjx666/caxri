@@ -352,6 +352,7 @@ export const effectfulCommandRecovery = {
     'window.fullScreen.set': 'memory',
     'session.markRead': 'durable',
     'session.markDone': 'durable',
+    'session.markDoneMany': 'durable',
     'usage.dismissNotice': 'durable',
     'session.refreshDeliveryOnFocus': 'memory',
     'session.reorder': 'durable',

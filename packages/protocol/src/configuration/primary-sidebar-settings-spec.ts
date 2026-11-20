@@ -59,6 +59,33 @@ export const primarySidebarSettingsSpec = [
     },
     {
         kind: 'boolean',
+        key: 'agentActivity.autoMarkDoneOnPullRequestClose',
+        title: 'Mark as Done when the pull request closes',
+        description:
+            'Move a Session out of Needs attention once its pull request merges or closes. A Session waiting on your answer stays.',
+        category: 'general',
+        keywords: ['activity', 'attention', 'done', 'resolve', 'settle', 'pull request', 'merge'],
+        default: true,
+    },
+    {
+        kind: 'enum',
+        key: 'agentActivity.autoMarkDoneAfterInactivity',
+        title: 'Mark inactive Sessions as Done',
+        description:
+            'Move a Session out of Needs attention after it has had no activity this long. A Session waiting on your answer stays.',
+        category: 'general',
+        keywords: ['activity', 'attention', 'done', 'resolve', 'settle', 'inactive', 'stale'],
+        options: [
+            { value: 'off', label: 'Off' },
+            { value: '1d', label: 'After 1 day' },
+            { value: '3d', label: 'After 3 days' },
+            { value: '7d', label: 'After 7 days' },
+            { value: '14d', label: 'After 14 days' },
+        ],
+        default: '7d',
+    },
+    {
+        kind: 'boolean',
         key: 'primarySidebar.translucent',
         title: 'Translucent sidebar',
         description: 'Blur the desktop through the sidebar while the theme matches macOS.',

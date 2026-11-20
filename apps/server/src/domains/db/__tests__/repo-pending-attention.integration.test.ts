@@ -38,14 +38,14 @@ describe('CaxriDatabase Pending Attention', () => {
         const { database, sessionId, lifecycle } = await claudeSession();
         lifecycle('turnStarted');
         lifecycle('turnFinished');
-        database.markSessionAttentionRead(sessionId, 1);
+        database.attentionMarks.read(sessionId, 1);
         expect(database.getSession(sessionId)).toMatchObject({
             hasUnread: false,
             hasPendingAttention: true,
         });
 
-        expect(database.markSessionAttentionDone(sessionId, 0, 5_000).resolved).toBe(false);
-        const done = database.markSessionAttentionDone(sessionId, 1, 5_000);
+        expect(database.attentionMarks.done(sessionId, 0, 5_000).resolved).toBe(false);
+        const done = database.attentionMarks.done(sessionId, 1, 5_000);
         expect(done).toMatchObject({
             resolved: true,
             session: {
@@ -55,7 +55,7 @@ describe('CaxriDatabase Pending Attention', () => {
             },
         });
         // A repeat is a no-op, so a second device's tick cannot move the Session in Idle again.
-        expect(database.markSessionAttentionDone(sessionId, 1, 9_000)).toMatchObject({
+        expect(database.attentionMarks.done(sessionId, 1, 9_000)).toMatchObject({
             resolved: false,
             session: { attentionResolvedAt: 5_000 },
         });
@@ -66,7 +66,7 @@ describe('CaxriDatabase Pending Attention', () => {
         const { database, sessionId, lifecycle } = await claudeSession();
         lifecycle('turnStarted');
         lifecycle('turnFinished');
-        expect(database.markSessionAttentionDone(sessionId, 1).session).toMatchObject({
+        expect(database.attentionMarks.done(sessionId, 1).session).toMatchObject({
             hasUnread: false,
             hasPendingAttention: false,
             acknowledgedAttentionGeneration: 1,
@@ -78,7 +78,7 @@ describe('CaxriDatabase Pending Attention', () => {
         const { database, sessionId, lifecycle } = await claudeSession();
         lifecycle('turnStarted');
         lifecycle('turnFinished');
-        database.markSessionAttentionRead(sessionId, 1);
+        database.attentionMarks.read(sessionId, 1);
 
         lifecycle('turnStarted');
         const session = database.getSession(sessionId);
@@ -108,7 +108,7 @@ describe('CaxriDatabase Pending Attention', () => {
         expect(database.getSession(sessionId)?.attentionGeneration).toBe(1);
 
         // A failure the user already marked Done stays done when the dead process is reported again.
-        database.markSessionAttentionDone(sessionId, 1);
+        database.attentionMarks.done(sessionId, 1);
         database.updateTerminalExitState(terminalId, 'dead');
         expect(database.getSession(sessionId)).toMatchObject({
             attentionGeneration: 1,
@@ -126,6 +126,57 @@ describe('CaxriDatabase Pending Attention', () => {
             attentionGeneration: 0,
             hasPendingAttention: false,
         });
+        database.close();
+    });
+
+    it('resolves a batch in one pass, guarding each generation and skipping archived or missing Sessions', async () => {
+        const first = await claudeSession();
+        first.lifecycle('turnStarted');
+        first.lifecycle('turnFinished');
+        const { database } = first;
+        const projectId = database.getSession(first.sessionId)!.projectId;
+        const second = database.createSession(projectId, 'claude');
+        const archived = database.createSession(projectId, 'claude');
+        for (const created of [second, archived])
+            for (const phase of ['turnStarted', 'turnFinished'] as const)
+                database.updateAgentLifecycle({
+                    launchId: 'launch-1',
+                    phase,
+                    provider: 'claude',
+                    terminalId: created.terminal!.id,
+                });
+        database.archiveSession(archived.session.id);
+
+        const resolved = database.attentionMarks.doneMany(
+            [
+                { sessionId: first.sessionId, attentionGeneration: 1 },
+                // A newer turn superseded what the Client showed: it stays pending.
+                { sessionId: second.session.id, attentionGeneration: 0 },
+                { sessionId: archived.session.id, attentionGeneration: 1 },
+                { sessionId: 'missing-session', attentionGeneration: 1 },
+            ],
+            7_000,
+        );
+
+        expect(resolved).toEqual([first.sessionId]);
+        expect(database.getSession(first.sessionId)).toMatchObject({
+            hasPendingAttention: false,
+            attentionResolvedAt: 7_000,
+        });
+        expect(database.getSession(second.session.id)?.hasPendingAttention).toBe(true);
+        database.close();
+    });
+
+    it('settles automatically without a resolution time, so Idle keeps ranking by real activity', async () => {
+        const { database, sessionId, lifecycle } = await claudeSession();
+        lifecycle('turnStarted');
+        lifecycle('turnFinished');
+        expect(database.attentionMarks.settle([{ sessionId, attentionGeneration: 1 }])).toEqual([
+            sessionId,
+        ]);
+        const session = database.getSession(sessionId);
+        expect(session?.hasPendingAttention).toBe(false);
+        expect(session?.attentionResolvedAt).toBeUndefined();
         database.close();
     });
 });

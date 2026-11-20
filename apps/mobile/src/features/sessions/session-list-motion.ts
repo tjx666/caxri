@@ -14,21 +14,18 @@ export const sessionListRowOrder = (rows: ReadonlyArray<{ id: string }>): string
     rows.map(({ id }) => id).join('\n');
 
 /**
- * Whether a change in a page's rows should animate: a Session appearing, leaving, or moving between groups on the page
- * the user is looking at. The first rows a page shows and every off-screen page update apply at once, and reduced
- * motion never animates.
+ * Whether a change in the list's rows should animate: a Session appearing, leaving, or moving between groups. The first
+ * rows the list shows apply at once, and reduced motion never animates.
  */
 export const shouldAnimateSessionListChange = ({
-    isActive,
     isReducedMotion,
     nextOrder,
     previousOrder,
 }: {
-    isActive: boolean;
     isReducedMotion: boolean;
     nextOrder: string;
     previousOrder: string;
-}): boolean => isActive && !isReducedMotion && previousOrder !== '' && previousOrder !== nextOrder;
+}): boolean => !isReducedMotion && previousOrder !== '' && previousOrder !== nextOrder;
 
 /**
  * True while a page applies a change in which Sessions it lists, or their order. Cells animate only then: outside that

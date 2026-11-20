@@ -7,7 +7,6 @@ import type { MobileSemanticNode } from './mobile-android';
 import {
     adbShell,
     mobileDisplayState,
-    mobileRegionFingerprint,
     mobileSemantics,
     tapMobileCheck,
     tapMobileCheckByBounds,
@@ -20,14 +19,13 @@ import {
 const IDLE_SESSION_COUNT = 11;
 
 /**
- * Sideways drift during a vertical drag: past a swipeable row's 20dp activation but short of the list's 24dp Project
- * swipe activation, so a scroll that wanders that far must keep scrolling instead of opening a row (#2540) or switching
- * Project.
+ * Sideways drift during a vertical drag: past a swipeable row's 20dp activation, so a scroll that wanders that far must
+ * keep scrolling instead of opening a row (#2540).
  */
 const DRIFT_DP = 22;
 
 /**
- * Long enough for a released swipe's settle animation and the filter switch after it to land.
+ * Long enough for a released swipe's settle animation, and a wrong filter switch after it, to land.
  */
 const SETTLE_MS = 600;
 
@@ -63,8 +61,8 @@ const isFilterSelected = (nodes: MobileSemanticNode[], checkId: string): boolean
     nodes.some((node) => node.checkId === checkId && node.selected);
 
 /**
- * The height at which a page swipe crosses the list: the Idle group heading's middle. A control device can swipe every
- * Session row open, and a left drag that starts on such a row belongs to the row, so a page swipe goes across the
+ * The height at which a list swipe crosses the list: the Idle group heading's middle. A control device can swipe every
+ * Session row open, and a left drag that starts on such a row belongs to the row, so a list swipe goes across the
  * heading instead.
  */
 function pagingY(nodes: MobileSemanticNode[]): number {
@@ -95,85 +93,6 @@ async function swipeList(serial: string, fromShare: number, toShare: number): Pr
 }
 
 /**
- * Drags across the Session list like {@link swipeList} but holds the finger down past the activation slop, so the frame
- * is compared while the gesture is live: the list must follow the finger like a pager, with the next Project's page
- * sliding in beside it. The Project filters' highlight travels with it, so both the current and the next chip change
- * while the finger is held. UIAutomator waits for an idle screen, so the list and chips are compared by their pixels.
- */
-async function holdSwipeFollowingFinger(
-    environment: MobileAgentScenarioEnvironment,
-    artifacts: string[],
-    pages: { current: string; next: string },
-    chips: { current: string; next: string },
-    fromShare: number,
-    toShare: number,
-): Promise<void> {
-    const { serial } = environment;
-    const restingNodes = await mobileSemantics(serial);
-    const list = checkBounds(restingNodes, 'session-list');
-    if (!list) throw new Error('The Session list is not laid out');
-    const currentChip = checkBounds(restingNodes, chips.current);
-    const nextChip = checkBounds(restingNodes, chips.next);
-    if (!currentChip || !nextChip) throw new Error('The Project chips are not laid out');
-    const restingChips = [
-        await mobileRegionFingerprint(serial, currentChip),
-        await mobileRegionFingerprint(serial, nextChip),
-    ];
-    const resting = await mobileRegionFingerprint(serial, list);
-    // A list that changes on its own would make the held comparison below blame the gesture for it.
-    if ((await mobileRegionFingerprint(serial, list)) !== resting)
-        throw new Error('The Session list is not stable at rest');
-    const width = list.right - list.left;
-    const y = pagingY(restingNodes);
-    const fromX = Math.floor(list.left + width * fromShare);
-    const toX = Math.floor(list.left + width * toShare);
-    const steps = 12;
-    await adbShell(serial, [
-        [
-            `input motionevent DOWN ${fromX} ${y}`,
-            ...Array.from(
-                { length: steps },
-                (_, index) =>
-                    `input motionevent MOVE ${Math.round(fromX + ((toX - fromX) * (index + 1)) / steps)} ${y}`,
-            ),
-            'sleep 0.5',
-        ].join('; '),
-    ]);
-    let held: string;
-    let heldChips: string[];
-    let heldNodes: MobileSemanticNode[];
-    try {
-        held = await mobileRegionFingerprint(serial, list);
-        heldChips = [
-            await mobileRegionFingerprint(serial, currentChip),
-            await mobileRegionFingerprint(serial, nextChip),
-        ];
-        await capture(environment, 'holding-swipe', artifacts);
-        // The held finger leaves the screen idle, so UIAutomator can read both pages mid-swipe. Rows repeat their check
-        // ids on both pages and the dump keeps only the first, so each page is read by its own id.
-        heldNodes = await mobileSemantics(serial);
-    } finally {
-        await adbShell(serial, ['input', 'motionevent', 'UP', String(toX), String(y)]);
-    }
-    if (held === resting) throw new Error('The Session list did not follow the finger mid-swipe');
-    // Before the highlight followed the pager it stayed on the current chip until the release, leaving both chips as
-    // they were at rest.
-    if (heldChips[0] === restingChips[0])
-        throw new Error('The highlight did not start leaving the current chip mid-swipe');
-    if (heldChips[1] === restingChips[1])
-        throw new Error('The highlight did not reach toward the next chip mid-swipe');
-    // UIAutomator clips bounds to the screen: the current page ends short of the right edge, and the next page starts
-    // past the left edge.
-    const margin = width * 0.2;
-    const current = checkBounds(heldNodes, pages.current);
-    if (!current || current.right > list.right - margin)
-        throw new Error('The current page did not move left with the finger');
-    const next = checkBounds(heldNodes, pages.next);
-    if (!next || next.left < list.left + margin)
-        throw new Error('The next Project page did not slide in from the right edge');
-}
-
-/**
  * The header's icon buttons sit in the brand row, which ends above the full-width Project chips, and the two buttons
  * share a center line within one dp.
  */
@@ -200,10 +119,9 @@ function assertHeaderLayout(nodes: MobileSemanticNode[], density: number): void 
 
 /**
  * `MOB-CHAT-27`: a vertical drag that drifts sideways scrolls the Session list without switching Project, and the next
- * tap opens the Session; a deliberate left swipe moves from All to the next Project chip, another left swipe at the
- * last chip stays put, and a right swipe returns to All. The list follows the finger while a swipe is held, with the
- * next Project's page sliding in and the filter highlight travelling toward its chip, and the release settles flush.
- * The header's icon buttons sit in the brand row above the Project chips.
+ * tap opens the Session. A short left drag on a row opens its actions and a right drag closes it. A deliberate left or
+ * right swipe across the list never switches Project; only a chip tap does. The header's icon buttons sit in the brand
+ * row above the Project chips.
  */
 export async function executeMobileSessionSwipeScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -293,7 +211,7 @@ export async function executeMobileSessionSwipeScenario(
         if (!isFilterSelected(afterRowDrag, 'project-filter-all'))
             throw new Error('A short row drag switched Project');
         await capture(environment, 'short-row-drag', artifacts);
-        // A right drag on the open row closes it rather than paging.
+        // A right drag on the open row closes it.
         await adbShell(serial, [
             'input',
             'swipe',
@@ -311,53 +229,37 @@ export async function executeMobileSessionSwipeScenario(
             throw new Error('Closing the open row switched Project');
         await capture(environment, 'row-drag-closed', artifacts);
 
+        // A deliberate swipe across the list, either way, keeps the Project filter: only a chip changes it.
+        for (const [from, to, name] of [
+            [0.8, 0.2, 'left'],
+            [0.2, 0.8, 'right'],
+        ] as const) {
+            // eslint-disable-next-line no-await-in-loop -- each swipe is observed on the screen the previous one left.
+            await swipeList(serial, from, to);
+            for (let sample = 0; sample < 3; sample += 1) {
+                // eslint-disable-next-line no-await-in-loop -- each sample is a timed observation of the same screen.
+                await pause(SETTLE_MS);
+                // eslint-disable-next-line no-await-in-loop -- see above.
+                if (!isFilterSelected(await mobileSemantics(serial), 'project-filter-all'))
+                    throw new Error(`A ${name} list swipe switched Project`);
+            }
+            // eslint-disable-next-line no-await-in-loop -- one capture per swipe.
+            await capture(environment, `${name}-swipe-kept-project`, artifacts);
+        }
         const projectChip = `project-filter-${fixture.allowedProjectId}`;
-        await holdSwipeFollowingFinger(
-            environment,
-            artifacts,
-            {
-                current: 'session-page-project:all',
-                next: `session-page-project:${fixture.allowedProjectId}`,
-            },
-            { current: 'project-filter-all', next: projectChip },
-            0.8,
-            0.2,
-        );
+        await tapMobileCheck(serial, projectChip);
         await waitForMobile(
             () => mobileSemantics(serial),
             (current) => isFilterSelected(current, projectChip),
         );
-        // The settle lands exactly on the page, with no offset left over from the drag.
-        const landedRow = checkBounds(await mobileSemantics(serial), `session-row-${target}`);
-        if (landedRow?.left !== settled.left || landedRow.right !== settled.right)
-            throw new Error('The Project page did not settle flush with the screen');
-        await capture(environment, 'swiped-to-project', artifacts);
-        // The phone only sees one Project, so it is the last chip and a further left swipe has nowhere to go.
-        await swipeList(serial, 0.8, 0.2);
-        // The switch is scheduled after release, so a wrong wrap-around would land late; watch for it.
-        for (let sample = 0; sample < 3; sample += 1) {
-            // eslint-disable-next-line no-await-in-loop -- each sample is a timed observation of the same screen.
-            await pause(SETTLE_MS);
-            // eslint-disable-next-line no-await-in-loop -- see above.
-            if (!isFilterSelected(await mobileSemantics(serial), projectChip))
-                throw new Error('A left swipe past the last Project left it');
-        }
-        await capture(environment, 'swiped-past-last', artifacts);
-        await swipeList(serial, 0.2, 0.8);
-        await waitForMobile(
-            () => mobileSemantics(serial),
-            (current) => isFilterSelected(current, 'project-filter-all'),
-        );
-        await capture(environment, 'swiped-back-to-all', artifacts);
+        await capture(environment, 'chip-chose-project', artifacts);
         await finish(environment, artifacts, {
             driftingScroll: 'scrolled-without-switching-project',
             headerLayout: 'icon-buttons-in-brand-row-above-chips',
-            heldSwipe: 'page-follows-finger-and-next-project-slides-in',
-            heldSwipeHighlight: 'leaves-current-chip-and-reaches-next-chip',
-            leftSwipe: 'all-to-project',
-            leftSwipeAtLastProject: 'stayed',
+            leftSwipe: 'kept-project',
+            rightSwipe: 'kept-project',
+            chipTap: 'chose-project',
             shortRowDrag: 'opened-archive-no-switch-right-drag-closed',
-            rightSwipe: 'project-to-all',
             status: 'passed',
         });
     } finally {

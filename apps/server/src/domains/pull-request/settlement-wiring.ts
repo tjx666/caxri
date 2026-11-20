@@ -1,6 +1,7 @@
 import type { SessionPullRequest } from '@caxri/protocol';
 
 import type { SessionActivityTransition } from '../agents';
+import type { AutoMarkDone } from '../session';
 import { SessionTurnWindows } from '../session';
 import type { PullRequestSettlement } from './settlement';
 
@@ -12,6 +13,7 @@ import type { PullRequestSettlement } from './settlement';
  */
 export class PullRequestSettlementWiring {
     private settlement?: PullRequestSettlement;
+    private autoMarkDone?: AutoMarkDone;
     private readonly pullRequests = new Map<string, SessionPullRequest>();
     readonly turnWindows = new SessionTurnWindows();
 
@@ -22,6 +24,14 @@ export class PullRequestSettlementWiring {
 
     attach(settlement: PullRequestSettlement): void {
         this.settlement = settlement;
+    }
+
+    /**
+     * Attaches the automatic Mark as Done sweep, which also reacts to a pull request merging or closing and shares this
+     * holder's lifetime.
+     */
+    attachAutoMarkDone(autoMarkDone: AutoMarkDone): void {
+        this.autoMarkDone = autoMarkDone;
     }
 
     observeActivity(transition: SessionActivityTransition): void {
@@ -41,6 +51,7 @@ export class PullRequestSettlementWiring {
         if (next) this.pullRequests.set(sessionId, next);
         else this.pullRequests.delete(sessionId);
         this.settlement?.observePullRequest(sessionId, previous, next);
+        this.autoMarkDone?.observePullRequest(next);
     }
 
     /**
@@ -57,5 +68,6 @@ export class PullRequestSettlementWiring {
 
     dispose(): void {
         this.settlement?.dispose();
+        this.autoMarkDone?.dispose();
     }
 }

@@ -144,6 +144,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## T3 Code (MIT)
 
 - **Activity queue placement and retention**: Left Side Bar queue (with the Codex app); 15-minute window. Evidence: `docs/activity-view.md`; `packages/protocol/src/domain/session/session-activity-group.ts`.
+- **Automatic Mark as Done**: Pending Attention settles by itself once the Session's pull request merges or closes, or after days without activity, as T3 Code auto-settles finished threads; a Session waiting on the user is never settled. Evidence: `apps/server/src/domains/session/attention/auto-mark-done.ts`; `docs/activity-view.md` (What lands in the list).
 - **Activity New Session row**: A fixed New Session entry above the queue that asks which Project before the Agent, after the sidebar New thread button. Evidence: `docs/activity-view.md` (Starting a Session); `apps/desktop/src/renderer/src/features/session/create-session-menu.tsx`.
 - **Chat composer card, Plan card, drafts**: Composer drawer and tray (with LobeHub), task badge, localStorage drafts. Evidence: `DESIGN.md` (Chat composer); `apps/desktop/src/renderer/src/features/agent-chat/composer-input/agent-chat-drafts.ts`.
 - **Open work-group shimmer**: The running turn's latest work group keeps its active sweep between calls, not only while one is in flight (`work-live` stays `active` after its command completes). Evidence: `apps/desktop/src/renderer/src/features/agent-chat/tools/agent-chat-work-group.tsx`.

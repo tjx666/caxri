@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildMobileArchivedSessions,
     buildMobileDashboard,
+    buildMobileSessionRow,
     MOBILE_DASHBOARD_MAX_BYTES,
 } from '../dashboard';
 
@@ -74,35 +75,27 @@ describe('buildMobileDashboard', () => {
             hasUnread: false,
             hasPendingAttention: false,
         });
-        const result = buildMobileDashboard({
-            hostDisplayName: 'Caxri Host',
-            deviceRole: 'view',
-            projects: [{ id: 'project-1', title: 'App' }],
-            sessions: [session('source'), session('next', 'source')],
-            terminals: [],
-        });
-        expect(result.sessions.find(({ id }) => id === 'next')).toMatchObject({
+        const sessions = [session('source'), session('next', 'source')];
+        const row = (
+            id: string,
+            rows: Array<ReturnType<typeof session> & { archivedAt?: number }> = sessions,
+        ) =>
+            buildMobileSessionRow({
+                projects: [{ id: 'project-1', title: 'App' }],
+                session: rows.find((entry) => entry.id === id)!,
+                sessions: rows,
+                terminals: [],
+            });
+        expect(row('next')).toMatchObject({
             createdAt: 500,
             createdBySessionId: 'source',
             createdByRelation: 'consult',
         });
+        expect(row('source').createdBySessionId).toBeUndefined();
+        expect(row('next').createdBySessionArchived).toBeUndefined();
         expect(
-            result.sessions.find(({ id }) => id === 'source')?.createdBySessionId,
-        ).toBeUndefined();
-        expect(
-            result.sessions.find(({ id }) => id === 'next')?.createdBySessionArchived,
-        ).toBeUndefined();
-
-        const afterArchive = buildMobileDashboard({
-            hostDisplayName: 'Caxri Host',
-            deviceRole: 'view',
-            projects: [{ id: 'project-1', title: 'App' }],
-            sessions: [{ ...session('source'), archivedAt: 900 }, session('next', 'source')],
-            terminals: [],
-        });
-        expect(afterArchive.sessions.find(({ id }) => id === 'next')).toMatchObject({
-            createdBySessionArchived: true,
-        });
+            row('next', [{ ...session('source'), archivedAt: 900 }, session('next', 'source')]),
+        ).toMatchObject({ createdBySessionArchived: true });
     });
 
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
@@ -209,7 +202,7 @@ describe('buildMobileDashboard', () => {
         expect(result.sessions[0]).toMatchObject({ pinnedAt: 5, sessionActivityAt: 1 });
     });
 
-    it('keeps second opinions the home list hides from crowding its Idle Sessions out of the cap', () => {
+    it('neither sends nor counts the second opinions the home list hides', () => {
         const base = {
             projectId: 'project-1',
             workbenchRootProjectId: 'project-1',
@@ -248,10 +241,10 @@ describe('buildMobileDashboard', () => {
             ],
             terminals: [],
         });
-        const ids = result.sessions.map(({ id }) => id);
-        expect(ids.slice(0, 2)).toEqual(['creator', 'idle']);
-        expect(ids.slice(2).every((id) => id.startsWith('consult-'))).toBe(true);
-        expect(result.truncated).toBe(true);
+        expect(result.sessions.map(({ id }) => id)).toEqual(['creator', 'idle']);
+        expect(result.groupTotals).toEqual({ pinned: 0, attention: 0, working: 0, idle: 2 });
+        expect(result.total).toBe(2);
+        expect(result.truncated).toBe(false);
     });
 
     it('includes empty granted Projects in order and excludes Sessions without a visible Project', () => {

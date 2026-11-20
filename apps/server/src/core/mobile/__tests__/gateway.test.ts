@@ -24,6 +24,7 @@ import { MobileGateway, selectMobileGatewayAddress } from '../gateway';
 import {
     authorizeMethod,
     connectDevice,
+    emptyDashboardResult,
     nextMessage,
     openServerFrame,
     openSocket,
@@ -109,14 +110,7 @@ describe('MobileGateway', () => {
             const invoke = vi.fn<CommandAdapter['invoke']>((request) => {
                 switch (request.method) {
                     case 'mobile.dashboard':
-                        return {
-                            hostDisplayName: 'Test computer',
-                            deviceRole: role,
-                            projects: [{ id: 'project-1', title: 'Test Project' }],
-                            sessions: [],
-                            total: 0,
-                            truncated: false,
-                        };
+                        return emptyDashboardResult(role);
                     case 'mobile.agent.submit':
                         return {
                             terminalId: 'terminal-1',
@@ -549,14 +543,7 @@ describe('MobileGateway', () => {
         const invoke = vi.fn<CommandAdapter['invoke']>((request) => {
             if (request.method !== 'mobile.dashboard')
                 throw new Error('Unexpected allowed request');
-            return {
-                hostDisplayName: 'Test computer',
-                deviceRole: 'control',
-                projects: [{ id: 'project-1', title: 'Test Project' }],
-                sessions: [],
-                total: 0,
-                truncated: false,
-            };
+            return emptyDashboardResult('control');
         });
         let gatewayByte = 100;
         const gateway = new MobileGateway({

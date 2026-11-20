@@ -1,3 +1,4 @@
+import { SESSION_MARK_DONE_BATCH_MAX } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ToastKind, ToastOptions } from '../../../stores/toasts';
@@ -102,6 +103,7 @@ import {
     didReorderProject,
     didReorderSession,
     didSelectSession,
+    markDoneRequests,
     moveTerminalToNewSession,
     openProjectInExternalEditor,
     openSelectedProjectInExternalEditor,
@@ -132,6 +134,29 @@ describe('Session actions', () => {
         mocks.pendingProjectId = undefined;
         mocks.pendingRoot = undefined;
         mocks.primarySidebarVisible = true;
+    });
+
+    it('splits a Mark as Done batch by machine and by the request size limit', () => {
+        const ids = Array.from(
+            { length: SESSION_MARK_DONE_BATCH_MAX + 1 },
+            (_, index) => `s${index}`,
+        );
+        const requests = markDoneRequests(
+            [...ids, 'remote'].map((sessionId) => ({ sessionId, attentionGeneration: 2 })),
+            [
+                [undefined, ids],
+                ['remote-mac', ['remote']],
+            ],
+        );
+
+        expect(
+            requests.map(({ environmentId, sessions }) => [environmentId, sessions.length]),
+        ).toEqual([
+            [undefined, SESSION_MARK_DONE_BATCH_MAX],
+            [undefined, 1],
+            ['remote-mac', 1],
+        ]);
+        expect(requests[2]?.sessions).toEqual([{ sessionId: 'remote', attentionGeneration: 2 }]);
     });
 
     it('opens the selected Session pull request from the sidebar snapshot without refetching', () => {

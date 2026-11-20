@@ -1,4 +1,5 @@
 import type { MethodResult, ProjectRecord, SessionPullRequest } from '@caxri/protocol';
+import { SESSION_MARK_DONE_BATCH_MAX } from '@caxri/protocol';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { translate } from '../../i18n';
@@ -273,6 +274,63 @@ export async function didMarkSessionDone(
 ): Promise<boolean> {
     const result = await caxri.request('session.markDone', { sessionId, attentionGeneration });
     return result.resolved;
+}
+
+/**
+ * One Session to resolve, at the attention generation the Client showed.
+ */
+interface MarkDoneEntry {
+    attentionGeneration: number;
+    sessionId: string;
+}
+
+interface MarkDoneRequest {
+    environmentId: string | undefined;
+    sessions: MarkDoneEntry[];
+}
+
+/**
+ * Splits a Mark as Done batch by owning machine and into `session.markDoneMany`-sized chunks, so every Server gets the
+ * Sessions it owns and no request exceeds {@link SESSION_MARK_DONE_BATCH_MAX}.
+ */
+export function markDoneRequests(
+    entries: readonly MarkDoneEntry[],
+    environmentGroups: ReturnType<typeof sessionsByEnvironment>,
+): MarkDoneRequest[] {
+    const generations = new Map(
+        entries.map((entry) => [entry.sessionId, entry.attentionGeneration]),
+    );
+    return environmentGroups.flatMap(([environmentId, sessionIds]) => {
+        const sessions = sessionIds.map((sessionId) => ({
+            sessionId,
+            attentionGeneration: generations.get(sessionId) ?? 0,
+        }));
+        const requests: MarkDoneRequest[] = [];
+        for (let start = 0; start < sessions.length; start += SESSION_MARK_DONE_BATCH_MAX)
+            requests.push({
+                environmentId,
+                sessions: sessions.slice(start, start + SESSION_MARK_DONE_BATCH_MAX),
+            });
+        return requests;
+    });
+}
+
+/**
+ * Resolves many attention generations as Done in as few requests as the batch limit allows. Resolves to the number the
+ * Servers actually resolved: a Session whose newer Agent turn superseded the shown generation stays pending. Rejection
+ * is the caller's to handle.
+ */
+export async function markSessionsDone(entries: readonly MarkDoneEntry[]): Promise<number> {
+    const requests = markDoneRequests(
+        entries,
+        sessionsByEnvironment(entries.map((entry) => entry.sessionId)),
+    );
+    const results = await Promise.all(
+        requests.map(({ environmentId, sessions }) =>
+            caxri.in(environmentId).request('session.markDoneMany', { sessions }),
+        ),
+    );
+    return results.reduce((total, result) => total + result.resolvedSessionIds.length, 0);
 }
 
 /**

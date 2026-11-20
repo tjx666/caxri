@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildMobileSessionSections } from '../session-model';
-import { fetchMobileSessionDashboard } from '../session-refresh';
+import { buildMobileSessionSections } from '../../session-model';
+import { fetchMobileSessionDashboard } from '../refresh';
 
 describe('fetchMobileSessionDashboard', () => {
     it('rejects a failed read so Query retains its last valid dashboard', async () => {
@@ -25,12 +25,14 @@ describe('fetchMobileSessionDashboard', () => {
                         projects: [{ id: 'project-one', title: 'Empty Project' }],
                         sessions: [],
                         total: 0,
+                        groupTotals: { pinned: 0, attention: 0, working: 0, idle: 0 },
                         truncated: false,
                     }),
             }),
         ).resolves.toEqual({
             deviceRole: 'view',
             hostDisplayName: 'Test computer',
+            projectId: null,
             projects: [{ id: 'project-one', title: 'Empty Project' }],
             sections: buildMobileSessionSections({ sessions: [], total: 0, truncated: false }),
         });

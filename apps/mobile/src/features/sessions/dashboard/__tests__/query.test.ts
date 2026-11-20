@@ -7,7 +7,7 @@ import {
     readDashboardSnapshot,
     shouldObserveDashboard,
     startDashboardSubscription,
-} from '../dashboard-query';
+} from '../query';
 
 describe('mobile dashboard query lifecycle', () => {
     it('scopes cached dashboard data to the paired device generation', () => {

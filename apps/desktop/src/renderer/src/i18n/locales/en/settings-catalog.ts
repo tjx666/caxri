@@ -117,6 +117,18 @@ export const settingsCatalog = {
     'settings.agentActivity.showExcerpts.title': 'Show Agent excerpts in Activity',
     'settings.agentActivity.showExcerpts.description':
         'Under each Activity row, quote what the Agent last asked or said, or its one-line recap. Off keeps rows to a title and a status line.',
+    'settings.agentActivity.autoMarkDoneOnPullRequestClose.title':
+        'Mark as Done when the pull request closes',
+    'settings.agentActivity.autoMarkDoneOnPullRequestClose.description':
+        'Move a Session out of Needs attention once its pull request merges or closes. A Session waiting on your answer stays.',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.title': 'Mark inactive Sessions as Done',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.description':
+        'Move a Session out of Needs attention after it has had no activity this long. A Session waiting on your answer stays.',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.off': 'Off',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.1d': 'After 1 day',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.3d': 'After 3 days',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.7d': 'After 7 days',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.14d': 'After 14 days',
 
     'settings.primarySidebar.translucent.title': 'Translucent sidebar',
     'settings.primarySidebar.translucent.description':

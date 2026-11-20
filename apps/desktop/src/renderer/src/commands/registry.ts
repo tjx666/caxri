@@ -53,6 +53,10 @@ export interface CommandContext {
         deleteSelected(): void;
         detachSelected(): void;
         focusNextAttention(): void;
+        /**
+         * Confirms, then marks every Session in Needs attention done.
+         */
+        markAllAttentionDone(): void;
         navigateHistory(direction: SessionNavigationDirection): void;
         openArchived(): void;
         /**

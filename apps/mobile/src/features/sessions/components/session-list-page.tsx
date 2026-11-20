@@ -1,5 +1,5 @@
 import type { ReactElement, RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -37,15 +37,13 @@ const LIST_AT_TOP = { disabled: true } as const;
 const entryType = (entry: SessionListRow): SessionListRow['type'] => entry.type;
 
 /**
- * One Project filter's page of the Session list. Only the current page reports scrolling and touches, restores the
- * remembered offset, and answers `activeListRef`; a page that stops being current returns to the top while it is off
- * screen, so swiping back to it starts at the top like any other Project.
+ * The Session list for the chosen Project filter: it reports scrolling and touches to the list interaction, restores
+ * the remembered offset, and animates rows that appear, leave, or change group.
  */
 export const SessionListPage = ({
     empty,
     interactionRef,
-    isActive,
-    activeListRef,
+    listRef,
     bottomInset = 0,
     onLoad,
     onScroll,
@@ -57,8 +55,7 @@ export const SessionListPage = ({
      */
     empty: ReactElement | null;
     interactionRef: RefObject<ReturnType<typeof createSessionListInteraction> | null>;
-    isActive: boolean;
-    activeListRef: RefObject<FlashListRef<SessionListRow> | null>;
+    listRef: RefObject<FlashListRef<SessionListRow> | null>;
     /**
      * Space kept below the last row so a control floating over the list (the phone's New Session button) never covers
      * its trailing glyph or pull request chip.
@@ -69,11 +66,6 @@ export const SessionListPage = ({
     renderEntry: (info: ListRenderItemInfo<SessionListRow>) => ReactElement;
     rows: SessionListRow[];
 }) => {
-    const ownReference = useRef<FlashListRef<SessionListRow>>(null);
-    useEffect(() => {
-        if (isActive) activeListRef.current = ownReference.current;
-        else ownReference.current?.scrollToOffset({ animated: false, offset: 0 });
-    }, [isActive, activeListRef]);
     const [isAtTop, setIsAtTop] = useState(true);
     const isReducedMotion = useReducedMotion();
     const [shownRows, setShownRows] = useState(rows);
@@ -86,7 +78,6 @@ export const SessionListPage = ({
      */
     if (rows !== shownRows && !isMoving) {
         const isAnimated = shouldAnimateSessionListChange({
-            isActive,
             isReducedMotion,
             nextOrder: sessionListRowOrder(rows),
             previousOrder: sessionListRowOrder(shownRows),
@@ -100,11 +91,11 @@ export const SessionListPage = ({
         // this render, so a removed row's cell unmounts (and fades) instead of being reused for its neighbour;
         // FlashList turns it back on after the commit.
         const frame = requestAnimationFrame(() => {
-            ownReference.current?.prepareForLayoutAnimationRender();
+            listRef.current?.prepareForLayoutAnimationRender();
             setShownRows(rows);
         });
         return () => cancelAnimationFrame(frame);
-    }, [isMoving, rows, shownRows]);
+    }, [isMoving, listRef, rows, shownRows]);
     useEffect(() => {
         if (!isMoving || rows !== shownRows) return;
         const settle = setTimeout(() => setIsMoving(false), SESSION_LIST_MOTION_MS + 60);
@@ -116,13 +107,12 @@ export const SessionListPage = ({
      */
     const settle = (event: NativeSyntheticEvent<NativeScrollEvent>): void =>
         setIsAtTop(event.nativeEvent.contentOffset.y <= TOP_REST_THRESHOLD);
-    const active = isActive ? interactionRef : undefined;
     return (
         <View
             style={styles.list}
-            onTouchCancel={() => active?.current?.touchCancel()}
-            onTouchEnd={() => active?.current?.touchEnd()}
-            onTouchStart={() => active?.current?.touchStart()}
+            onTouchCancel={() => interactionRef.current?.touchCancel()}
+            onTouchEnd={() => interactionRef.current?.touchEnd()}
+            onTouchStart={() => interactionRef.current?.touchStart()}
         >
             <SessionListMotionContext value={isMoving}>
                 <FlashList
@@ -133,23 +123,20 @@ export const SessionListPage = ({
                     data={shownRows}
                     getItemType={entryType}
                     keyExtractor={entryKey}
-                    onMomentumScrollBegin={() => active?.current?.momentumStart()}
+                    onMomentumScrollBegin={() => interactionRef.current?.momentumStart()}
                     onMomentumScrollEnd={(event) => {
                         settle(event);
-                        active?.current?.momentumEnd();
+                        interactionRef.current?.momentumEnd();
                     }}
-                    onLoad={isActive ? onLoad : undefined}
+                    onLoad={onLoad}
                     maintainVisibleContentPosition={isAtTop ? LIST_AT_TOP : undefined}
-                    onScroll={isActive ? onScroll : undefined}
-                    onScrollBeginDrag={() => active?.current?.dragStart()}
+                    onScroll={onScroll}
+                    onScrollBeginDrag={() => interactionRef.current?.dragStart()}
                     onScrollEndDrag={(event) => {
                         settle(event);
-                        active?.current?.dragEnd();
+                        interactionRef.current?.dragEnd();
                     }}
-                    ref={(list) => {
-                        ownReference.current = list;
-                        if (isActive) activeListRef.current = list;
-                    }}
+                    ref={listRef}
                     renderItem={renderEntry}
                 />
             </SessionListMotionContext>

@@ -6,7 +6,7 @@ import { usePathname } from 'expo-router';
 
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { useSavedPanels } from '../../panels/use-panels';
-import { isDashboardRouteVisible } from '../dashboard-query';
+import { dashboardWants, isDashboardRouteVisible } from '../dashboard';
 import { useRecentSessions } from '../hooks/use-recent-sessions';
 import type { SavedAgentAvailability } from '../hooks/use-saved-agent-availability';
 import { useSavedAgentAvailability } from '../hooks/use-saved-agent-availability';
@@ -16,7 +16,11 @@ import type { NewSessionCreateState, NewSessionSelection } from '../new-session-
 import { emptyNewSessionSelection, forgetNewSessionProject } from '../new-session-model';
 import type { RecentSessions } from '../recent-sessions';
 import type { SessionListGroupStates } from '../session-list-groups';
-import { revealSessionListGroup, toggleSessionListGroup } from '../session-list-groups';
+import {
+    resetSessionListReveals,
+    revealSessionListGroup,
+    toggleSessionListGroup,
+} from '../session-list-groups';
 import type { MobileSessionListGroup } from '../session-model';
 import type { HostSessionUiState, SessionSegment } from '../session-ui-state';
 import {
@@ -75,10 +79,15 @@ export const HostSessionsProvider = ({
     hostId: string;
 }) => {
     const pathname = usePathname();
-    const sessions = useSessionPolling(isDashboardRouteVisible(pathname, hostId));
     const listScrollOffsetReference = useRef(0);
     const [ui, setUi] = useState(emptyHostSessionUiState);
     const [listGroups, setListGroups] = useState<SessionListGroupStates>({});
+    const wants = useMemo(() => dashboardWants(listGroups), [listGroups]);
+    // The Server filters by the chosen Project and loads each group as far as the reader revealed it.
+    const sessions = useSessionPolling(isDashboardRouteVisible(pathname, hostId), {
+        projectId: ui.projectId,
+        wants,
+    });
     const toggleListGroup = useCallback((group: MobileSessionListGroup): void => {
         setListGroups((current) => toggleSessionListGroup(current, group));
     }, []);
@@ -131,6 +140,7 @@ export const HostSessionsProvider = ({
     const setProjectId = useCallback((projectId: string | null): void => {
         listScrollOffsetReference.current = 0;
         setUi((current) => selectSessionProject(current, projectId));
+        setListGroups(resetSessionListReveals);
         setNewSessionSelection(forgetNewSessionProject);
     }, []);
     const setSegment = useCallback(

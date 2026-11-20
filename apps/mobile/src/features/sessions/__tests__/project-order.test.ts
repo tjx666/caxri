@@ -3,15 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
     isPendingProjectOrderCurrent,
     orderedProjects,
+    PROJECT_CHIP_ACTIVE_WINDOW_MS,
     projectAutoScrollStep,
     projectChipIndicator,
     projectChipRevealOffset,
     projectChipShift,
     projectDropIndex,
+    projectIndexInFullOrder,
     projectMoveActions,
     projectMoveTarget,
     projectOrderKey,
     projectReorder,
+    visibleProjectChips,
 } from '../project-order';
 
 const projects = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
@@ -213,5 +216,59 @@ describe('projectChipIndicator', () => {
         expect(projectChipIndicator(0, [])).toBeUndefined();
         expect(projectChipIndicator(0.5, [slots[0], undefined])).toBeUndefined();
         expect(projectChipIndicator(NaN, slots)).toBeUndefined();
+    });
+});
+
+describe('visibleProjectChips', () => {
+    const now = 100 * PROJECT_CHIP_ACTIVE_WINDOW_MS;
+    const strip = [
+        { id: 'recent', lastActivityAt: now - 1_000 },
+        { id: 'dormant', lastActivityAt: now - PROJECT_CHIP_ACTIVE_WINDOW_MS - 1 },
+        { id: 'empty' },
+        { id: 'edge', lastActivityAt: now - PROJECT_CHIP_ACTIVE_WINDOW_MS },
+    ];
+
+    it('keeps Projects active within the window, in order, and counts the rest for More', () => {
+        expect(visibleProjectChips(strip, null, now)).toEqual({
+            hiddenCount: 2,
+            visible: [strip[0], strip[3]],
+        });
+    });
+
+    it('keeps the chosen Project in its place even when dormant', () => {
+        expect(visibleProjectChips(strip, 'dormant', now).visible.map(({ id }) => id)).toEqual([
+            'recent',
+            'dormant',
+            'edge',
+        ]);
+    });
+});
+
+describe('projectIndexInFullOrder', () => {
+    const all = ['a', 'hidden-1', 'b', 'hidden-2', 'c'];
+    const shown = ['a', 'b', 'c'];
+    const land = (projectId: string, toVisibleIndex: number) => {
+        const reorder = projectReorder(
+            all,
+            projectId,
+            projectIndexInFullOrder(all, shown, projectId, toVisibleIndex),
+        );
+        return reorder?.order.filter((id) => shown.includes(id));
+    };
+
+    it('lands a moved chip beside the shown chip it was dropped next to', () => {
+        expect(land('c', 0)).toEqual(['c', 'a', 'b']);
+        expect(land('a', 1)).toEqual(['b', 'a', 'c']);
+        expect(land('a', 2)).toEqual(['b', 'c', 'a']);
+        expect(land('c', 1)).toEqual(['a', 'c', 'b']);
+    });
+
+    it('anchors the request on a shown chip, so hidden Projects keep their places', () => {
+        expect(
+            projectReorder(all, 'c', projectIndexInFullOrder(all, shown, 'c', 0))?.request,
+        ).toEqual({ projectId: 'c', anchorProjectId: 'a', placement: 'before' });
+        expect(
+            projectReorder(all, 'a', projectIndexInFullOrder(all, shown, 'a', 1))?.request,
+        ).toEqual({ projectId: 'a', anchorProjectId: 'b', placement: 'after' });
     });
 });

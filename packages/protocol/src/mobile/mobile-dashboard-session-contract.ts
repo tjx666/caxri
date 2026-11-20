@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
 import { sessionRecordSchema } from '../domain/domain.js';
 import { identifierSchema } from '../domain/identifiers.js';
+import { SESSION_ACTIVITY_GROUP_ORDER } from '../domain/session/session-activity-group.js';
 import { sessionPullRequestSchema } from '../domain/session-pull-request.js';
 import { terminalRecordSchema } from '../domain/terminal-record.js';
 
@@ -84,3 +85,46 @@ export const mobileDashboardSessionSchema = z.strictObject({
         })
         .optional(),
 });
+
+/**
+ * The phone's home list groups, in list order: Pinned, then the status groups Desktop's Activity view uses. A pinned
+ * Session belongs to Pinned only, so the groups partition the home rows and each has its own total and page.
+ */
+export const MOBILE_DASHBOARD_GROUPS = ['pinned', ...SESSION_ACTIVITY_GROUP_ORDER] as const;
+export const mobileDashboardGroupSchema = z.enum(MOBILE_DASHBOARD_GROUPS);
+export type MobileDashboardGroup = z.infer<typeof mobileDashboardGroupSchema>;
+
+/**
+ * How many rows of each group a first read answers. The phone shows the first five of a windowed group and its first
+ * reveal steps ten more, so one page covers that without another request.
+ */
+export const MOBILE_DASHBOARD_GROUP_PAGE_SIZE = 15;
+/**
+ * The most rows one `page` read answers; the reply byte budget may stop it sooner.
+ */
+export const MOBILE_DASHBOARD_PAGE_MAX = 50;
+/**
+ * The most Sessions one reply carries: a first read's four group pages, or one `page` read.
+ */
+export const MOBILE_DASHBOARD_SESSIONS_MAX =
+    MOBILE_DASHBOARD_GROUPS.length * MOBILE_DASHBOARD_GROUP_PAGE_SIZE;
+
+export const mobileDashboardParametersSchema = z
+    .strictObject({
+        /**
+         * Lists only this Project's Sessions. `projects` still lists every Project the device may see.
+         */
+        projectId: identifierSchema.optional(),
+        /**
+         * Reads more of one group, from `offset` in its list order, instead of the first page of every group. The phone
+         * asks for it when the reader reveals past the rows it holds.
+         */
+        page: z
+            .strictObject({
+                group: mobileDashboardGroupSchema,
+                offset: z.number().int().nonnegative().max(4_096),
+            })
+            .optional(),
+    })
+    .default({});
+export type MobileDashboardParameters = z.input<typeof mobileDashboardParametersSchema>;

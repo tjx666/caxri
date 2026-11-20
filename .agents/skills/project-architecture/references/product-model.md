@@ -58,6 +58,7 @@ producer ownership, and troubleshooting.
 Pending Attention is projected across Projects by the Activity view, the Primary Side Bar body
 that replaces the Project tree and groups every visible Project's Sessions by whether they need the
 user. The Server owns it as a third generation beside the attention and acknowledged ones
-(`resolved_attention_generation`, written by `session.markDone` and by a new turn superseding the
-result), so every Client agrees on what still needs the user; see
+(`resolved_attention_generation`, written by `session.markDone`, `session.markDoneMany`, the
+automatic Mark as Done sweep in `apps/server/src/domains/session/attention/auto-mark-done.ts`, and a new turn
+superseding the result), so every Client agrees on what still needs the user; see
 [Activity view](../../../../docs/activity-view.md) for its grouping order and keyboard contract.

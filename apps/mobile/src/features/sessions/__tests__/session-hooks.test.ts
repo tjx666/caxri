@@ -180,6 +180,7 @@ describe('mobile Session hooks', () => {
         const latest = {
             deviceRole: 'control' as const,
             hostDisplayName: 'Test computer',
+            projectId: null,
             projects: [],
             sections: buildMobileSessionSections({
                 sessions: [session({ id: 'session-3', hasUnread: false })],

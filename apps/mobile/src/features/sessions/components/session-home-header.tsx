@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import type { HostInstance } from 'react-native';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
 
 import {
     Activity,
@@ -58,12 +57,12 @@ export const SessionHomeHeader = ({
     onMoveProject,
     onOpenArchived,
     onOpenInbox,
+    onOpenMoreProjects,
     onOpenSearch,
     onOpenSettings,
     onOpenStatus,
     onOpenUsage,
     onRenameComputer,
-    pageProgress,
     projects,
     theme,
 }: {
@@ -84,6 +83,10 @@ export const SessionHomeHeader = ({
      * appears under the filters only while Caxri Bot has raised something.
      */
     onOpenInbox?: () => void;
+    /**
+     * Present when the Project strip leaves Projects out; its More chip opens every Project.
+     */
+    onOpenMoreProjects?: () => void;
     onOpenSearch: () => void;
     onOpenSettings: () => void;
     /**
@@ -99,9 +102,8 @@ export const SessionHomeHeader = ({
      */
     onRenameComputer?: () => void;
     /**
-     * The Project pager's place in pages; the filters' highlight follows it.
+     * The Project chips the strip shows (`visibleProjectChips`).
      */
-    pageProgress: SharedValue<number>;
     projects: Project[];
     theme: MobileTheme;
 }) => {
@@ -158,7 +160,7 @@ export const SessionHomeHeader = ({
                     activeProjectId={activeProjectId}
                     onChooseProject={onChooseProject}
                     onMoveProject={onMoveProject}
-                    pageProgress={pageProgress}
+                    onOpenMore={onOpenMoreProjects}
                     projects={projects}
                     theme={theme}
                 />

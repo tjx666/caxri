@@ -6,7 +6,6 @@ const order = (...ids: string[]): string => sessionListRowOrder(ids.map((id) => 
 
 const change = (previousOrder: string, nextOrder: string, overrides = {}) =>
     shouldAnimateSessionListChange({
-        isActive: true,
         isReducedMotion: false,
         nextOrder,
         previousOrder,
@@ -26,12 +25,11 @@ describe('Session list motion', () => {
         expect(change(order('a', 'b'), order('a', 'b'))).toBe(false);
     });
 
-    it('shows the first rows of a page at once', () => {
+    it('shows the first rows of the list at once', () => {
         expect(change('', order('a', 'b'))).toBe(false);
     });
 
-    it('never animates an off-screen page or under reduced motion', () => {
-        expect(change(order('a'), order('a', 'b'), { isActive: false })).toBe(false);
+    it('never animates under reduced motion', () => {
         expect(change(order('a'), order('a', 'b'), { isReducedMotion: true })).toBe(false);
     });
 });

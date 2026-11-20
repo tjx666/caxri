@@ -34,6 +34,7 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.session.selectPrevious': '选择上一个活跃会话',
     'commands.description.session.switchMru': '按最近使用顺序在活跃会话之间切换',
     'commands.description.session.focusNextAttention': '选择下一个有未查看事件的会话',
+    'commands.description.session.markAllAttentionDone': '确认后把“需要处理”中的所有会话移到“空闲”',
     'commands.description.session.openPinned1': '选择置顶中的第 1 个会话',
     'commands.description.session.openPinned2': '选择置顶中的第 2 个会话',
     'commands.description.session.openPinned3': '选择置顶中的第 3 个会话',

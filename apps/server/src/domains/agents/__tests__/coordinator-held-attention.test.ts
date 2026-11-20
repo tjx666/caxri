@@ -126,7 +126,7 @@ describe('a held Agent Chat request', () => {
         try {
             f.coordinator.observeLifecycleSignal(f.request('req-0'));
             expect(f.session().agentActivityState).toBe('waiting');
-            f.database.markSessionAttentionRead(f.session().id, f.session().attentionGeneration);
+            f.database.attentionMarks.read(f.session().id, f.session().attentionGeneration);
             expect(f.session().hasUnread).toBe(false);
 
             f.coordinator.observeLifecycleSignal(f.request('req-1', 'quiet'));

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { useSharedValue } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
@@ -19,7 +18,8 @@ import { ComputerRenameSheet } from '../../settings/computer-rename-sheet';
 import { useProjectReorder } from '../hooks/use-project-reorder';
 import { useRowMarkDone } from '../hooks/use-row-mark-done';
 import { useSessionManagement } from '../hooks/use-session-management';
-import { activeProjectFilter, filterSessionEntries, projectPagerWindow } from '../project-filter';
+import { activeProjectFilter, filterSessionEntries } from '../project-filter';
+import { projectIndexInFullOrder, visibleProjectChips } from '../project-order';
 import {
     sessionListAttentionSource,
     shouldListFallbackToTerminal,
@@ -31,6 +31,7 @@ import type { MobileSessionItem } from '../session-model';
 import { sessionRowSwipeActions } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
 import { NewSessionFloatingButton } from './new-session-floating-button';
+import { ProjectChooserSheet } from './project-chooser-sheet';
 import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionAttentionSource } from './session-attention-source';
 import { SessionChatRequests } from './session-chat-requests';
@@ -38,7 +39,6 @@ import { SessionGroupHeader, SessionGroupReveal } from './session-group-header';
 import { SessionHomeEmpty } from './session-home-empty';
 import { SessionHomeHeader } from './session-home-header';
 import { SessionListPage } from './session-list-page';
-import { SessionProjectPager } from './session-project-pager';
 import { SessionRow } from './session-row';
 
 /**
@@ -94,6 +94,7 @@ export const SessionHome = ({
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
     const [isRenamingComputer, setIsRenamingComputer] = useState(false);
+    const [isChoosingProject, setIsChoosingProject] = useState(false);
     const { clearError } = management;
     const openActions = useCallback(
         (session: MobileSessionItem): void => {
@@ -113,8 +114,10 @@ export const SessionHome = ({
         hostDisplayName,
         isLoading,
         projects,
+        readProjectId,
         refresh,
         savedAt,
+        sections,
         selectedId,
     } = sessions;
     const { markDone: markRowDone, pendingIds: markingDoneIds } = useRowMarkDone({
@@ -166,34 +169,49 @@ export const SessionHome = ({
     const projectOrder = useProjectReorder(projects);
     const { move: moveProject } = projectOrder;
     const activeProjectId = activeProjectFilter(ui.projectId, projects);
-    /**
-     * The pager's pages in chip order: All, then each Project.
-     */
-    const pageIds = useMemo(
-        () => [null, ...projectOrder.projects.map(({ id }) => id)],
-        [projectOrder.projects],
+    const chips = useMemo(
+        () => visibleProjectChips(projectOrder.projects, activeProjectId, now),
+        [activeProjectId, now, projectOrder.projects],
     );
-    const activeIndex = Math.max(0, pageIds.indexOf(activeProjectId));
     /**
-     * The pager's place in pages, shared with the Project filters so their highlight follows a swipe.
+     * A drag places the chip among the shown chips; the Server order also holds the Projects More hides.
      */
-    const pageProgress = useSharedValue(activeIndex);
-    /**
-     * Rows for the current page and its mounted neighbors, so a swipe draws the next Project's real list.
-     */
-    const pageRows = useMemo(() => {
-        const rows = new Map<number, SessionListRow[]>();
-        for (const index of projectPagerWindow(activeIndex, pageIds.length))
-            rows.set(
-                index,
-                sessionListRows(
-                    filterSessionEntries(entries, pageIds[index] ?? null),
-                    listGroups,
-                    layout === 'phone' ? undefined : (selectedId ?? undefined),
+    const moveShownProject = useCallback(
+        (projectId: string, toIndex: number): void => {
+            void moveProject(
+                projectId,
+                projectIndexInFullOrder(
+                    projectOrder.projects.map(({ id }) => id),
+                    chips.visible.map(({ id }) => id),
+                    projectId,
+                    toIndex,
                 ),
             );
-        return rows;
-    }, [activeIndex, entries, layout, listGroups, pageIds, selectedId]);
+        },
+        [chips.visible, moveProject, projectOrder.projects],
+    );
+    /**
+     * The Server already filtered a read for this Project; a saved copy or the previous Project's rows shown until the
+     * new read answers are narrowed here, and only a read for this filter knows how many rows each group has left.
+     */
+    const rows = useMemo(
+        () =>
+            sessionListRows(
+                filterSessionEntries(entries, activeProjectId),
+                listGroups,
+                layout === 'phone' ? undefined : (selectedId ?? undefined),
+                readProjectId === activeProjectId ? sections.groupTotals : undefined,
+            ),
+        [
+            activeProjectId,
+            entries,
+            layout,
+            listGroups,
+            readProjectId,
+            sections.groupTotals,
+            selectedId,
+        ],
+    );
     const restoreScroll = useCallback((): void => {
         listReference.current?.scrollToOffset({
             animated: false,
@@ -212,19 +230,15 @@ export const SessionHome = ({
         [listScrollOffsetRef],
     );
     /**
-     * Every Project page other than the current one rests at the top, so a newly chosen Project starts there and the
-     * remembered offset starts over with it.
+     * A newly chosen Project starts at the top of the list, and the remembered offset starts over with it.
      */
     const chooseProject = useCallback(
         (projectId: string | null): void => {
             listScrollOffsetRef.current = 0;
+            listReference.current?.scrollToOffset({ animated: false, offset: 0 });
             setProjectId(projectId);
         },
         [listScrollOffsetRef, setProjectId],
-    );
-    const settlePage = useCallback(
-        (index: number): void => chooseProject(pageIds[index] ?? null),
-        [chooseProject, pageIds],
     );
     const openTerminal = useCallback(
         (sessionId: string): void => {
@@ -339,36 +353,6 @@ export const SessionHome = ({
         (info: ListRenderItemInfo<SessionListRow>) => renderRow(info, false),
         [renderRow],
     );
-    const renderPage = (index: number) => {
-        const projectId = pageIds[index] ?? null;
-        const rows = pageRows.get(index) ?? [];
-        return (
-            <SessionListPage
-                empty={
-                    !hasLoaded || rows.length === 0 ? (
-                        <SessionHomeEmpty
-                            activeProjectId={projectId}
-                            error={error}
-                            hasLoaded={hasLoaded}
-                            isLoading={isLoading}
-                            onNewSession={onNewSession}
-                            onRetry={refresh}
-                            status={status}
-                            theme={theme}
-                        />
-                    ) : null
-                }
-                interactionRef={listInteractionReference}
-                isActive={index === activeIndex}
-                activeListRef={listReference}
-                bottomInset={layout === 'phone' ? PHONE_NEW_BUTTON_CLEARANCE : 0}
-                onLoad={restoreScroll}
-                onScroll={rememberScroll}
-                renderEntry={projectId === null ? renderAllEntry : renderProjectEntry}
-                rows={rows}
-            />
-        );
-    };
     return (
         <View
             style={[
@@ -387,8 +371,11 @@ export const SessionHome = ({
                         : undefined
                 }
                 onChooseProject={chooseProject}
-                onMoveProject={deviceRole === 'control' ? moveProject : undefined}
+                onMoveProject={deviceRole === 'control' ? moveShownProject : undefined}
                 onOpenArchived={() => router.navigate(`/h/${encodeURIComponent(hostId)}/archived`)}
+                onOpenMoreProjects={
+                    chips.hiddenCount > 0 ? () => setIsChoosingProject(true) : undefined
+                }
                 onOpenInbox={
                     deviceRole === 'control'
                         ? () => router.navigate(`/h/${encodeURIComponent(hostId)}/inbox`)
@@ -405,17 +392,31 @@ export const SessionHome = ({
                 onRenameComputer={
                     deviceRole === 'control' ? () => setIsRenamingComputer(true) : undefined
                 }
-                pageProgress={pageProgress}
-                projects={projectOrder.projects}
+                projects={chips.visible}
                 theme={theme}
             />
-            <SessionProjectPager
-                activeIndex={activeIndex}
-                onSettle={settlePage}
-                pageCount={pageIds.length}
-                pageKey={(index) => `project:${pageIds[index] ?? 'all'}`}
-                progress={pageProgress}
-                renderPage={renderPage}
+            <SessionListPage
+                empty={
+                    !hasLoaded || rows.length === 0 ? (
+                        <SessionHomeEmpty
+                            activeProjectId={activeProjectId}
+                            error={error}
+                            hasLoaded={hasLoaded}
+                            isLoading={isLoading}
+                            onNewSession={onNewSession}
+                            onRetry={refresh}
+                            status={status}
+                            theme={theme}
+                        />
+                    ) : null
+                }
+                interactionRef={listInteractionReference}
+                listRef={listReference}
+                bottomInset={layout === 'phone' ? PHONE_NEW_BUTTON_CLEARANCE : 0}
+                onLoad={restoreScroll}
+                onScroll={rememberScroll}
+                renderEntry={activeProjectId === null ? renderAllEntry : renderProjectEntry}
+                rows={rows}
             />
             {layout === 'phone' ? (
                 <NewSessionFloatingButton onPress={onNewSession} theme={theme} />
@@ -441,6 +442,15 @@ export const SessionHome = ({
                 session={actionSession}
                 theme={theme}
             />
+            {isChoosingProject ? (
+                <ProjectChooserSheet
+                    activeProjectId={activeProjectId}
+                    onChoose={chooseProject}
+                    onClose={() => setIsChoosingProject(false)}
+                    projects={projectOrder.projects}
+                    theme={theme}
+                />
+            ) : null}
             {isRenamingComputer ? (
                 <ComputerRenameSheet
                     currentName={hostDisplayName}

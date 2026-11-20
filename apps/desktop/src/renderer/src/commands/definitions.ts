@@ -194,6 +194,9 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.focusNextAttention', (context) => context.session.focusNextAttention(), {
         allowInEditable: true,
     }),
+    fromCatalog('session.markAllAttentionDone', (context) =>
+        context.session.markAllAttentionDone(),
+    ),
     /**
      * The Pinned Session shortcuts reach through a focused Terminal or editor like the other Session navigation chords:
      * `Cmd+<number>` has no meaning inside either, and a switch that stood down exactly where the cursor usually is

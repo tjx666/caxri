@@ -12,6 +12,7 @@ const atomicStructuralMethods = [
     'project.setIcon',
     'project.setChatDefault',
     'session.markDone',
+    'session.markDoneMany',
     'session.markRead',
     'session.reorder',
     'session.reorderPinned',

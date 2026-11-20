@@ -1,13 +1,13 @@
-import type { Principal, ServerRequest } from '@caxri/protocol';
+import type { MobileDashboardParameters, Principal, ServerRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { ServerDomainService } from '../domain-service';
-import { buildMobileDashboard } from './dashboard';
+import { buildMobileDashboard, buildMobileSessionRow } from './dashboard';
 import { sessionForPrincipal } from './session-management';
 
 type DashboardProjection = Omit<
     Parameters<typeof buildMobileDashboard>[0],
-    'projects' | 'pullRequests' | 'sessions' | 'terminals' | 'worktreeProjects'
+    'projects' | 'pullRequests' | 'query' | 'sessions' | 'terminals' | 'worktreeProjects'
 >;
 
 /**
@@ -32,12 +32,13 @@ async function readRowContext(domainService: ServerDomainService) {
 
 /**
  * The Session home: every Project, Session, and Terminal the principal may see, narrowed to a paired device's granted
- * Projects before projection.
+ * Projects before projection. A `projectId` outside that set matches no Session.
  */
 async function readMobileDashboard(
     domainService: ServerDomainService,
     principal: Principal,
     projection: DashboardProjection,
+    query: MobileDashboardParameters,
 ) {
     const [projects, sessions, terminals, rowContext] = await Promise.all([
         domainService.request('project.queryForPrincipal', {
@@ -63,6 +64,7 @@ async function readMobileDashboard(
         ...projection,
         ...rowContext,
         projects: visibleProjects,
+        query,
         sessions: sessions.sessions,
         terminals: terminals.terminals,
     });
@@ -96,14 +98,20 @@ async function showMobileSession(
               }),
         readRowContext(domainService),
     ]);
-    const projected = buildMobileDashboard({
-        ...projection,
+    // The home list's own bounds: an archived Session, or one outside the Projects the device may see, has no row.
+    if (
+        session.archivedAt !== undefined ||
+        projects.projects.every((project) => project.id !== session.projectId)
+    )
+        throw new CaxriError('NOT_FOUND', 'Session not found');
+    const projected = buildMobileSessionRow({
+        resolveAgentEndpoint: projection.resolveAgentEndpoint,
         ...rowContext,
         projects: projects.projects,
+        session,
         sessions: [session],
         terminals: terminals.terminals,
-    }).sessions.at(0);
-    if (!projected) throw new CaxriError('NOT_FOUND', 'Session not found');
+    });
     reauthorize();
     return { session: projected };
 }
@@ -129,10 +137,12 @@ export function invokeMobileDashboardRequest(
             principal.kind === 'paired-device'
                 ? currentPairedPrincipal(principal, request.method)
                 : undefined;
-        return readMobileDashboard(domainService, principal, {
-            ...projection,
-            deviceRole: paired?.role ?? null,
-        });
+        return readMobileDashboard(
+            domainService,
+            principal,
+            { ...projection, deviceRole: paired?.role ?? null },
+            request.params,
+        );
     }
     const paired = currentPairedPrincipal(principal, request.method);
     return showMobileSession(

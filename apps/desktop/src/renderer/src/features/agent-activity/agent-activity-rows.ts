@@ -327,3 +327,19 @@ export function nextAgentAttentionSessionId(
     const selectedIndex = candidates.indexOf(selectedSessionId ?? '');
     return candidates[(selectedIndex + 1) % candidates.length];
 }
+
+/**
+ * What "Mark All as Done" resolves: every Session in Needs attention, once each (a pinned one is listed in both Pinned
+ * and Needs attention), at the attention generation the queue shows.
+ */
+export function agentAttentionMarkDoneEntries(
+    groups: readonly AgentActivityGroup[],
+): Array<{ attentionGeneration: number; sessionId: string }> {
+    const entries = new Map<string, number>();
+    const rows = groups.find((group) => group.id === 'attention')?.rows ?? [];
+    for (const row of rows) entries.set(row.session.id, row.session.attentionGeneration);
+    return [...entries].map(([sessionId, attentionGeneration]) => ({
+        sessionId,
+        attentionGeneration,
+    }));
+}

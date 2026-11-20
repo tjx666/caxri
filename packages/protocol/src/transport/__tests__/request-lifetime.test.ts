@@ -172,6 +172,7 @@ const shortLivedDurableMethods = new Set<string>([
     'session.importConversation',
     'session.markRead',
     'session.markDone',
+    'session.markDoneMany',
     'session.rename',
     'session.reopenConversation',
     'session.reorder',
