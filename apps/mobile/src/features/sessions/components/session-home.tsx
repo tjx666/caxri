@@ -62,7 +62,44 @@ const styles = StyleSheet.create({
     tabletNewText: mobileType.bodyStrong,
 });
 
-// react-doctor-disable-next-line react-doctor/no-giant-component -- already this size before the connection-notice prop; splitting the Session list screen is its own refactor.
+/**
+ * The chip strip's state: the active filter, the chips shown before More, and a drag that places a shown chip within
+ * the full Project order. Kept out of {@link SessionHome} to keep its control flow flat
+ * (react-doctor/no-high-complexity-react-function).
+ */
+const useProjectChips = <Project extends { id: string; lastActivityAt?: number }>(
+    projects: Project[],
+    selectedProjectId: string | null,
+    now: number,
+) => {
+    const projectOrder = useProjectReorder(projects);
+    const { move: moveProject } = projectOrder;
+    const activeProjectId = activeProjectFilter(selectedProjectId, projects);
+    const chips = useMemo(
+        () => visibleProjectChips(projectOrder.projects, activeProjectId, now),
+        [activeProjectId, now, projectOrder.projects],
+    );
+    /**
+     * A drag places the chip among the shown chips; the Server order also holds the Projects More hides.
+     */
+    const moveShownProject = useCallback(
+        (projectId: string, toIndex: number): void => {
+            void moveProject(
+                projectId,
+                projectIndexInFullOrder(
+                    projectOrder.projects.map(({ id }) => id),
+                    chips.visible.map(({ id }) => id),
+                    projectId,
+                    toIndex,
+                ),
+            );
+        },
+        [chips.visible, moveProject, projectOrder.projects],
+    );
+    return { activeProjectId, chips, moveShownProject, projectOrder };
+};
+
+// react-doctor-disable-next-line react-doctor/no-giant-component, react-doctor/no-high-complexity-react-function -- already this size before the connection-notice prop; splitting the Session list screen (its row renderer) is its own refactor.
 export const SessionHome = ({
     layout,
     now,
@@ -166,29 +203,10 @@ export const SessionHome = ({
             listInteractionReference.current = null;
         };
     }, []);
-    const projectOrder = useProjectReorder(projects);
-    const { move: moveProject } = projectOrder;
-    const activeProjectId = activeProjectFilter(ui.projectId, projects);
-    const chips = useMemo(
-        () => visibleProjectChips(projectOrder.projects, activeProjectId, now),
-        [activeProjectId, now, projectOrder.projects],
-    );
-    /**
-     * A drag places the chip among the shown chips; the Server order also holds the Projects More hides.
-     */
-    const moveShownProject = useCallback(
-        (projectId: string, toIndex: number): void => {
-            void moveProject(
-                projectId,
-                projectIndexInFullOrder(
-                    projectOrder.projects.map(({ id }) => id),
-                    chips.visible.map(({ id }) => id),
-                    projectId,
-                    toIndex,
-                ),
-            );
-        },
-        [chips.visible, moveProject, projectOrder.projects],
+    const { activeProjectId, chips, moveShownProject, projectOrder } = useProjectChips(
+        projects,
+        ui.projectId,
+        now,
     );
     /**
      * The Server already filtered a read for this Project; a saved copy or the previous Project's rows shown until the

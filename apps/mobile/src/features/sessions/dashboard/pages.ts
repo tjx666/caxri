@@ -89,8 +89,8 @@ export const readDashboardPages = async (
         }
     };
     for (const group of MOBILE_SESSION_LIST_GROUPS)
-        // eslint-disable-next-line no-await-in-loop -- groups page one after another so a read stays one frame at a time.
-        await readGroup(group);
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- groups page one after another so a read stays one frame at a time.
+        await readGroup(group); // eslint-disable-line no-await-in-loop -- see above
     return {
         first,
         merged: { ...first, sessions, truncated: sessions.length < first.total },

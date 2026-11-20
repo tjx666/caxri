@@ -117,6 +117,35 @@ export interface SessionPollingScope {
 
 const allProjectsScope: SessionPollingScope = { projectId: null, wants: {} };
 
+/**
+ * The Project filter a read asks for. A filter for a Project the device can no longer see falls back to All, as the
+ * chips do, instead of asking for a Project that answers no rows. Kept out of the hook to keep its control flow flat
+ * (react-doctor/no-high-complexity-react-function).
+ */
+const readableProjectId = (
+    projectId: string | null,
+    listedProjectIds: readonly string[] | null,
+): string | null =>
+    projectId !== null && (listedProjectIds === null || listedProjectIds.includes(projectId))
+        ? projectId
+        : null;
+
+const currentSubscriptionMode = ({
+    identity,
+    isObservable,
+    state,
+    subscriptionAvailable,
+}: {
+    identity: string;
+    isObservable: boolean;
+    state: { identity: string; mode: DashboardSubscriptionMode };
+    subscriptionAvailable: boolean;
+}): DashboardSubscriptionMode => {
+    if (!isObservable) return 'pending';
+    if (!subscriptionAvailable) return 'fallback';
+    return state.identity === identity ? state.mode : 'pending';
+};
+
 export const useSessionPolling = (
     isVisible = true,
     scope: SessionPollingScope = allProjectsScope,
@@ -134,15 +163,10 @@ export const useSessionPolling = (
     const { t } = useTranslation();
     const { save: saveDashboard, saved } = useSavedDashboard(connectionScopeKey);
     /**
-     * Projects the last read listed. A filter for a Project the device can no longer see falls back to All, as the
-     * chips do, instead of asking for a Project that answers no rows.
+     * Projects the last read listed, which bound the Project filter a read may ask for.
      */
     const [listedProjectIds, setListedProjectIds] = useState<readonly string[] | null>(null);
-    const projectId =
-        scope.projectId !== null &&
-        (listedProjectIds === null || listedProjectIds.includes(scope.projectId))
-            ? scope.projectId
-            : null;
+    const projectId = readableProjectId(scope.projectId, listedProjectIds);
     const scopeKey = dashboardScopeKey({
         ...(projectId !== null && { projectId }),
         wants: scope.wants,
@@ -172,13 +196,12 @@ export const useSessionPolling = (
         mode: DashboardSubscriptionMode;
     }>({ identity: subscriptionIdentity, mode: 'pending' });
     const [subscriptionRetry, setSubscriptionRetry] = useState(0);
-    const mode: DashboardSubscriptionMode = !isObservable
-        ? 'pending'
-        : !subscriptionAvailable
-          ? 'fallback'
-          : subscriptionState.identity === subscriptionIdentity
-            ? subscriptionState.mode
-            : 'pending';
+    const mode = currentSubscriptionMode({
+        identity: subscriptionIdentity,
+        isObservable,
+        state: subscriptionState,
+        subscriptionAvailable,
+    });
     const eventVersion = useRef(0);
     const invalidationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const resubscribeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
