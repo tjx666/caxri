@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { DELEGATED_IDLE_VISIBLE_COUNT, delegatedChildWindow } from '../delegated-child-window';
+import {
+    DELEGATED_IDLE_VISIBLE_COUNT,
+    delegatedChildWindow,
+    delegatedHostSummary,
+} from '../delegated-child-window';
 
 function children(count: number): Array<{ id: string }> {
     return Array.from({ length: count }, (_, index) => ({ id: `c${index + 1}` }));
@@ -109,5 +113,47 @@ describe('delegatedChildWindow', () => {
         });
         expect(window.visibleSessions).toEqual([]);
         expect(window.hiddenCount).toBe(0);
+    });
+
+    it('hides every child of a collapsed host, active ones included, with no reveal row', () => {
+        const window = delegatedChildWindow(children(6), {
+            activeSessionIds: new Set(['c1', 'c5']),
+            isCollapsed: true,
+            revealedCount: 10,
+            selectedSessionId: undefined,
+        });
+        expect(window.visibleSessions).toEqual([]);
+        expect(window.hiddenCount).toBe(0);
+        expect(window.nextRevealCount).toBe(0);
+    });
+
+    it('keeps the selected child on screen under a collapsed host', () => {
+        const window = delegatedChildWindow(children(6), {
+            activeSessionIds: noneActive,
+            isCollapsed: true,
+            revealedCount: undefined,
+            selectedSessionId: 'c6',
+        });
+        expect(ids(window.visibleSessions)).toEqual(['c6']);
+        expect(window.hiddenCount).toBe(0);
+    });
+});
+
+describe('delegatedHostSummary', () => {
+    it('counts every child and flags one that waits on the user or failed', () => {
+        expect(delegatedHostSummary(children(4), new Map([['c2', 'running']]), undefined)).toEqual({
+            count: 4,
+            needsYou: false,
+        });
+        for (const kind of ['attention', 'failed', 'usageWait'])
+            expect(
+                delegatedHostSummary(children(4), new Map([['c3', kind]]), undefined).needsYou,
+            ).toBe(true);
+    });
+
+    it('does not flag the selected child, which stays on screen under a folded host', () => {
+        expect(
+            delegatedHostSummary(children(2), new Map([['c1', 'attention']]), 'c1').needsYou,
+        ).toBe(false);
     });
 });

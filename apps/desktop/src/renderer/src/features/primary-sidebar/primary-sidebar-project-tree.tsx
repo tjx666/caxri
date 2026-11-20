@@ -277,7 +277,10 @@ export function PrimarySidebarProjectTree() {
         ],
         [pinnedGroup.visibleSessions, projectWindows],
     );
-    const { showSubagents, subagentNodes } = useSessionSubagentNodes(renderedSessions, terminals);
+    const { showSubagents, subagentHostIds, subagentNodes } = useSessionSubagentNodes(
+        renderedSessions,
+        terminals,
+    );
     const treeReference = useRef<HTMLDivElement>(null);
     const projectListReference = useRef<HTMLDivElement>(null);
     useScrollEdge(projectListReference);
@@ -298,6 +301,7 @@ export function PrimarySidebarProjectTree() {
         selectedFallbackRowIds: delegated.selectedFallbackRowIds,
         selectedProjectId,
         selectedSessionId,
+        subagentHostIds,
         subagentNodes,
         treeReference,
     });
@@ -399,6 +403,7 @@ export function PrimarySidebarProjectTree() {
                         onShowFewerSessions={showFewerPinnedSessions}
                         onToggle={() => togglePinnedGroup()}
                         projects={pinnedGroup.projects}
+                        delegatedSummaries={delegated.children.summaries}
                         renderDelegatedRows={renderDelegatedRows}
                         renameError={sessionRename.renameError}
                         renameSuggestingSessionId={sessionRename.renameSuggestingSessionId}
@@ -422,6 +427,7 @@ export function PrimarySidebarProjectTree() {
                         onToggleProject={toggleProject}
                         projectOrder={projectOrder}
                         projectWindows={projectWindows}
+                        delegatedSummaries={delegated.children.summaries}
                         renderDelegatedRows={renderDelegatedRows}
                         rovingRowId={rovingRowId}
                         selectedProjectId={selectedProjectId}

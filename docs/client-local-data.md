@@ -127,7 +127,7 @@ The contract, implemented once by `createSharedLocalState` in
   never deletes this Mac's entries, nor the reverse.
 
 Shared by every window (patch plus subscribe, so other windows follow): the Project tree and Pinned
-group disclosure, the Activity group disclosure, the Usage filters, the last New Session Agent
+group disclosure, the host Session child-row fold, the Activity group disclosure, the Usage filters, the last New Session Agent
 choice, the Caxri Bot board and Inbox (visibility, scope, width), the Portal items per Session, the
 Settings "show advanced" flag, the Terminal usage guard dismissals (a record patched per provider),
 and the Activity New Session Project choice. The Claude Windows default notice record is shared

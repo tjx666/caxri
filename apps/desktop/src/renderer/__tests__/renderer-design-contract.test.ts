@@ -396,6 +396,8 @@ describe('Renderer design contract', () => {
             'editor/git/git-changes-diff-editor.tsx': 'flex-fill section header',
             'primary-sidebar/pinned-session-group.tsx': 'sidebar row with neutral focus',
             'primary-sidebar/project-group.tsx': 'sidebar row with neutral focus',
+            'primary-sidebar/session-children/session-children-disclosure.tsx':
+                'sidebar row disclosure chevron',
             'primary-sidebar/session-row-actions.tsx': 'sidebar row icon actions',
             'process-explorer/process-row.tsx': 'row icon button',
             'process-explorer/process-title-bar.tsx': 'title bar icon button',

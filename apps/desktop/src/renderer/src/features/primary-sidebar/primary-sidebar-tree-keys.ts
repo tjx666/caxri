@@ -8,6 +8,7 @@ import {
     primarySidebarArchiveIntent,
     primarySidebarHorizontalIntent,
 } from './primary-sidebar-tree';
+import { setSessionChildrenCollapsed } from './session-children/session-children-collapse';
 
 interface PrimarySidebarTreeKeyOptions {
     focusRow: (rowId: string) => void;
@@ -22,8 +23,8 @@ interface PrimarySidebarTreeKeyOptions {
  * This handler supplies the keyboard equivalents that stop being reachable by Tab:
  *
  * - Up/Down/Home/End walk every Project heading and its active Sessions.
- * - Left/Right expand or collapse a Project, step into its first row once it is open, or move a Session row to its owning
- *   Project.
+ * - Left/Right expand or collapse a Project or a host Session's child rows, step into the first child once it is open, or
+ *   move a row to its parent.
  * - Delete/Backspace on a focused Session row archives it (reversible via the Archived Sessions dialog, so it confirms
  *   only when the Agent is still working, like the button), the keyboard equivalent of the Archive button. Focus moves
  *   to the next row (falling back to the previous row when the archived row was last) before the row leaves the DOM, so
@@ -61,6 +62,10 @@ export function handlePrimarySidebarTreeKey(
         if (intent.expanded !== undefined) {
             event.preventDefault();
             toggleProject(row.projectId);
+        }
+        if (intent.sessionChildrenExpanded !== undefined && row.sessionId) {
+            event.preventDefault();
+            setSessionChildrenCollapsed(row.sessionId, !intent.sessionChildrenExpanded);
         }
         if (intent.focusRowId) {
             event.preventDefault();

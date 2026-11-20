@@ -14,6 +14,11 @@ import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { SessionActivityCard } from './session-activity-card';
+import { useSessionChildrenCollapseStore } from './session-children/session-children-collapse';
+import {
+    SessionChildrenCount,
+    SessionChildrenDisclosure,
+} from './session-children/session-children-disclosure';
 import { SessionOpenLabel } from './session-open-label';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
@@ -24,6 +29,7 @@ import { SessionRowStatus } from './session-row-status';
 import { SessionRowTrigger } from './session-row-trigger';
 import { SessionSignalMarkers } from './session-signal-markers';
 import { SessionSubagentRows } from './session-subagent-rows';
+import { sessionSubagentSummaries } from './session-subagents';
 
 interface ActiveSessionRowProperties {
     sessionOrder: SessionOrderController;
@@ -53,6 +59,16 @@ interface ActiveSessionRowProperties {
      * draggable, not a drop target, has no `Alt+Arrow` reorder, and shows no subagent rows of its own.
      */
     nested?: boolean;
+    /**
+     * Sessions nested under this host row (`DelegatedHostSummary.count`); `0` or absent when it hosts none. With the
+     * row's own subagents it decides whether the row has a child disclosure.
+     */
+    nestedSessionCount?: number;
+    /**
+     * True when a nested Session other than the selected one waits on the user or failed
+     * (`DelegatedHostSummary.needsYou`), which a folded host marks beside its hidden-row count.
+     */
+    nestedNeedsYou?: boolean;
     /**
      * The rows this row's list shows, in order, for `Alt+Arrow` reordering.
      */
@@ -152,6 +168,8 @@ export function ActiveSessionRow({
     delegationFailed,
     inPinnedGroup,
     nested,
+    nestedNeedsYou = false,
+    nestedSessionCount = 0,
     visibleSessionIds,
     focusRenameInput,
     onBeginRename,
@@ -210,6 +228,16 @@ export function ActiveSessionRow({
      * is open keeps one popup on screen at a time.
      */
     const [menuOpen, setMenuOpen] = useState(false);
+    /**
+     * A host row folds its child rows: its subagents and the Sessions it delegated (issue #4065). A nested row never
+     * hosts either, so it has no disclosure.
+     */
+    const childRowCount = nested
+        ? 0
+        : nestedSessionCount + sessionSubagentSummaries(terminal, showSubagents).length;
+    const childrenCollapsed = useSessionChildrenCollapseStore(
+        (state) => childRowCount > 0 && state.collapsed[session.id] === true,
+    );
     const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
         label.title,
         renaming || menuOpen,
@@ -227,6 +255,7 @@ export function ActiveSessionRow({
             onBeginRename={beginRename}
             onSuggestRename={suggestRename}
             onFocusChange={setFocused}
+            aria-expanded={childRowCount > 0 ? !childrenCollapsed : undefined}
         >
             {/* A plain brand-color mark: its color is what tells Agents apart; lifecycle lives at the right edge. */}
             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
@@ -273,6 +302,9 @@ export function ActiveSessionRow({
                         >
                             {detail.suffix}
                         </span>
+                    )}
+                    {childrenCollapsed && (
+                        <SessionChildrenCount count={childRowCount} needsYou={nestedNeedsYou} />
                     )}
                     <SessionHostMark isShown={showHostMark} sessionId={session.id} />
                     <SessionOpenLabel isOpenElsewhere={isOpenElsewhere} />
@@ -356,6 +388,13 @@ export function ActiveSessionRow({
                     worktreeProject={worktreeProject}
                 />
             )}
+            {childRowCount > 0 && !renaming && (
+                <SessionChildrenDisclosure
+                    isCollapsed={childrenCollapsed}
+                    sessionId={session.id}
+                    title={title}
+                />
+            )}
             {/* The editor's own AI button takes the right edge while renaming; hover actions would cover it. */}
             {!renaming && <SessionRowActions session={session} />}
         </div>
@@ -363,6 +402,7 @@ export function ActiveSessionRow({
     // A nested Session lists no subagents: a delegation chain is one level deep, and the host's group stays short.
     const subagentRows = nested ? null : (
         <SessionSubagentRows
+            isCollapsed={childrenCollapsed}
             rovingRowId={subagentRovingRowId}
             sessionId={session.id}
             showSubagents={showSubagents}
