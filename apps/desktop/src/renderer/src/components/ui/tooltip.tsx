@@ -284,6 +284,7 @@ export function Tooltip({
     anchorMode = 'element',
     children,
     content,
+    delay,
     disabled,
     hoverOnly,
     keepSide = false,
@@ -297,6 +298,10 @@ export function Tooltip({
     anchorMode?: 'cursor' | 'element';
     children: ReactElement;
     content: ReactNode;
+    /**
+     * Hover open delay for this trigger in milliseconds, overriding the Provider's {@link TOOLTIP_OPEN_DELAY_MS}.
+     */
+    delay?: number;
     /**
      * Keeps the trigger (and the `triggerId` it owns) mounted while suppressing the popup, for a caller whose tooltip
      * is only worth showing under a condition that changes at runtime.
@@ -359,6 +364,7 @@ export function Tooltip({
         : undefined;
     return (
         <TooltipPrimitive.Trigger
+            delay={delay}
             disabled={disabled}
             handle={isCursorMode ? hosts.cursor : hoverOnly ? hosts.hoverOnly : hosts.element}
             id={triggerId}

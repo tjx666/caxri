@@ -34,11 +34,6 @@ function mergeMethodAction(method: MergeMethod, baseBranch: string | undefined):
         : l10n.t('Rebase and merge.');
 }
 
-function mergeMethodConfirmLabel(method: MergeMethod): string {
-    if (method === 'squash') return l10n.t('Squash and Merge');
-    return method === 'merge' ? l10n.t('Create Merge Commit') : l10n.t('Rebase and Merge');
-}
-
 /**
  * The sentence stating what the merge will do, from the method Server Core reported for this repository. A method other
  * than squash also says why: squash is the first choice, so it is only skipped when the repository disallows it, and a
@@ -87,7 +82,8 @@ export function isMergePullRequestArguments(value: unknown): value is MergePullR
 /**
  * Why an open pull request is not plainly ready to merge. Caxri computes it once from the panel's own filtered rollup
  * (a check the user chose to ignore is already a decision) and GitHub's merge state, so the phone gives the same
- * answer. `conflicting` blocks the merge outright; every other reason only asks first.
+ * answer. `conflicting` blocks the merge outright; every other reason only colors the button and explains itself in its
+ * tooltip.
  */
 type MergeBlocker = PullRequestMergeBlocker;
 
@@ -117,7 +113,10 @@ export function mergeReadinessLabel(pullRequest: PullRequest): string {
     return blocker ? mergeBlockerLabels[blocker]() : l10n.t('Ready to merge');
 }
 
-const mergeConfirmationReasons: Record<
+/**
+ * The full sentence a blocked merge button's tooltip leads with; the hover card row uses the short label instead.
+ */
+const mergeBlockerReasons: Record<
     Exclude<MergeBlocker, 'checks-failed' | 'conflicting'>,
     () => string
 > = {
@@ -161,10 +160,9 @@ export function failedChecksSummary(pullRequest: Pick<PullRequest, 'checks'>): s
 }
 
 /**
- * Tone of the merge glyph for a blocker that still allows merging after a confirmation. Only failed checks are
- * `danger`; an unmet protection rule or a stale base is `warning` because GitHub may refuse; checks still running or a
- * mergeability GitHub has not computed yet are `neutral`, because they settle by themselves and are not a problem the
- * user has to fix.
+ * Tone of the merge glyph for a blocker that still allows merging. Only failed checks are `danger`; an unmet protection
+ * rule or a stale base is `warning` because GitHub may refuse; checks still running or a mergeability GitHub has not
+ * computed yet are `neutral`, because they settle by themselves and are not a problem the user has to fix.
  */
 const blockerTones: Record<Exclude<MergeBlocker, 'conflicting'>, TreeItemActionTone> = {
     'checks-failed': 'danger',
@@ -178,8 +176,8 @@ const blockerTones: Record<Exclude<MergeBlocker, 'conflicting'>, TreeItemActionT
  * The always-visible merge button. Only a merge nothing blocks earns the green `Merge` text: it is the next step, so it
  * is worth the room it takes from the title. A blocked merge is not the next step, so it shrinks to the merge glyph,
  * colored by {@link blockerTones}, and leaves the narrow sidebar's width to the pull request title. The reason is the
- * button's tooltip (on hover and keyboard focus) and the confirmation's message; the command title stays the plain
- * action name so a failure toast never repeats a stale reason.
+ * button's tooltip (on hover and keyboard focus), followed by the method the merge will use; the command title stays
+ * the plain action name so a failure toast never repeats a stale reason.
  */
 function mergeButtonPresentation(
     blocker: Exclude<MergeBlocker, 'conflicting'> | undefined,
@@ -195,7 +193,12 @@ function mergeButtonPresentation(
     return {
         icon: new ThemeIcon('git-merge'),
         tone: blockerTones[blocker],
-        tooltip: mergeBlockerLabels[blocker](),
+        tooltip: joinSentences(
+            blocker === 'checks-failed'
+                ? failedChecksSummary(pullRequest)
+                : mergeBlockerReasons[blocker](),
+            mergeMethodNote(pullRequest),
+        ),
     };
 }
 
@@ -229,14 +232,15 @@ function draftAction(pullRequest: PullRequest): TreeItemAction {
 /**
  * The PR row's inline merge button, for an open or draft pull request. A draft gets the explaining button from
  * {@link draftAction}; a conflict, which GitHub would refuse to merge, gets the Agent's `Resolve` button instead, since
- * resolving it is the next step. Otherwise the button needs the head Caxri knows, so the merge is pinned to it. A merge
- * with clean checks is a single click by design, with no confirmation; every other {@link MergeBlocker} reason (failing
- * or running checks, unmet protection, a stale base) asks first.
+ * resolving it is the next step. Otherwise the button needs the head Caxri knows, so the merge is pinned to it.
+ *
+ * Every merge is a single click, with no confirmation, whatever the {@link MergeBlocker} (failing or running checks,
+ * unmet protection, a stale base): the button's color and its tooltip already say why it is not plainly ready, and a
+ * modal on top of that made the deliberate merge cost two clicks. GitHub still refuses a merge its rules forbid, and
+ * the failure toast says why.
  *
  * Server Core projects the method the merge will use (`mergeMethod`, chosen by the same function the merge calls), so
- * the button tooltip and the confirmation name it ({@link mergeMethodNote}); without it they state the selection order.
- * Merging past failed checks is labelled `Merge Anyway`, so the button names the override rather than the ordinary
- * action.
+ * the button tooltip names it ({@link mergeMethodNote}); without it the tooltip states the selection order.
  */
 function mergePullRequestAction(
     repo: Pick<ProjectStatusRepository, 'branch' | 'defaultBranch' | 'id' | 'kind' | 'name'>,
@@ -247,11 +251,6 @@ function mergePullRequestAction(
     const blocker = pullRequest.mergeBlocker;
     if (blocker === 'conflicting') return resolveConflictsAction(repo, pullRequest);
     if (!pullRequest.headSha) return undefined;
-    const reason =
-        blocker &&
-        (blocker === 'checks-failed'
-            ? failedChecksSummary(pullRequest)
-            : mergeConfirmationReasons[blocker]());
     const arguments_: MergePullRequestArguments = {
         repositoryId: repo.id,
         number: pullRequest.number,
@@ -264,22 +263,6 @@ function mergePullRequestAction(
             arguments: [arguments_],
         },
         ...mergeButtonPresentation(blocker, pullRequest),
-        ...(reason && {
-            confirmation: {
-                title: l10n.t('Merge pull request #{number}?', { number: pullRequest.number }),
-                message: joinSentences(
-                    reason,
-                    mergeMethodNote(pullRequest),
-                    l10n.t('A merged pull request cannot be undone from Caxri.'),
-                ),
-                confirmLabel:
-                    blocker === 'checks-failed'
-                        ? l10n.t('Merge Anyway')
-                        : pullRequest.mergeMethod
-                          ? mergeMethodConfirmLabel(pullRequest.mergeMethod)
-                          : l10n.t('Merge'),
-            },
-        }),
         feedback: {
             // Fallback only: the command's own `mergedMessage` result names the method Server Core chose.
             success: l10n.t('Merged #{number}', { number: pullRequest.number }),
@@ -291,7 +274,7 @@ function mergePullRequestAction(
 
 /**
  * The PR row's inline buttons. Failed checks put the Agent's labeled `Fix` first, as the next step, and keep the red
- * merge glyph after it for a deliberate `Merge Anyway`; every other state shows the merge button alone (a conflict's
+ * merge glyph after it for a deliberate merge past them; every other state shows the merge button alone (a conflict's
  * `Resolve` takes its place inside {@link mergePullRequestAction}).
  */
 export function pullRequestRowActions(
@@ -309,8 +292,8 @@ export function pullRequestRowActions(
 
 /**
  * What the palette's "Merge Pull Request for Current Branch" does: merge the primary repository's pull request when
- * nothing blocks it, or refuse with the reason. The palette has no confirmation step, so any merge that the Status
- * panel would confirm is refused here and pointed back at the panel's button, which can ask.
+ * nothing blocks it, or refuse with the reason. The palette shows no reason before it runs, so any merge the Status
+ * panel colors as blocked is refused here and pointed back at the panel's button, whose tooltip explains it.
  */
 export type CurrentBranchMerge =
     { kind: 'merge'; arguments: MergePullRequestArguments } | { kind: 'refuse'; message: string };

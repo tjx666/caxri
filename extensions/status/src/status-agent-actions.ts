@@ -241,9 +241,9 @@ export function fixFailedChecksPrompt(
 
 /**
  * The labeled `Fix` button a pull request with failed checks gets beside its red merge glyph: getting the checks green
- * is the next step, and it is the Agent's work. The merge glyph stays for the deliberate `Merge Anyway`. The prompt
- * tells the Agent to push its fix to the pull request's branch, and the tooltip says so; that is a plain push the user
- * can revert with a commit, so unlike {@link resolveConflictsAction} it needs no confirmation.
+ * is the next step, and it is the Agent's work. The merge glyph stays for a deliberate merge past the failed checks.
+ * The prompt tells the Agent to push its fix to the pull request's branch, and the tooltip says so; that is a plain
+ * push the user can revert with a commit, so unlike {@link resolveConflictsAction} it needs no confirmation.
  */
 export function fixFailedChecksAction(
     repo: Pick<ProjectStatusRepository, 'branch' | 'kind' | 'name'>,

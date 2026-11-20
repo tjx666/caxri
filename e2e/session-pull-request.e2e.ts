@@ -247,7 +247,7 @@ esac
                 await expect(merge).toHaveText('');
                 await expect(merge).toHaveClass(/text-danger/u);
                 await expect(merge).toHaveAccessibleName('Merge Pull Request');
-                await expect(merge).toHaveAccessibleDescription('Checks did not pass');
+                await expect(merge).toHaveAccessibleDescription(/^1 of 1 check failed: Build\./u);
                 // Getting the checks green is the next step, so the Agent's labeled Fix comes before the glyph.
                 const fix = running.page.locator('[data-tree-item-action="caxri.sendToAgent"]');
                 await expect(fix).toHaveText('Fix');

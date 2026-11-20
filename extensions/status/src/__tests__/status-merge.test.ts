@@ -72,16 +72,6 @@ describe('Status panel merge action', () => {
         });
     });
 
-    /**
-     * GitHub calls a pull request `unstable` when a non-required check is red or running, including a check the user
-     * told Caxri to ignore. The panel's own rollup already excluded it, so asking again would make every merge modal.
-     */
-    it('does not ask again about a check the panel already filtered out', () => {
-        expect(
-            pullRequestRow({ mergeState: 'unstable' }).actions?.[0]?.confirmation,
-        ).toBeUndefined();
-    });
-
     it.each([
         [{ state: 'pending', mergeBlocker: 'checks-running' }, 'Checks are still running.'],
         [{ state: 'failure', mergeBlocker: 'checks-failed' }, 'Some checks did not pass.'],
@@ -106,65 +96,40 @@ describe('Status panel merge action', () => {
             { mergeState: 'unknown', mergeBlocker: 'mergeability-unknown' },
             'has not finished checking',
         ],
-    ] as const)('asks before merging when %o', (pullRequest, reason) => {
-        const confirmation = mergeButton(
+    ] as const)('merges %o in one click and explains why in the tooltip', (pullRequest, reason) => {
+        const action = mergeButton(
             pullRequestRow(pullRequest as Parameters<typeof pullRequestRow>[0]),
-        )?.confirmation;
+        );
 
-        expect(confirmation).toMatchObject({
-            title: 'Merge pull request #42?',
-            // Merging past failed checks names the override; every other blocker settles or may be refused by GitHub.
-            confirmLabel:
-                'state' in pullRequest && pullRequest.state === 'failure'
-                    ? 'Merge Anyway'
-                    : 'Merge',
-        });
-        expect(confirmation?.message).toContain(reason);
-        expect(confirmation?.message).toContain('Squash and merge when the repository allows it');
+        // The colored glyph and its tooltip already warn; a modal on top would make the deliberate merge two clicks.
+        expect(action?.confirmation).toBeUndefined();
+        expect(action?.tooltip).toContain(reason);
+        expect(action?.tooltip).toContain('Squash and merge when the repository allows it');
     });
 
     it.each([
-        ['squash', 'Squash and merge into main.', 'Squash and Merge'],
+        ['squash', 'Squash and merge into main.'],
         [
             'merge',
             'Create a merge commit into main. This repository does not allow squash merging.',
-            'Create Merge Commit',
         ],
         [
             'rebase',
             'Rebase and merge into main. This repository allows neither squash merging nor merge commits.',
-            'Rebase and Merge',
         ],
-    ] as const)(
-        'names the %s method the merge will use, before the click',
-        (mergeMethod, note, confirmLabel) => {
-            const clean = pullRequestRow({ baseBranch: 'main', mergeMethod }).actions![0];
-            expect(clean.tooltip).toBe(note);
+    ] as const)('names the %s method the merge will use, before the click', (mergeMethod, note) => {
+        const clean = pullRequestRow({ baseBranch: 'main', mergeMethod }).actions![0];
+        expect(clean.tooltip).toBe(note);
 
-            const blocked = mergeButton(
-                pullRequestRow({
-                    baseBranch: 'main',
-                    mergeMethod,
-                    mergeState: 'blocked',
-                    mergeBlocker: 'branch-protection',
-                }),
-            )!;
-            expect(blocked.confirmation?.message).toContain(note);
-            expect(blocked.confirmation?.confirmLabel).toBe(confirmLabel);
-        },
-    );
-
-    it('keeps the override label when merging past failed checks, with the method in the message', () => {
-        const action = mergeButton(
+        const blocked = mergeButton(
             pullRequestRow({
-                state: 'failure',
-                mergeBlocker: 'checks-failed',
                 baseBranch: 'main',
-                mergeMethod: 'squash',
+                mergeMethod,
+                mergeState: 'blocked',
+                mergeBlocker: 'branch-protection',
             }),
         )!;
-        expect(action.confirmation?.confirmLabel).toBe('Merge Anyway');
-        expect(action.confirmation?.message).toContain('Squash and merge into main.');
+        expect(blocked.tooltip).toContain(note);
     });
 
     it.each([
@@ -183,14 +148,19 @@ describe('Status panel merge action', () => {
             'neutral',
         ],
     ] as const)('flags a blocked merge %o and names why', (pullRequest, reason, tone) => {
-        const action = mergeButton(pullRequestRow(pullRequest));
+        const row = pullRequestRow(pullRequest);
+        const action = mergeButton(row);
         // A blocked merge is not the next step, so it is a colored glyph and leaves the row's width to the title.
         expect(action).toMatchObject({ tone });
         expect(action?.label).toBeUndefined();
         expect(action?.icon.id).toBe('git-merge');
         // The reason is the tooltip, never the command title, so a failure toast cannot repeat a stale reason.
         expect(action?.command.title).toBe('Merge Pull Request');
-        expect(action?.tooltip).toBe(reason);
+        expect(action?.tooltip).toBeTruthy();
+        expect((row.tooltip as TreeItemRichTooltip).rows).toContainEqual({
+            label: 'merge',
+            value: reason,
+        });
     });
 
     it("puts the Agent's Fix before the merge glyph when checks failed, and only then", () => {
