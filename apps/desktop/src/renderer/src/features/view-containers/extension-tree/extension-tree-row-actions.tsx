@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import type { TreeItemDto } from '@caxri/protocol';
 
+import { TOOLTIP_STATE_OPEN_DELAY_MS } from '../../../components/tooltip-positioning';
 import { Button } from '../../../components/ui/button';
 import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
@@ -73,8 +74,13 @@ function TreeItemActionButton({
         // and the confirmation modal handing focus back), and a focus-opened tooltip that only repeats the accessible
         // name would pop up unasked. An action that explains its state (`tooltip`, a blocked merge's reason) also opens
         // on keyboard focus, because a keyboard user has no hover to discover why the button is colored; Escape still
-        // returns to the row, which closes the popup with the focus that raised it.
-        <Tooltip hoverOnly={!action.tooltip} content={action.tooltip ?? action.command.title}>
+        // returns to the row, which closes the popup with the focus that raised it. Such a tooltip also opens after a
+        // short hover delay: the pointer resting on the colored button is asking why.
+        <Tooltip
+            content={action.tooltip ?? action.command.title}
+            delay={action.tooltip ? TOOLTIP_STATE_OPEN_DELAY_MS : undefined}
+            hoverOnly={!action.tooltip}
+        >
             <Button
                 aria-label={actionAccessibleName(action)}
                 aria-description={action.tooltip}

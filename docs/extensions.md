@@ -413,9 +413,10 @@ dispatches through the same `viewContainers.executeCommand` path as the row's ow
 nothing and returns focus to the action. Inline actions do not replace `TreeItem.command`, which
 stays the row's activation.
 
-`tooltip` states why the action is in its current state (`Checks still running`) so `command.title`
-can stay the plain action name. It is shown on hover and on keyboard focus and becomes the button's
-accessible description; without it the tooltip is the command title and opens on hover only.
+`tooltip` states why the action is in its current state (`Checks are still running.`) so `command.title`
+can stay the plain action name. It is shown on keyboard focus and after a short hover (300 ms rather than
+the 1500 ms every other tooltip waits) and becomes the button's accessible description; without it the
+tooltip is the command title and opens on the ordinary hover only.
 `feedback` declares toast copy, because the action is the only place that knows what the row means:
 `success` is the fallback success toast when the command resolves without its own `message`,
 `failure` prefixes the command's sanitized reason (`Couldn't merge #123: <reason>`), and `githubUrl`
@@ -447,7 +448,7 @@ checks, and push with `--force-with-lease`, leaving the merge itself to the user
 checks failed gets a red `Fix` button before its red merge glyph: it sends each failed check with
 its run link and the head commit, asking the Agent to read the failed logs, fix a code cause and
 push, or explain a flaky or outside one, without merging. The merge glyph stays for a deliberate
-`Merge Anyway`. Like every Send-to-Agent button, it goes to the selected Session's Agent; a Chat
+merge past the failed checks. Like every Send-to-Agent button, it goes to the selected Session's Agent; a Chat
 queues it behind a running turn.
 
 Keyboard users reach them the way an ARIA treegrid reaches a row's cells: Right on a focused leaf or
@@ -468,17 +469,19 @@ API yet.
 The Status extension uses this for its pull request row: a merge action appears on an open pull
 request whose head is known and that GitHub does not report as conflicting (a draft gets the Open
 on GitHub explanation above, and a conflicting one the Agent's `Resolve` button instead). The palette command `Merge Pull Request for
-Current Branch` merges the primary repository's pull request only when nothing would make the row
-confirm, and otherwise refuses with the reason. It calls
+Current Branch` merges the primary repository's pull request only when nothing colors the row's
+merge button as blocked, and otherwise refuses with the reason. It calls
 `workspace.git.mergePullRequest`, which needs `git.write`. Server Core reads the repository's allowed
 merge methods, picks squash, then a merge commit, then rebase, and runs `gh pr merge` with
 `--match-head-commit` set to the head the row showed, so a later push makes GitHub refuse the merge
 instead of merging unseen commits. It never passes `--delete-branch`; the repository's own
 auto-delete setting owns the remote branch, and a linked worktree may still have the local one
-checked out. The action merges a pull request whose filtered checks passed and whose merge state is
-clean without asking; it confirms first when checks are failing or still running, or when GitHub
-reports the pull request `blocked`, `behind`, or not yet computed. GitHub's `unstable` alone does not
-ask, because the only red or running checks left may be ones the user chose to ignore.
+checked out. The action merges in one click, without a confirmation. A pull request whose filtered checks passed
+and whose merge state is clean shows a green `Merge`; when checks are failing or still running, or
+GitHub reports the pull request `blocked`, `behind`, or not yet computed, it shows a colored merge
+glyph whose tooltip gives the reason and the merge method, and GitHub still refuses a merge its rules
+forbid. GitHub's `unstable` alone does not color it, because the only red or running checks left may
+be ones the user chose to ignore.
 
 With the `projectStatus.notifyAgentOnMerge` setting on (default on), Server Core sends a best-effort
 message to the Session's primary Agent naming the merged pull request's URL: a fenced submit pinned

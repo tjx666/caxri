@@ -48,6 +48,13 @@ export function resolveTooltipCursorAnchor(
 export const TOOLTIP_OPEN_DELAY_MS = 1500;
 
 /**
+ * Open delay for a tooltip that explains why a control is in its current state, such as a warning-colored merge button
+ * whose tooltip says the checks are still running. The pointer resting on a small, deliberately colored button is
+ * asking that question, so waiting the full {@link TOOLTIP_OPEN_DELAY_MS} only delays the answer.
+ */
+export const TOOLTIP_STATE_OPEN_DELAY_MS = 300;
+
+/**
  * Absorbs timer jitter between the pointer-enter timestamp and Base UI's own rest timer, which starts on the
  * `mouseenter` that follows it.
  */

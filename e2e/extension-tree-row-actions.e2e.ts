@@ -19,7 +19,8 @@ const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
  * Installs a user extension whose single expanded row carries two inline actions, the first behind a confirmation,
  * shaped like the Status panel's pull request row and its Merge action. The confirmed command only bumps a counter
  * shown in the child row, so the spec observes dispatch without any real `gh` call. `richTooltip` adds the row's hover
- * card; the keyboard spec leaves it off because a focus-opened card would cover the child row it clicks.
+ * card and a state-explaining tooltip on the first action; the keyboard spec leaves it off because a focus-opened card
+ * would cover the child row it clicks.
  */
 async function writeRowActionsExtension(
     extensionRoot: string,
@@ -86,6 +87,7 @@ export function activate(context) {
                     {
                         command: { command: 'e2e.row-actions.merge', title: 'Merge Fixture' },
                         icon: new ThemeIcon('git-merge'),
+                        ${richTooltip ? "tooltip: 'Checks are still running.'," : ''}
                         confirmation: {
                             title: 'Merge fixture pull request?',
                             message: 'The fixture only counts merges.',
@@ -136,14 +138,17 @@ test('Hovering an inline action shows its tooltip instead of the row hover card'
         const row = tree.getByRole('treeitem', { name: 'Pull request #7', exact: true });
         const merge = tree.locator('[data-tree-item-action="e2e.row-actions.merge"]');
         const card = running.page.locator('.tree-item-rich-tooltip:visible');
-        const actionTooltip = running.page.locator('.tooltip-popup', { hasText: 'Merge Fixture' });
+        const actionTooltip = running.page.locator('.tooltip-popup', {
+            hasText: 'Checks are still running.',
+        });
 
         // The plain icon action is revealed by hovering the row, which starts the card's hover delay; the pointer then
         // rests on the action. The card's timer started first, so it would already be showing once the action's own
         // tooltip opens.
         await row.hover();
         await merge.hover();
-        await expect(actionTooltip).toBeVisible();
+        // A tooltip explaining the action's state opens well before the ordinary 1500 ms hover delay.
+        await expect(actionTooltip).toBeVisible({ timeout: 1000 });
         await expect(card).toHaveCount(0);
         await running.page.screenshot({ path: test.info().outputPath('action-hovered.png') });
 
