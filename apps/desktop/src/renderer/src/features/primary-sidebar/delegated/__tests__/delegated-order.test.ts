@@ -133,12 +133,14 @@ describe('sidebarSessionOrder', () => {
         expect(ids(order.all)).toEqual(['host', 'after', 'pinned-child']);
     });
 
-    it('skips an archived creator, so what it made is listed in its own slot', () => {
+    it('keeps what an archived host delegated searchable but out of previous/next', () => {
         const order = sidebarSessionOrder(projects, [
             session('archived', 'alpha', { archivedAt: 3 }),
             createdBy('orphan', 'alpha', 'archived', 'delegated'),
+            session('plain', 'alpha'),
         ]);
-        expect(ids(order.all)).toEqual(['orphan']);
+        expect(ids(order.all)).toEqual(['plain', 'orphan']);
+        expect(ids(order.navigable)).toEqual(['plain']);
     });
 });
 

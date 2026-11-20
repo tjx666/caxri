@@ -145,6 +145,13 @@ describe('mobile Session hooks', () => {
                     ...settled,
                 }),
                 session({
+                    id: 'waiting-retired-delegated',
+                    createdBySessionId: 'archived-creator',
+                    createdBySessionArchived: true,
+                    createdByRelation: 'delegated',
+                    agentActivityState: 'waiting',
+                }),
+                session({
                     id: 'waiting-delegated',
                     createdBySessionId: 'creator',
                     createdByRelation: 'delegated',
@@ -161,8 +168,8 @@ describe('mobile Session hooks', () => {
             'orphan-consult',
             'pinned-delegated',
             'pinned-retired-consult',
-            'retired-delegated',
             'waiting-delegated',
+            'waiting-retired-delegated',
         ]);
         // Still openable from the creator's timeline links and from search.
         expect(nested.sessions.map(({ id }) => id)).toContain('consult');

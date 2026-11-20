@@ -138,25 +138,71 @@ describe('placeDelegatedSessions', () => {
         expect(place(sessions).byId.get('consult')).toEqual({ hostId: 'host', kind: 'hidden' });
     });
 
-    it('returns what an archived creator delegated to ordinary rows and keeps its consults out', () => {
+    it('puts what an archived host delegated away with it', () => {
         const sessions = [
             session('root', 'alpha'),
             createdBy('archived-middle', 'alpha', 'root', 'delegated', { archivedAt: 5 }),
             createdBy('orphan', 'alpha', 'archived-middle', 'delegated'),
+            createdBy('grandchild', 'alpha', 'orphan', 'delegated'),
             createdBy('orphan-consult', 'alpha', 'archived-middle', 'consult'),
             createdBy('consult-child', 'alpha', 'orphan-consult', 'delegated'),
+            createdBy('handed-off', 'alpha', 'archived-middle', 'handoff'),
+            createdBy('pinned', 'alpha', 'archived-middle', 'delegated', { pinnedAt: 3 }),
         ];
         const placement = place(sessions);
-        expect(placement.byId.has('archived-middle')).toBe(false);
-        expect(placement.byId.get('orphan')).toEqual({ kind: 'row' });
-        // The asking work is done: its consult takes no row, and nothing it created vanishes with it.
-        expect(placement.byId.has('orphan-consult')).toBe(false);
-        expect(ids(placement.rows)).not.toContain('orphan-consult');
-        expect(placement.byId.get('consult-child')).toEqual({ kind: 'row' });
-        // Opening it from the command palette still shows it.
+        for (const id of [
+            'archived-middle',
+            'orphan',
+            'grandchild',
+            'orphan-consult',
+            'consult-child',
+        ]) {
+            expect(placement.byId.has(id)).toBe(false);
+            expect(ids(placement.rows)).not.toContain(id);
+        }
+        // Work the user owns keeps its row.
+        expect(placement.byId.get('handed-off')).toEqual({ kind: 'row' });
+        expect(placement.byId.get('pinned')).toEqual({ kind: 'row' });
+        // Opening one from the command palette still shows it.
+        expect(place(sessions, 'orphan').byId.get('orphan')).toEqual({ kind: 'row' });
         expect(place(sessions, 'orphan-consult').byId.get('orphan-consult')).toEqual({
             kind: 'row',
         });
+        // Unarchiving the host nests them under it again.
+        const restored = place(
+            sessions.map((s) => (s.id === 'archived-middle' ? { ...s, archivedAt: undefined } : s)),
+        );
+        expect(restored.byId.get('orphan')).toEqual({ hostId: 'root', kind: 'nested' });
+    });
+
+    it.each([
+        { name: 'waiting', overrides: { agentActivityState: 'waiting' as const } },
+        {
+            name: 'question',
+            overrides: { hasPendingAttention: true, lastAttentionKind: 'waiting' as const },
+        },
+    ])(
+        'keeps a $name delegated Session of an archived host as an ordinary row',
+        ({ overrides }) => {
+            const placement = place([
+                session('archived-host', 'alpha', { archivedAt: 5 }),
+                createdBy('asks', 'alpha', 'archived-host', 'delegated', overrides),
+            ]);
+            expect(placement.byId.get('asks')).toEqual({ kind: 'row' });
+        },
+    );
+
+    it('keeps a delegated Session the user took over when its creator is archived', () => {
+        const placement = placeDelegatedSessions({
+            humanControlledSessionIds: new Set(['taken']),
+            projects: [{ id: 'alpha' }],
+            selectedSessionId: undefined,
+            sessions: [
+                session('archived-host', 'alpha', { archivedAt: 5 }),
+                createdBy('taken', 'alpha', 'archived-host', 'delegated'),
+            ],
+        });
+        expect(placement.byId.get('taken')).toEqual({ kind: 'row' });
     });
 
     it.each([
