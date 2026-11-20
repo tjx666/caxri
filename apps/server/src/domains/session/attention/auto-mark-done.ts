@@ -55,12 +55,24 @@ export function autoMarkDonePolicy(
 }
 
 /**
+ * A Session's pull request as the sweep judges it: its state, and when it merged or closed (`undefined` while open).
+ */
+export interface AutoMarkDonePullRequest {
+    closedAt: number | undefined;
+    state: SessionPullRequest['state'];
+}
+
+/**
  * Why a Session's Pending Attention should be resolved automatically now, or `undefined` to leave it in Needs
  * attention.
  *
  * A Session waiting on the user (a question or permission prompt) is never settled: that is a blocked Agent, not a
  * forgotten result, and settling it would hide the one row that cannot move without the user. A running Session has
  * nothing pending to settle. A merged or closed pull request wins over inactivity so the log names the stronger cause.
+ *
+ * The pull request rule settles only a result whose turn started before the pull request closed: that turn's work is
+ * what the merge finished, including an Agent merging its own pull request. A follow-up turn the user starts in the
+ * same Session after the merge is new work, and its result stays in Needs attention.
  */
 export function autoMarkDoneReason(
     session: Pick<
@@ -70,8 +82,9 @@ export function autoMarkDoneReason(
         | 'hasPendingAttention'
         | 'lastAttentionKind'
         | 'sessionActivityAt'
+        | 'turnStartedAt'
     >,
-    pullRequestState: SessionPullRequest['state'] | undefined,
+    pullRequest: AutoMarkDonePullRequest | undefined,
     policy: AutoMarkDonePolicy,
     now: number,
 ): AutoMarkDoneReason | undefined {
@@ -81,7 +94,9 @@ export function autoMarkDoneReason(
     if (session.agentActivityState === 'running') return undefined;
     if (
         policy.isPullRequestCloseEnabled &&
-        (pullRequestState === 'merged' || pullRequestState === 'closed')
+        pullRequest?.closedAt !== undefined &&
+        (pullRequest.state === 'merged' || pullRequest.state === 'closed') &&
+        (session.turnStartedAt ?? 0) <= pullRequest.closedAt
     )
         return 'pull-request-closed';
     if (policy.inactivityMs !== undefined && now - session.sessionActivityAt >= policy.inactivityMs)
@@ -96,9 +111,9 @@ export interface AutoMarkDoneOptions {
     logger: Pick<StructuredLogger, 'write'>;
     now?: () => number;
     /**
-     * Each Session's pull request state as last resolved in this Server Core, without a GitHub lookup.
+     * Each Session's pull request as last resolved in this Server Core, without a GitHub lookup.
      */
-    pullRequestState(sessionId: string): SessionPullRequest['state'] | undefined;
+    pullRequest(sessionId: string): Pick<SessionPullRequest, 'mergedAt' | 'state'> | undefined;
     send(event: ServerEvent): void;
     settings(): Parameters<typeof autoMarkDonePolicy>[0];
 }
@@ -113,6 +128,11 @@ export class AutoMarkDone {
     private readonly timer: NodeJS.Timeout;
     private pending?: NodeJS.Timeout;
     private isDisposed = false;
+    /**
+     * When this Server Core first saw each Session's pull request merged or closed, for a close GitHub reported no time
+     * for. A pull request already closed at startup counts from its first sighting.
+     */
+    private readonly closedSeenAt = new Map<string, number>();
 
     constructor(private readonly options: AutoMarkDoneOptions) {
         this.timer = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
@@ -134,11 +154,30 @@ export class AutoMarkDone {
         this.pending.unref();
     }
 
+    private noteClosed(sessionId: string): number {
+        const seenAt = this.closedSeenAt.get(sessionId) ?? this.options.now?.() ?? Date.now();
+        this.closedSeenAt.set(sessionId, seenAt);
+        return seenAt;
+    }
+
+    private judgedPullRequest(sessionId: string): AutoMarkDonePullRequest | undefined {
+        const pullRequest = this.options.pullRequest(sessionId);
+        if (!pullRequest) return undefined;
+        const isClosed = pullRequest.state === 'merged' || pullRequest.state === 'closed';
+        return {
+            closedAt: isClosed ? (pullRequest.mergedAt ?? this.noteClosed(sessionId)) : undefined,
+            state: pullRequest.state,
+        };
+    }
+
     /**
      * Sweeps soon after a pull request settles, so the row leaves Needs attention with the merge.
      */
-    observePullRequest(next: SessionPullRequest | undefined): void {
-        if (next?.state === 'merged' || next?.state === 'closed') this.schedule();
+    observePullRequest(sessionId: string, next: SessionPullRequest | undefined): void {
+        if (next?.state === 'merged' || next?.state === 'closed') {
+            this.noteClosed(sessionId);
+            this.schedule();
+        } else this.closedSeenAt.delete(sessionId);
     }
 
     sweep(): void {
@@ -152,7 +191,7 @@ export class AutoMarkDone {
             for (const session of this.options.database.listVisibleSessions()) {
                 const reason = autoMarkDoneReason(
                     session,
-                    this.options.pullRequestState(session.id),
+                    this.judgedPullRequest(session.id),
                     policy,
                     now,
                 );

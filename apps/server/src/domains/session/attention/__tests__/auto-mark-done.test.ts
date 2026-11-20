@@ -11,6 +11,8 @@ const weekPolicy = autoMarkDonePolicy({
     'agentActivity.autoMarkDoneOnPullRequestClose': true,
 });
 
+const merged = { closedAt: NOW - DAY_MS - 1, state: 'merged' } as const;
+
 function session(overrides: Partial<SessionRecord> = {}) {
     return {
         id: 'session-1',
@@ -29,13 +31,32 @@ afterEach(() => {
 
 describe('autoMarkDoneReason', () => {
     it('settles a finished Session once its pull request merged or closed', () => {
-        expect(autoMarkDoneReason(session(), 'merged', weekPolicy, NOW)).toBe(
+        const turn = { turnStartedAt: NOW - 2 * DAY_MS };
+        expect(autoMarkDoneReason(session(turn), merged, weekPolicy, NOW)).toBe(
             'pull-request-closed',
         );
-        expect(autoMarkDoneReason(session(), 'closed', weekPolicy, NOW)).toBe(
-            'pull-request-closed',
-        );
-        expect(autoMarkDoneReason(session(), 'open', weekPolicy, NOW)).toBeUndefined();
+        expect(
+            autoMarkDoneReason(session(turn), { ...merged, state: 'closed' }, weekPolicy, NOW),
+        ).toBe('pull-request-closed');
+        expect(
+            autoMarkDoneReason(
+                session(turn),
+                { closedAt: undefined, state: 'open' },
+                weekPolicy,
+                NOW,
+            ),
+        ).toBeUndefined();
+    });
+
+    it('keeps the result of a follow-up turn started after the pull request closed', () => {
+        expect(
+            autoMarkDoneReason(
+                session({ turnStartedAt: merged.closedAt + 1 }),
+                merged,
+                weekPolicy,
+                NOW,
+            ),
+        ).toBeUndefined();
     });
 
     it('settles a Session idle for at least the threshold', () => {
@@ -69,7 +90,7 @@ describe('autoMarkDoneReason', () => {
             expect(
                 autoMarkDoneReason(
                     session({ ...overrides, sessionActivityAt: old }),
-                    'merged',
+                    merged,
                     weekPolicy,
                     NOW,
                 ),
@@ -82,7 +103,7 @@ describe('autoMarkDoneReason', () => {
             'agentActivity.autoMarkDoneOnPullRequestClose': false,
         });
         expect(
-            autoMarkDoneReason(session({ sessionActivityAt: 0 }), 'merged', off, NOW),
+            autoMarkDoneReason(session({ sessionActivityAt: 0 }), merged, off, NOW),
         ).toBeUndefined();
     });
 });
@@ -102,7 +123,7 @@ describe('AutoMarkDone', () => {
             },
             logger: { write },
             now: () => NOW,
-            pullRequestState: () => 'merged',
+            pullRequest: () => ({ mergedAt: NOW - 2 * DAY_MS, state: 'merged' }),
             send,
             settings: () => ({
                 'agentActivity.autoMarkDoneAfterInactivity': '7d',
@@ -130,16 +151,15 @@ describe('AutoMarkDone', () => {
         const sweep = new AutoMarkDone({
             database: { attentionMarks: { settle: vi.fn(() => []) }, listVisibleSessions },
             logger: { write: vi.fn() },
-            pullRequestState: () => {},
+            pullRequest: () => {},
             send: vi.fn(),
             settings: () => ({
                 'agentActivity.autoMarkDoneAfterInactivity': '7d',
                 'agentActivity.autoMarkDoneOnPullRequestClose': true,
             }),
         });
-        const merged = { state: 'merged' } as const;
-        sweep.observePullRequest(merged as never);
-        sweep.observePullRequest(merged as never);
+        sweep.observePullRequest('session-1', { state: 'merged' } as never);
+        sweep.observePullRequest('session-1', { state: 'merged' } as never);
         vi.advanceTimersByTime(2_000);
         expect(listVisibleSessions).toHaveBeenCalledTimes(1);
         sweep.dispose();

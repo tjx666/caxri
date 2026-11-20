@@ -6,7 +6,7 @@ import type { CaxriDatabaseConnection } from './database-connection';
 /**
  * `session.markRead`: acknowledges the attention generation the Client showed, leaving it pending.
  */
-export function markAttentionRead(
+function markAttentionRead(
     database: CaxriDatabaseConnection,
     sessionId: string,
     generation: number,
@@ -22,7 +22,7 @@ export function markAttentionRead(
 /**
  * `session.markDone`: resolves (and acknowledges) the attention generation the Client showed.
  */
-export function markAttentionDone(
+function markAttentionDone(
     database: CaxriDatabaseConnection,
     sessionId: string,
     generation: number,
@@ -44,7 +44,7 @@ export function markAttentionDone(
  * `resolvedAt` is what Idle ranks a resolved row by. The automatic sweep leaves it unset, like an Agent moving on by
  * itself, so a week-old Session it settles does not jump to the top of Idle as if the user had just ticked it.
  */
-export function markAttentionDoneMany(
+function markAttentionDoneMany(
     database: CaxriDatabaseConnection,
     entries: ReadonlyArray<{ sessionId: string; attentionGeneration: number }>,
     resolvedAt: number | undefined,

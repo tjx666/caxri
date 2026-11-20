@@ -175,7 +175,7 @@ export function createServiceHandlers(services: {
         new AutoMarkDone({
             database,
             logger,
-            pullRequestState: (sessionId) => settlementWiring.pullRequest(sessionId)?.state,
+            pullRequest: (sessionId) => settlementWiring.pullRequest(sessionId),
             send: emit,
             settings: () => configuration.getSettings().value,
         }),

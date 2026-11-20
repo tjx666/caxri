@@ -91,7 +91,7 @@ export const mobileDashboardSessionSchema = z.strictObject({
  * Session belongs to Pinned only, so the groups partition the home rows and each has its own total and page.
  */
 export const MOBILE_DASHBOARD_GROUPS = ['pinned', ...SESSION_ACTIVITY_GROUP_ORDER] as const;
-export const mobileDashboardGroupSchema = z.enum(MOBILE_DASHBOARD_GROUPS);
+const mobileDashboardGroupSchema = z.enum(MOBILE_DASHBOARD_GROUPS);
 export type MobileDashboardGroup = z.infer<typeof mobileDashboardGroupSchema>;
 
 /**

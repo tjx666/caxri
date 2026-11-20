@@ -51,7 +51,7 @@ export class PullRequestSettlementWiring {
         if (next) this.pullRequests.set(sessionId, next);
         else this.pullRequests.delete(sessionId);
         this.settlement?.observePullRequest(sessionId, previous, next);
-        this.autoMarkDone?.observePullRequest(next);
+        this.autoMarkDone?.observePullRequest(sessionId, next);
     }
 
     /**
