@@ -4,10 +4,15 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { cn } from '../../../lib/utilities';
 import { focusDisclosureRow } from '../primary-sidebar-focus';
+import type { SessionChildRows } from './hooks/use-session-child-rows';
 import { toggleSessionChildrenCollapsed } from './session-children-collapse';
 
 interface SessionChildrenDisclosureProperties {
-    isCollapsed: boolean;
+    /**
+     * True while the row is being renamed: the inline editor owns the row then.
+     */
+    isRenaming: boolean;
+    rows: SessionChildRows;
     sessionId: string;
     /**
      * The Session's display title, for the chevron's accessible name.
@@ -25,11 +30,14 @@ interface SessionChildrenDisclosureProperties {
  * keyboard folds and unfolds with Left and Right on the row itself.
  */
 export function SessionChildrenDisclosure({
-    isCollapsed,
+    isRenaming,
+    rows,
     sessionId,
     title,
 }: SessionChildrenDisclosureProperties) {
     const { t } = useTranslation();
+    if (isRenaming || rows.isExpanded === undefined) return null;
+    const isCollapsed = rows.isCollapsed;
     const label = t(
         isCollapsed
             ? 'primarySidebar.sessionChildren.expand'
@@ -67,14 +75,15 @@ export function SessionChildrenDisclosure({
  * that needs a person. `aria-hidden` because the row's `aria-expanded` already tells assistive tech the rows are
  * folded, and the rows themselves are one Right arrow away.
  */
-export function SessionChildrenCount({ count, needsYou }: { count: number; needsYou: boolean }) {
+export function SessionChildrenCount({ rows }: { rows: SessionChildRows }) {
+    if (!rows.isCollapsed) return null;
     return (
         <span
             aria-hidden="true"
             className="session-children-count flex flex-none items-center gap-1 text-[11px] text-muted tabular-nums"
         >
-            {needsYou && <span className="size-1.5 rounded-full bg-warning" />}
-            {count}
+            {rows.needsYou && <span className="size-1.5 rounded-full bg-warning" />}
+            {rows.count}
         </span>
     );
 }

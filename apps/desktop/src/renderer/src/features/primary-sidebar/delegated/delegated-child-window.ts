@@ -26,6 +26,21 @@ export interface DelegatedHostSummary {
 const NEEDS_YOU_STATUS_KINDS: ReadonlySet<string> = new Set(['attention', 'failed', 'usageWait']);
 
 /**
+ * One host row's summary as the primitive props `ActiveSessionRow` takes. Primitives rather than the summary object
+ * keep the memoized row from re-rendering when the summaries map is rebuilt with equal values.
+ */
+export function delegatedHostRowProperties(
+    summaries: ReadonlyMap<string, DelegatedHostSummary> | undefined,
+    sessionId: string,
+): { nestedNeedsYou: boolean; nestedSessionCount: number } {
+    const summary = summaries?.get(sessionId);
+    return {
+        nestedNeedsYou: summary?.needsYou ?? false,
+        nestedSessionCount: summary?.count ?? 0,
+    };
+}
+
+/**
  * Summarizes one host's nested Sessions from each one's `sessionStatus` kind. The selected one is left out of
  * `needsYou` because it stays on screen under a folded host.
  */

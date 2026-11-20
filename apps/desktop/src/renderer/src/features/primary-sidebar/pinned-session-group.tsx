@@ -9,6 +9,7 @@ import { useTranslation } from '../../i18n';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import type { DelegatedHostSummary } from './delegated/delegated-child-window';
+import { delegatedHostRowProperties as delegatedHostRowProperties } from './delegated/delegated-child-window';
 import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import { useHeldModifierChord } from './hooks/use-held-modifier-chord';
 import type { SessionOrderController } from './hooks/use-session-order';
@@ -248,12 +249,10 @@ export function PinnedSessionGroup({
                                         renaming={rowId === renamingRowId}
                                         roving={rowId === rovingRowId}
                                         inPinnedGroup
-                                        nestedSessionCount={
-                                            delegatedSummaries?.get(session.id)?.count
-                                        }
-                                        nestedNeedsYou={
-                                            delegatedSummaries?.get(session.id)?.needsYou
-                                        }
+                                        {...delegatedHostRowProperties(
+                                            delegatedSummaries,
+                                            session.id,
+                                        )}
                                         rowId={rowId}
                                         selected={session.id === selectedSessionId}
                                         session={session}

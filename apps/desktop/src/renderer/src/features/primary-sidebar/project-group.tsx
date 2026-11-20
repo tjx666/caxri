@@ -16,6 +16,7 @@ import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { HostConnectionRows } from '../ssh-host/host-connection-rows';
 import { ProjectHeadingHostMarks } from '../ssh-host/project-heading-host-marks';
 import type { DelegatedHostSummary } from './delegated/delegated-child-window';
+import { delegatedHostRowProperties as delegatedHostRowProperties } from './delegated/delegated-child-window';
 import type { RenderDelegatedRows } from './delegated/delegated-session-rows';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
@@ -246,9 +247,7 @@ export function ProjectGroup({
     const { t } = useTranslation();
     const disclosureLabel = t(
         expanded ? 'primarySidebar.project.collapse' : 'primarySidebar.project.expand',
-        {
-            title: project.title,
-        },
+        { title: project.title },
     );
     /**
      * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
@@ -447,12 +446,10 @@ export function ProjectGroup({
                                         projectId={memberOf(session).id}
                                         projectRootPath={memberOf(session).rootPath}
                                         showHostMark={isMerged}
-                                        nestedSessionCount={
-                                            delegatedSummaries?.get(session.id)?.count
-                                        }
-                                        nestedNeedsYou={
-                                            delegatedSummaries?.get(session.id)?.needsYou
-                                        }
+                                        {...delegatedHostRowProperties(
+                                            delegatedSummaries,
+                                            session.id,
+                                        )}
                                         renameError={renameError}
                                         renameSuggesting={session.id === renameSuggestingSessionId}
                                         renameValue={renameValue}

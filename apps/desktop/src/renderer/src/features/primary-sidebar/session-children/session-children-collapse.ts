@@ -7,8 +7,7 @@ import { createStore } from '../../../lib/store';
  */
 export type SessionChildrenCollapseState = Readonly<Partial<Record<string, true>>>;
 
-export const SESSION_CHILDREN_COLLAPSE_STORAGE_KEY =
-    'caxri.primary-sidebar-session-children-collapse.v1';
+const SESSION_CHILDREN_COLLAPSE_STORAGE_KEY = 'caxri.primary-sidebar-session-children-collapse.v1';
 
 /**
  * Keeps only `true` entries; anything else an older or corrupt write left is dropped, which reads as expanded.

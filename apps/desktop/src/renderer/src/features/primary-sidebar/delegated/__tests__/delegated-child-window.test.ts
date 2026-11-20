@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     DELEGATED_IDLE_VISIBLE_COUNT,
     delegatedChildWindow,
+    delegatedHostRowProperties,
     delegatedHostSummary,
 } from '../delegated-child-window';
 
@@ -155,5 +156,19 @@ describe('delegatedHostSummary', () => {
         expect(
             delegatedHostSummary(children(2), new Map([['c1', 'attention']]), 'c1').needsYou,
         ).toBe(false);
+    });
+});
+
+describe('delegatedHostRowProperties', () => {
+    it('reads a host summary as primitive row props and defaults a Session that hosts none', () => {
+        const summaries = new Map([['host', { count: 3, needsYou: true }]]);
+        expect(delegatedHostRowProperties(summaries, 'host')).toEqual({
+            nestedNeedsYou: true,
+            nestedSessionCount: 3,
+        });
+        expect(delegatedHostRowProperties(summaries, 'other')).toEqual({
+            nestedNeedsYou: false,
+            nestedSessionCount: 0,
+        });
     });
 });
