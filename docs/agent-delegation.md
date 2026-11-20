@@ -1473,8 +1473,11 @@ line, glyph priority, child window) is in [DESIGN.md](../DESIGN.md); this sectio
 that decide which Sessions take which place.
 
 - **Host.** A `delegated` Session nests under the nearest Session up its creator chain that has a
-  top-level row, so a chain of delegations flattens to one level. Archiving or deleting a creator
-  ends the chain, and the Sessions it delegated return to their own Project groups. A pinned
+  top-level row, so a chain of delegations flattens to one level. Archiving a host puts the
+  Sessions it delegated away with it: they take no row (the command palette still finds them, and
+  unarchiving the host nests them again), except one waiting on the user's answer, which takes an
+  ordinary row in its own Project. Deleting a creator ends the chain, and the Sessions it delegated
+  return to their own Project groups. The phone's home list follows the same rule. A pinned
   `delegated` Session keeps a flat Pinned row, and a `handoff`, an `independent`, or an ownerless
   Session keeps an ordinary row. A cycle or an over-long chain leaves the Session ordinary, so no row can vanish.
 - **Takeover.** A `delegated` Session whose feed entry has `control: "human"` (the user took it over

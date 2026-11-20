@@ -26,8 +26,8 @@ export function rowSessionsByProject(
 
 export interface SidebarSessionOrder {
     /**
-     * Every Session the sidebar can reach, hidden consults included, for surfaces that search or pick: the command
-     * palette and the share dialog.
+     * Every Session the sidebar can reach, hidden consults and work put away with an archived host included, for
+     * surfaces that search or pick: the command palette and the share dialog.
      */
     all: SessionRecord[];
     /**
@@ -69,6 +69,8 @@ export function sidebarSessionOrder(
         all.push(row, ...nested, ...hidden);
         navigable.push(row, ...nested);
     }
+    // Work put away with an archived host has no row to follow; the palette still finds it, after every listed one.
+    all.push(...rowSessionsByProject(projects, { rows: placement.retired }));
     return { all, navigable, placement };
 }
 

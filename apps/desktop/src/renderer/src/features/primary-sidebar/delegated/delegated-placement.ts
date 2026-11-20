@@ -51,6 +51,11 @@ export interface DelegatedPlacement {
      * these alone.
      */
     readonly rows: readonly SessionRecord[];
+    /**
+     * Listed Sessions put away with their archived host: no row and no host, in the order they came in. Only the
+     * command palette and the share dialog reach them (`sidebarSessionOrder`'s `all`).
+     */
+    readonly retired: readonly SessionRecord[];
 }
 
 interface PlaceDelegatedSessionsInput {
@@ -104,8 +109,8 @@ const NO_SESSION_IDS: ReadonlySet<string> = new Set();
  * flattens onto one host. It ends at the first creator that is missing (deleted, or the link was cleared) or archived,
  * at one that takes an ordinary row (handoff, independent, no relation, a pinned delegated Session, a delegated Session
  * whose own chain is broken), and at a cycle or the depth cap; the last two leave the Session ordinary so no row can
- * disappear. An archived creator breaks the chain on purpose, like a deleted one: archiving a Session returns what it
- * created to their own Projects.
+ * disappear. An archived creator breaks the chain like a deleted one; `placeDelegatedSessions` retires the Sessions
+ * below it first (`hasArchivedHost`), so only one waiting on the user reaches this walk and becomes an ordinary row.
  */
 function resolveHostId(
     session: SessionRecord,
@@ -141,6 +146,43 @@ function resolveHostId(
     return host;
 }
 
+/**
+ * Whether the creator chain `resolveHostId` would walk ends at an archived Session: the climb passes only through
+ * creators that nest themselves, so a grandchild of an archived host retires along with its child.
+ */
+function hasArchivedHost(
+    session: SessionRecord,
+    sessionsById: ReadonlyMap<string, SessionRecord>,
+    humanControlled: ReadonlySet<string>,
+): boolean {
+    const seen = new Set([session.id]);
+    let current = session;
+    while (current.createdBySessionId !== undefined && seen.size <= MAX_CREATOR_WALK) {
+        const creator = sessionsById.get(current.createdBySessionId);
+        if (creator === undefined || seen.has(creator.id)) return false;
+        if (creator.archivedAt !== undefined) return true;
+        if (!shouldNest(creator, humanControlled)) return false;
+        seen.add(creator.id);
+        current = creator;
+    }
+    return false;
+}
+
+/**
+ * Whether the Session's Agent waits on the user's answer, the same test the phone's home list uses.
+ */
+function isWaitingOnUser(
+    session: Pick<
+        SessionRecord,
+        'agentActivityState' | 'hasPendingAttention' | 'lastAttentionKind'
+    >,
+): boolean {
+    return (
+        session.agentActivityState === 'waiting' ||
+        (session.hasPendingAttention && session.lastAttentionKind === 'waiting')
+    );
+}
+
 function appendTo<Key, Value>(map: Map<Key, Value[]>, key: Key, value: Value): void {
     const bucket = map.get(key);
     if (bucket) bucket.push(value);
@@ -165,8 +207,8 @@ function sessionRowGroupId(session: Pick<SessionRecord, 'pinnedAt' | 'projectId'
  * - A host must hold a row itself: a Session whose Project is not shown and which is not pinned is not listed, so what it
  *   created stays an ordinary row in its own Project and nothing becomes unreachable.
  * - Consult hiding applies before pin placement, so a pinned hidden consult stays hidden.
- * - A settled consult whose creator is archived takes no row at all, and what it created returns to ordinary rows; a
- *   running, waiting, or attention-holding one keeps its row.
+ * - A consult or delegated Session whose host is archived takes no row at all, except a delegated one waiting on the
+ *   user, which becomes an ordinary row; a `handoff` or `independent` Session it created keeps its ordinary row.
  */
 export function placeDelegatedSessions({
     humanControlledSessionIds = NO_SESSION_IDS,
@@ -179,27 +221,35 @@ export function placeDelegatedSessions({
     const isListed = (session: SessionRecord): boolean =>
         isPinnedSession(session) || listedProjectIds.has(session.projectId);
     /**
-     * A consult whose creator is archived: a consult never takes a Project tree row of its own (the asking Chat's Side
-     * View is its entry), and archiving the creator does not give it one, whatever its state. Its answer was for the
-     * archived work. The Activity view follows this placement too (`agent-activity-rows.ts`); the command palette still
-     * lists it, unarchiving the creator hides it under the creator again, and the selected one keeps a row so the
-     * selection stays visible.
+     * Nesting Sessions whose host was archived. Archiving a host puts its delegated work away with it, so the Project
+     * tree does not suddenly fill with the host's settled children (issue #4067).
+     *
+     * - A consult never takes a Project tree row of its own (the asking Chat's Side View is its entry), whatever its
+     *   state. Its answer was for the archived work. The Activity view follows this for consults
+     *   (`agent-activity-rows.ts`).
+     * - A delegated Session retires too, except one waiting on the user's answer, which keeps an ordinary row so a
+     *   question is never hidden. This matches the phone's home list (`isSessionListedOnMobileHome`).
+     *
+     * The command palette still lists them, unarchiving the host nests them again, and the selected one keeps a row so
+     * the selection stays visible.
      */
-    const retiredConsults = new Set(
+    const retired = new Set(
         sessions
             .filter(
                 (session) =>
                     session.archivedAt === undefined &&
-                    session.createdByRelation === 'consult' &&
                     session.id !== selectedSessionId &&
-                    sessionsById.get(session.createdBySessionId ?? '')?.archivedAt !== undefined,
+                    shouldNest(session, humanControlledSessionIds) &&
+                    (session.createdByRelation === 'consult' || !isWaitingOnUser(session)) &&
+                    hasArchivedHost(session, sessionsById, humanControlledSessionIds),
             )
             .map((session) => session.id),
     );
     const hasRow = (session: SessionRecord): boolean =>
-        isListed(session) && !retiredConsults.has(session.id);
+        isListed(session) && !retired.has(session.id);
     const byId = new Map<string, SessionPlacement>();
     const rows: SessionRecord[] = [];
+    const retiredRows: SessionRecord[] = [];
     const nested = new Map<string, SessionRecord[]>();
     const hidden = new Map<string, SessionRecord[]>();
     const activeSessions = sessions.filter((candidate) => candidate.archivedAt === undefined);
@@ -211,6 +261,8 @@ export function placeDelegatedSessions({
             if (hasRow(session)) {
                 byId.set(session.id, { kind: 'row' });
                 rows.push(session);
+            } else if (retired.has(session.id) && isListed(session)) {
+                retiredRows.push(session);
             }
         } else if (session.createdByRelation === 'consult' && session.id !== selectedSessionId) {
             byId.set(session.id, { hostId, kind: 'hidden' });
@@ -242,6 +294,7 @@ export function placeDelegatedSessions({
         hiddenByHost: hidden,
         hostedByGroup,
         nestedByHost: nested,
+        retired: retiredRows,
         rows,
     };
 }

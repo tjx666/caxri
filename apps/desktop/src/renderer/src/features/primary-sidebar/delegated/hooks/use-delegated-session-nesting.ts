@@ -60,11 +60,17 @@ export function useDelegatedSessionNesting({
 }): DelegatedSessionsModel {
     /**
      * Placement from the records alone decides which creators the feed reads. Reading them from the final placement
-     * would drop a taken-over Session's creator once it leaves the nest, lose its `control`, and nest it again.
+     * would drop a taken-over Session's creator once it leaves the nest, lose its `control`, and nest it again. The
+     * retired Sessions' archived hosts are read too, so a Session the user took over keeps its row after its host is
+     * archived instead of being put away with the host's other work.
      */
     const recordPlacement = useDelegatedPlacement({ projects, selectedSessionId, sessions });
     const creatorIdChunks = useMemo(
-        () => delegationFeedCreatorIdChunks(nestedSessions(recordPlacement)),
+        () =>
+            delegationFeedCreatorIdChunks([
+                ...nestedSessions(recordPlacement),
+                ...recordPlacement.retired,
+            ]),
         [recordPlacement],
     );
     const feed = useDelegationFeed(creatorIdChunks);

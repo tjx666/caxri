@@ -197,7 +197,7 @@ test('more than three settled children fold behind Show more, and Show more adds
     }
 });
 
-test('archiving a nested Session or its host returns what remains to its own Project', async () => {
+test('archiving a nested Session archives only it, and archiving its host puts its delegated work away', async () => {
     const fixture = await launchDelegatedSessions('caxri-sidebar-delegated-archive');
     const { page } = fixture.running;
     try {
@@ -218,16 +218,22 @@ test('archiving a nested Session or its host returns what remains to its own Pro
             afterRow.sessions.find((session) => session.id === fixture.host)?.archivedAt,
         ).toBeUndefined();
 
-        // Archiving the host leaves no listed ancestor: the nested Sessions become ordinary rows in their own Project,
-        // while the consult stays hidden: archiving its creator never gives a consult a row of its own.
+        // Archiving the host puts its delegated work away with it (issue #4067): the remaining nested Session and the
+        // consult take no row. Only what the user owns returns to its own Project: the Session they took over and the
+        // hand-off.
         await pageRequest(page, 'session.archive', { sessionId: fixture.host });
         await expect(group).toHaveCount(0);
         const workerSessions = projectSessions(page, WORKER_PROJECT);
-        const returned = [fixture.failed, fixture.takenOver, fixture.handoff];
+        const returned = [fixture.takenOver, fixture.handoff];
         await expect
             .poll(async () => sorted(await sessionIdsIn(workerSessions)))
             .toEqual(sorted(returned));
         await expect(sessionCard(page, fixture.consult)).toHaveCount(0);
+        await expect(sessionCard(page, fixture.failed)).toHaveCount(0);
+        await page
+            .getByRole('tree')
+            .first()
+            .screenshot({ path: test.info().outputPath('archived-host.png') });
         for (const sessionId of returned) {
             // eslint-disable-next-line no-await-in-loop -- one row at a time keeps the failing Session in the message.
             await expect(sessionCard(page, sessionId)).toHaveAttribute('aria-level', '2');

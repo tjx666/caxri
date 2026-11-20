@@ -27,8 +27,9 @@ export type MobileSessionHomeListingFacts = Pick<
  * to it. A Session whose creator is absent (deleted or past the dashboard cap) keeps its row so nothing becomes
  * unreachable, and so does one waiting on the user's answer, which the phone must not hide.
  *
- * An unpinned `consult` Session whose creator is archived has no row, matching Desktop's Projects tree (issue #3847):
- * the answer belonged to a Session the user put away, and search still finds it.
+ * Creator work whose creator is archived has no row either, matching Desktop's Projects tree (issues #3847 and #4067):
+ * it was put away with the Session the user archived, and search still finds it. A delegated one waiting on the user
+ * still keeps its row.
  *
  * The Server ranks the dashboard by this rule before its cap, and the phone filters by it, so a second opinion the list
  * will hide never takes the place of a row it would show.
@@ -38,19 +39,22 @@ export const isSessionListedOnMobileHome = (
     listedSessionIds: ReadonlySet<string>,
 ): boolean => {
     if (
-        session.createdByRelation === 'consult' &&
         session.createdBySessionArchived === true &&
-        !isPinnedSession(session)
+        !isPinnedSession(session) &&
+        (session.createdByRelation === 'consult' || session.createdByRelation === 'delegated')
     )
-        return false;
+        return session.createdByRelation === 'delegated' && isWaitingOnUser(session);
     const creatorId = session.createdBySessionId;
     if (creatorId === undefined || !listedSessionIds.has(creatorId)) return true;
     const isCreatorWork =
         session.createdByRelation === 'consult' ||
         (session.createdByRelation === 'delegated' && !isPinnedSession(session));
-    if (!isCreatorWork) return true;
+    return !isCreatorWork || isWaitingOnUser(session);
+};
+
+function isWaitingOnUser(session: MobileSessionHomeListingFacts): boolean {
     return (
         session.agentActivityState === 'waiting' ||
         (session.hasPendingAttention && session.lastAttentionKind === 'waiting')
     );
-};
+}
