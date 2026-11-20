@@ -1,6 +1,6 @@
 {
     "name": "caxri.project-status",
-    "version": "0.0.180",
+    "version": "0.0.181",
     "private": true,
     "type": "module",
     "main": "./dist/extension.js",
@@ -13,7 +13,7 @@
         "caxri": "workspace:*"
     },
     "engines": {
-        "caxri": "^0.0.180"
+        "caxri": "^0.0.181"
     },
     "caxri": {
         "capabilities": [
