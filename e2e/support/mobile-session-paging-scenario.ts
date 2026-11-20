@@ -65,27 +65,31 @@ const isSelected = (nodes: MobileSemanticNode[], checkId: string): boolean =>
     nodes.some((node) => node.checkId === checkId && node.selected);
 
 /**
- * Drags the Session list up by about half its height until `checkId` is laid out, and returns the screen it shows on.
+ * Drags the Session list upward (`up`) or the Project chip strip toward its end (`left`) or start (`right`) until
+ * `checkId` is on screen. Android semantics list only on-screen nodes, so a row or chip past the edge is absent until
+ * it scrolls in.
  */
-async function scrollListTo(serial: string, checkId: string): Promise<MobileSemanticNode[]> {
+async function dragUntil(
+    serial: string,
+    checkId: string,
+    direction: 'left' | 'right' | 'up',
+): Promise<MobileSemanticNode[]> {
+    const containerId = direction === 'up' ? 'session-list' : 'session-project-filters';
     for (let attempt = 0; attempt < MAX_SCROLLS; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- each drag is observed on the screen the previous one left.
         const nodes = await mobileSemantics(serial);
         if (hasCheck(nodes, checkId)) return nodes;
-        const list = checkBounds(nodes, 'session-list');
-        if (!list) throw new Error('The Session list is not laid out');
-        const x = String(Math.floor((list.left + list.right) / 2));
-        const height = list.bottom - list.top;
+        const box = checkBounds(nodes, containerId);
+        if (!box) throw new Error(`${containerId} is not laid out`);
+        const x = (share: number) => String(Math.floor(box.left + (box.right - box.left) * share));
+        const y = (share: number) => String(Math.floor(box.top + (box.bottom - box.top) * share));
+        const path = {
+            left: [x(0.8), y(0.5), x(0.2), y(0.5)],
+            right: [x(0.2), y(0.5), x(0.8), y(0.5)],
+            up: [x(0.5), y(0.75), x(0.5), y(0.25)],
+        }[direction];
         // eslint-disable-next-line no-await-in-loop -- see above.
-        await adbShell(serial, [
-            'input',
-            'swipe',
-            x,
-            String(Math.floor(list.top + height * 0.75)),
-            x,
-            String(Math.floor(list.top + height * 0.25)),
-            '400',
-        ]);
+        await adbShell(serial, ['input', 'swipe', ...path, '300']);
     }
     throw new Error(`${checkId} never scrolled into view`);
 }
@@ -128,7 +132,7 @@ export async function executeMobileSessionPagingScenario(
         // Open the backlog again and load its next page.
         await tapMobileCheckByBounds(serial, 'session-group-attention');
         await waitForCheck(serial, `session-row-${attention[0]}`);
-        const atReveal = await scrollListTo(serial, 'session-group-reveal-attention');
+        const atReveal = await dragUntil(serial, 'session-group-reveal-attention', 'up');
         // The first page ends before the next Session: it has no row until the next page loads.
         if (
             attention
@@ -139,7 +143,7 @@ export async function executeMobileSessionPagingScenario(
         await capture(environment, 'backlog-show-more', artifacts);
         await tapMobileCheckByBounds(serial, 'session-group-reveal-attention');
         const nextPageRow = `session-row-${attention[MOBILE_DASHBOARD_GROUP_PAGE_SIZE]}`;
-        await scrollListTo(serial, nextPageRow);
+        await dragUntil(serial, nextPageRow, 'up');
         await capture(environment, 'backlog-next-page', artifacts);
         await finish(environment, artifacts, {
             idleRow: 'shown-under-idle',
@@ -164,11 +168,13 @@ export async function executeMobileProjectChipsScenario(
     const { fixture, seed } = await pagingFixture(serial);
     try {
         const { backlogProjectId, dormantProjectId, dormantSessionId, recentProjectId } = seed;
-        const strip = await waitForCheck(serial, 'project-filter-more');
+        const start = await waitForCheck(serial, `project-filter-${backlogProjectId}`);
+        // The strip runs past the screen edge; its trailing More chip shows once it is dragged to the end.
+        const end = await dragUntil(serial, 'project-filter-more', 'left');
         for (const id of [backlogProjectId, recentProjectId])
-            if (!hasCheck(strip, `project-filter-${id}`))
+            if (!hasCheck(start, `project-filter-${id}`) && !hasCheck(end, `project-filter-${id}`))
                 throw new Error('An active Project has no chip');
-        if (hasCheck(strip, `project-filter-${dormantProjectId}`))
+        if ([start, end].some((nodes) => hasCheck(nodes, `project-filter-${dormantProjectId}`)))
             throw new Error('The dormant Project still has a chip');
         await capture(environment, 'chips-recent-only', artifacts);
 
@@ -184,10 +190,12 @@ export async function executeMobileProjectChipsScenario(
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
-                isSelected(nodes, chosen) &&
                 hasCheck(nodes, `session-row-${dormantSessionId}`) &&
                 !hasCheck(nodes, 'project-chooser-sheet'),
         );
+        // The strip still sits at its end, so a chip off screen lies toward its start.
+        if (!isSelected(await dragUntil(serial, chosen, 'right'), chosen))
+            throw new Error('The Project chosen under More has no selected chip');
         await capture(environment, 'dormant-chosen', artifacts);
         await finish(environment, artifacts, {
             dormantChip: 'hidden-until-chosen',
