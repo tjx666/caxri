@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { SessionListEntry } from '../hooks/use-session-polling';
 import {
+    isSessionListTap,
+    resetSessionListReveals,
     revealSessionListGroup,
+    SESSION_LIST_TAP_SLOP_DP,
     sessionListRows,
     toggleSessionListGroup,
 } from '../session-list-groups';
@@ -73,5 +76,69 @@ describe('sessionListRows', () => {
     it('keeps the selected Session in sight below the window', () => {
         const rows = sessionListRows(group('idle', 9), {}, 'idle-8');
         expect(ids(rows)).toContain('idle:idle-8');
+    });
+});
+
+describe('sessionListRows with Server totals', () => {
+    const totals = { pinned: 0, attention: 40, working: 0, idle: 30 };
+
+    it('counts and offers the rows the Server holds beyond a group the list shows in full', () => {
+        const rows = sessionListRows(group('attention', 15), {}, undefined, totals);
+        expect(rows[0]).toMatchObject({ count: 40 });
+        expect(rows).toHaveLength(17);
+        expect(rows.at(-1)).toMatchObject({
+            id: 'reveal:attention',
+            nextRevealCount: 10,
+            windowCount: 15,
+        });
+    });
+
+    it('steps a reveal still loading from what it asked for, not from the rows held', () => {
+        const states = revealSessionListGroup({}, 'attention', 15);
+        expect(states.attention?.revealedCount).toBe(25);
+        const rows = sessionListRows(group('attention', 15), states, undefined, totals);
+        expect(rows.at(-1)).toMatchObject({ windowCount: 25 });
+    });
+
+    it('keeps the reveal row under a windowed group that shows every row it holds', () => {
+        const states = revealSessionListGroup({}, 'idle', 5);
+        const rows = sessionListRows(group('idle', 15), states, undefined, totals);
+        expect(rows.filter(({ type }) => type === 'session')).toHaveLength(15);
+        expect(rows.at(-1)).toMatchObject({ nextRevealCount: 10, windowCount: 15 });
+    });
+
+    it('offers nothing more once every row is held', () => {
+        const rows = sessionListRows(group('attention', 40), {}, undefined, totals);
+        expect(rows.some(({ type }) => type === 'reveal')).toBe(false);
+    });
+
+    it('counts only the rows held without totals for the shown filter', () => {
+        const rows = sessionListRows(group('attention', 3), {}, undefined);
+        expect(rows[0]).toMatchObject({ count: 3 });
+        expect(rows.some(({ type }) => type === 'reveal')).toBe(false);
+    });
+
+    it('starts reveals over for another Project and keeps collapsed groups', () => {
+        const states = toggleSessionListGroup(revealSessionListGroup({}, 'idle', 5), 'working');
+        expect(resetSessionListReveals(states)).toEqual({
+            idle: { isCollapsed: undefined },
+            working: { isCollapsed: true },
+        });
+    });
+});
+
+describe('isSessionListTap', () => {
+    const start = { pageX: 100, pageY: 200 };
+
+    it('counts a still or slightly moved touch as a tap', () => {
+        expect(isSessionListTap(start, start)).toBe(true);
+        expect(isSessionListTap(start, { pageX: 100 + SESSION_LIST_TAP_SLOP_DP, pageY: 200 })).toBe(
+            true,
+        );
+    });
+
+    it('treats a sideways swipe across a heading as a drag, not a tap', () => {
+        expect(isSessionListTap(start, { pageX: 360, pageY: 204 })).toBe(false);
+        expect(isSessionListTap(start, { pageX: 20, pageY: 200 })).toBe(false);
     });
 });

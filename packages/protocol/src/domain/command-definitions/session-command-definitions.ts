@@ -127,6 +127,13 @@ export const sessionCommandDefinitions: CommandDefinition[] = [
         description: 'Select the next Session with an event you have not opened yet',
         keywords: ['attention', 'unread', 'waiting', 'inbox'],
     },
+    {
+        id: 'session.markAllAttentionDone',
+        title: 'Mark All Needing Attention as Done',
+        category: 'Session',
+        description: 'Move every Session in Needs attention to Idle after confirming',
+        keywords: ['attention', 'done', 'clear', 'inbox', 'resolve', 'bulk'],
+    },
     ...sessionOpenPinnedCommandIds.map((id, index): CommandDefinition => ({
         id,
         title:

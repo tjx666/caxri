@@ -20,5 +20,13 @@ export const agentActivity: TranslatedNamespace<typeof source> = {
     'agentActivity.glyph.detached': '已分离',
     'agentActivity.markDone': '标为已处理',
     'agentActivity.markSessionDone': '将 {{title}} 标为已处理',
+    'agentActivity.markAllDone.action': '全部标为已处理',
+    'agentActivity.markAllDone.title': '将所有会话标为已处理？',
+    'agentActivity.markAllDone.messageOne':
+        '“需要处理”中的 {{count}} 个会话将移到“空闲”，对话和 Agent 不受影响。',
+    'agentActivity.markAllDone.messageOther':
+        '“需要处理”中的 {{count}} 个会话将移到“空闲”，对话和 Agent 不受影响。',
+    'agentActivity.markAllDone.confirm': '标为已处理',
+    'agentActivity.markAllDone.failed': '无法将这些会话标为已处理',
     'agentActivity.note.background': '等后台任务',
 };

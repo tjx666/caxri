@@ -47,6 +47,7 @@ export const commands = {
     'commands.session.selectPrevious': 'Select Previous Session',
     'commands.session.switchMru': 'Switch to Recently Used Session',
     'commands.session.focusNextAttention': 'Go to Next Session Needing Attention',
+    'commands.session.markAllAttentionDone': 'Mark All Needing Attention as Done',
     'commands.session.openPinned1': 'Switch to Pinned Session 1',
     'commands.session.openPinned2': 'Switch to Pinned Session 2',
     'commands.session.openPinned3': 'Switch to Pinned Session 3',

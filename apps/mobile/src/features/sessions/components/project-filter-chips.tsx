@@ -6,6 +6,7 @@ import { StyleSheet } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import type { SharedValue } from 'react-native-reanimated';
 import Animated, {
+    Easing,
     scrollTo,
     useAnimatedRef,
     useAnimatedStyle,
@@ -31,7 +32,6 @@ import {
     projectMoveActions,
     projectMoveTarget,
 } from '../project-order';
-import { PAGER_SETTLE } from './project-pager-motion';
 
 /**
  * Holding a chip this long picks it up; a shorter touch stays a tap, and moving first scrolls the strip.
@@ -47,6 +47,10 @@ const AUTO_SCROLL_MAX_STEP = 8;
  */
 const AUTO_SCROLL_SLOP = 8;
 const SETTLE_MS = 150;
+/**
+ * How the highlight glides from one chip to the next when another is chosen.
+ */
+const HIGHLIGHT_GLIDE = { duration: 240, easing: Easing.out(Easing.cubic) };
 const CHIP_GAP = mobileSpace.sm;
 /**
  * Wider than any chip, so an unmeasured chip's highlight covers its whole pill.
@@ -84,33 +88,38 @@ export interface ProjectFilterChoice {
 }
 
 /**
- * The Project filters above the Session list: All, then each Project in the order Desktop's sidebar shows. On a control
- * device a held Project chip can be dragged to a new place, as the sidebar's Projects can; the strip scrolls when the
- * chip is held near either end.
+ * The Project filters above the Session list: All, then each Project in the order Desktop's sidebar shows, then More
+ * when some Projects are left out (see `visibleProjectChips`). On a control device a held Project chip can be dragged
+ * to a new place, as the sidebar's Projects can; the strip scrolls when the chip is held near either end.
  */
 export const ProjectFilterChips = ({
     activeProjectId,
     onChooseProject,
     onMoveProject,
-    pageProgress,
+    onOpenMore,
     projects,
     theme,
 }: {
     activeProjectId: string | null;
     onChooseProject: (projectId: string | null) => void;
     /**
-     * Present only for a control device; without it the chips only filter.
+     * Present only for a control device; without it the chips only filter. `toIndex` is a place among these chips.
      */
     onMoveProject?: (projectId: string, toIndex: number) => void;
     /**
-     * The Project pager's place in pages (0 is All, then each Project). The highlight follows it while a swipe drags or
-     * settles the pager; at rest the strip sets it, gliding there when another chip is chosen.
+     * Present when the strip leaves Projects out: a trailing More chip opens the full list.
      */
-    pageProgress: SharedValue<number>;
+    onOpenMore?: () => void;
     projects: ProjectFilterChoice[];
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const initialPage = projects.findIndex(({ id }) => id === activeProjectId) + 1;
+    /**
+     * Where the highlight sits, in chips (0 is All, then each Project). At rest it is the chosen chip; it glides there
+     * when another is chosen.
+     */
+    const pageProgress = useSharedValue(initialPage);
     const allSlot = useSharedValue<ProjectChipSlot | undefined>(undefined);
     const scrollReference = useAnimatedRef<Animated.ScrollView>();
     const scrollOffset = useScrollOffset(scrollReference);
@@ -175,15 +184,15 @@ export const ProjectFilterChips = ({
     }, [drag.from, drag.slots, drag.to, drag.translation, projectOrder, projects.length]);
     const activeIndex = projects.findIndex(({ id }) => id === activeProjectId);
     const shownProjectId = useRef(activeProjectId);
-    // Choosing another chip glides the highlight there. A settled swipe already carried it there, so the same glide
-    // changes nothing; a Project reorder keeps the selection and only moves its chip, so the highlight follows at once.
+    // Choosing another chip glides the highlight there; a Project reorder keeps the selection and only moves its chip,
+    // so the highlight follows at once.
     useEffect(() => {
         const page = activeIndex + 1;
         if (shownProjectId.current === activeProjectId) pageProgress.set(page);
-        else pageProgress.set(withTiming(page, PAGER_SETTLE));
+        else pageProgress.set(withTiming(page, HIGHLIGHT_GLIDE));
         shownProjectId.current = activeProjectId;
     }, [activeIndex, activeProjectId, pageProgress]);
-    // Swiping the Session list can select a chip past the edge of the strip, so the strip follows the selection.
+    // A Project chosen from More can take a chip past the edge of the strip, so the strip follows the selection.
     useEffect(() => {
         const offset = projectChipRevealOffset(
             activeIndex === -1 ? undefined : slotsReference.current.at(activeIndex),
@@ -276,6 +285,17 @@ export const ProjectFilterChips = ({
                     theme={theme}
                 />
             ))}
+            {onOpenMore ? (
+                <Chip
+                    accessibilityHint={t('sessions.home.moreProjectsHint')}
+                    accessibilityLabel={t('sessions.home.moreProjects')}
+                    label={t('sessions.home.moreProjects')}
+                    onPress={onOpenMore}
+                    selected={false}
+                    testID="project-filter-more"
+                    theme={theme}
+                />
+            ) : null}
         </Animated.ScrollView>
     );
 };

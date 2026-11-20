@@ -109,6 +109,17 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agentActivity.showExcerpts.title': '在活动中显示 Agent 摘录',
     'settings.agentActivity.showExcerpts.description':
         '在每个活动行下引用 Agent 最近的提问或回复，或它的一句话回顾。关闭后每行只显示标题和状态行。',
+    'settings.agentActivity.autoMarkDoneOnPullRequestClose.title': 'PR 关闭后自动标为已处理',
+    'settings.agentActivity.autoMarkDoneOnPullRequestClose.description':
+        '会话的 PR 合并或关闭后，将它移出“需要处理”。等待你回答的会话不受影响。',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.title': '自动将不活跃的会话标为已处理',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.description':
+        '会话超过这段时间没有活动后，将它移出“需要处理”。等待你回答的会话不受影响。',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.off': '关闭',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.1d': '1 天后',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.3d': '3 天后',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.7d': '7 天后',
+    'settings.agentActivity.autoMarkDoneAfterInactivity.option.14d': '14 天后',
 
     'settings.primarySidebar.translucent.title': '半透明侧边栏',
     'settings.primarySidebar.translucent.description':

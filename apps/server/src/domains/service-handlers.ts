@@ -52,7 +52,11 @@ import {
 } from './pull-request';
 import { createSessionSearchServices } from './search-service-creation';
 import type { SessionContextService } from './session';
-import { defaultSessionReferenceDirectory, SessionConversationReferenceService } from './session';
+import {
+    AutoMarkDone,
+    defaultSessionReferenceDirectory,
+    SessionConversationReferenceService,
+} from './session';
 import { resolveTerminalFileLink } from './terminal';
 import type { AgentUsageGuards } from './usage';
 import { offlinePriceListFetch, UsageService } from './usage';
@@ -167,6 +171,15 @@ export function createServiceHandlers(services: {
             emit({ event: 'session.autoArchived', payload: { sessionId, pullRequestState } }),
     });
     settlementWiring.attach(pullRequestSettlement);
+    settlementWiring.attachAutoMarkDone(
+        new AutoMarkDone({
+            database,
+            logger,
+            pullRequest: (sessionId) => settlementWiring.pullRequest(sessionId),
+            send: emit,
+            settings: () => configuration.getSettings().value,
+        }),
+    );
     const sessionPullRequests = new SessionPullRequestService(
         database,
         git,

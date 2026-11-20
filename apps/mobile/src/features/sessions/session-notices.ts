@@ -123,7 +123,6 @@ export type HomeNoticeKind =
     | 'connection-unverified'
     | 'list-error'
     | 'saved-copy'
-    | 'truncated'
     | 'update-available'
     | 'update-mismatch'
     | 'update-required';
@@ -136,18 +135,13 @@ const HOME_NOTICE_PRIORITY: readonly HomeNoticeKind[] = [
     'list-error',
     'update-available',
     'saved-copy',
-    'truncated',
 ];
 
 /**
  * The Session list's own notices only apply while the list is on screen; a phone showing a Session detail keeps just
  * the app-wide connection and update ones.
  */
-const LIST_ONLY_NOTICES: ReadonlySet<HomeNoticeKind> = new Set([
-    'list-error',
-    'saved-copy',
-    'truncated',
-]);
+const LIST_ONLY_NOTICES: ReadonlySet<HomeNoticeKind> = new Set(['list-error', 'saved-copy']);
 
 /**
  * Every notice that applies, most severe first. `update` is the Mobile update banner's kind: a version mismatch that
@@ -160,14 +154,12 @@ export const homeNoticeCandidates = ({
     isListVisible,
     isListErrorShown,
     isSavedCopy,
-    isTruncated,
     update,
 }: {
     connection: 'stale' | 'unverified' | null;
     isListErrorShown: boolean;
     isListVisible: boolean;
     isSavedCopy: boolean;
-    isTruncated: boolean;
     update: 'available' | 'checking' | 'mismatch' | 'required' | 'unreachable' | null;
 }): HomeNoticeKind[] => {
     const active = new Set<HomeNoticeKind>();
@@ -177,7 +169,6 @@ export const homeNoticeCandidates = ({
     if (connection) active.add(`connection-${connection}`);
     if (isListErrorShown) active.add('list-error');
     if (isSavedCopy) active.add('saved-copy');
-    if (isTruncated) active.add('truncated');
     return HOME_NOTICE_PRIORITY.filter(
         (kind) => active.has(kind) && (isListVisible || !LIST_ONLY_NOTICES.has(kind)),
     );
@@ -303,32 +294,3 @@ export const createHomeNoticeSelections = (): HomeNoticeSelections => {
         },
     };
 };
-
-/**
- * How long the truncated-list island stays up. Truncation is a lasting fact rather than something that clears itself,
- * so a capsule held for as long as it is true would cover the header for good; it shows once and gets out of the way.
- */
-export const TRUNCATED_NOTICE_VISIBLE_MS = 4_000;
-
-/**
- * When each transient notice was first drawn in this app process. A notice drawn again for the same key (another screen
- * mounting, or a higher notice clearing above it) only gets what is left of its time, so the truncated island does not
- * return every time the Session list comes back into view. A new count is a new key and shows again.
- */
-export const createFirstShownTimes = (): ((key: string, now: number) => number) => {
-    const times = new Map<string, number>();
-    return (key, now) => {
-        const since = times.get(key) ?? now;
-        times.set(key, since);
-        return since;
-    };
-};
-
-/**
- * How many milliseconds a transient notice first drawn at `since` still has on screen; `0` once it has expired.
- */
-export const transientNoticeRemainingMs = (
-    since: number,
-    now: number,
-    durationMs: number = TRUNCATED_NOTICE_VISIBLE_MS,
-): number => Math.max(0, since + durationMs - now);

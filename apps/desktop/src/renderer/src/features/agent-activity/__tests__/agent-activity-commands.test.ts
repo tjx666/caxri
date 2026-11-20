@@ -1,15 +1,27 @@
 import type { BootstrapState, ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ didSelectSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+    markSessionsDone: vi.fn(),
+    didSelectSession: vi.fn(),
+    showConfirm: vi.fn(),
+}));
 vi.mock('../../session/session-commands', () => ({
     cachedMergedPullRequestSessionIds: () => new Set<string>(),
+    markSessionsDone: mocks.markSessionsDone,
     didSelectSession: mocks.didSelectSession,
+}));
+vi.mock(import('../../../stores/confirmations'), async (importOriginal) => ({
+    ...(await importOriginal()),
+    showConfirm: mocks.showConfirm,
 }));
 
 import { useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { focusNextAttentionSession } from '../agent-activity-commands';
+import {
+    focusNextAttentionSession,
+    markAllAttentionSessionsDone,
+} from '../agent-activity-commands';
 
 function project(id: string): ProjectRecord {
     return { title: id, id } as ProjectRecord;
@@ -86,5 +98,45 @@ describe('focusNextAttentionSession', () => {
 
         expect(mocks.didSelectSession).not.toHaveBeenCalled();
         expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(false);
+    });
+});
+
+describe('markAllAttentionSessionsDone', () => {
+    beforeEach(() => {
+        mocks.markSessionsDone.mockReset();
+        mocks.markSessionsDone.mockResolvedValue(2);
+        mocks.showConfirm.mockReset();
+    });
+
+    it('resolves every Session in Needs attention at its shown generation after confirming', async () => {
+        useWorkbenchStore.setState({ bootstrap: bootstrap('quiet') });
+        mocks.showConfirm.mockResolvedValue(true);
+
+        await markAllAttentionSessionsDone();
+
+        expect(mocks.showConfirm).toHaveBeenCalledOnce();
+        expect(mocks.markSessionsDone).toHaveBeenCalledExactlyOnceWith([
+            { sessionId: 'newer', attentionGeneration: 0 },
+            { sessionId: 'older', attentionGeneration: 0 },
+        ]);
+    });
+
+    it('sends nothing when the user cancels', async () => {
+        useWorkbenchStore.setState({ bootstrap: bootstrap('quiet') });
+        mocks.showConfirm.mockResolvedValue(false);
+
+        await markAllAttentionSessionsDone();
+
+        expect(mocks.markSessionsDone).not.toHaveBeenCalled();
+    });
+
+    it('asks nothing when the queue is empty', async () => {
+        useWorkbenchStore.setState({
+            bootstrap: { ...bootstrap('quiet'), sessions: [session('quiet')] },
+        });
+
+        await markAllAttentionSessionsDone();
+
+        expect(mocks.showConfirm).not.toHaveBeenCalled();
     });
 });

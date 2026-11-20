@@ -193,6 +193,8 @@ const settingsProjection: SettingsProjection = {
     'primarySidebar.showSubagents': exportAsIs,
     'primarySidebar.sessionMenu': exportAsIs,
     'agentActivity.showExcerpts': exportAsIs,
+    'agentActivity.autoMarkDoneOnPullRequestClose': exportAsIs,
+    'agentActivity.autoMarkDoneAfterInactivity': exportAsIs,
     'primarySidebar.translucent': exportAsIs,
     'zen.fullScreen': exportAsIs,
     'zen.restore': exportAsIs,

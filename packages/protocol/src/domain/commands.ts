@@ -47,6 +47,7 @@ export const commandIds = [
     'session.openArchived',
     'session.search',
     'session.focusNextAttention',
+    'session.markAllAttentionDone',
     ...sessionOpenPinnedCommandIds,
     'agentActions.open',
     'terminal.new',

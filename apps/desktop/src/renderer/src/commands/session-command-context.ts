@@ -1,4 +1,7 @@
-import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import {
+    focusNextAttentionSession,
+    markAllAttentionSessionsDone,
+} from '../features/agent-activity/agent-activity-commands';
 import { takeBackFromBot } from '../features/caxri-bot/bot-handover-commands';
 import { enterAirplaneMode } from '../features/session/airplane-mode/airplane-mode-commands';
 import { didStartFreshChatFromCommand } from '../features/session/fresh-chat-commands';
@@ -51,6 +54,10 @@ export const sessionCommandContext: CommandContext['session'] = {
     deleteSelected: deleteSelectedSession,
     detachSelected: detachSelectedSession,
     focusNextAttention: focusNextAttentionSession,
+    markAllAttentionDone: () => {
+        // Fire-and-forget: `tryCommand` inside turns a rejection into one toast.
+        void markAllAttentionSessionsDone();
+    },
     navigateHistory: navigateSessionHistory,
     openArchived: openArchivedSessions,
     openPinned: openPinnedSessionAtPosition,

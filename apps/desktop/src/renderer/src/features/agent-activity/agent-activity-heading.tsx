@@ -1,7 +1,10 @@
 import type { LucideIcon } from 'lucide-react';
-import { ChevronDown, ChevronRight, Hand, Moon, Pin, Zap } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronRight, Hand, Moon, Pin, Zap } from 'lucide-react';
 
+import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
+import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import type {
     AgentActivityGroup,
     AgentActivityGroupId,
@@ -51,6 +54,7 @@ export function AgentActivityHeading({
     heading,
     roving,
     onFocus,
+    onMarkAllDone,
     onToggle,
 }: {
     expanded: boolean;
@@ -58,6 +62,10 @@ export function AgentActivityHeading({
     heading: ReturnType<typeof agentActivityHeadingPresentation>;
     roving: boolean;
     onFocus: () => void;
+    /**
+     * Present only on a non-empty Needs attention heading: shows the hover "Mark All as Done" action.
+     */
+    onMarkAllDone?: () => void;
     onToggle: () => void;
 }) {
     const { t } = useTranslation();
@@ -106,9 +114,33 @@ export function AgentActivityHeading({
                     ? t('agentActivity.heading.collapsed', { summary: heading.summary })
                     : heading.summary}
             </span>
+            {onMarkAllDone && (
+                // Hover-only like the row actions; the keyboard and the Command Palette reach the same action through
+                // `session.markAllAttentionDone`, so the button stays out of the tree's single Tab stop.
+                <Tooltip content={t('agentActivity.markAllDone.action')}>
+                    <button
+                        aria-label={t('agentActivity.markAllDone.action')}
+                        className={cn(
+                            sessionRowActionButton,
+                            'agent-activity-mark-all-done ml-auto flex-none opacity-0 transition-opacity group-hover/activity-heading:opacity-100 group-focus-visible/activity-heading:opacity-100',
+                        )}
+                        tabIndex={-1}
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onMarkAllDone();
+                        }}
+                    >
+                        <CheckCheck aria-hidden="true" size={12} />
+                    </button>
+                </Tooltip>
+            )}
             <Chevron
                 aria-hidden="true"
-                className="ml-auto flex-none text-muted opacity-0 transition-opacity group-hover/activity-heading:opacity-100 group-focus-visible/activity-heading:opacity-100 group-data-[expanded=false]/activity-heading:opacity-100"
+                className={cn(
+                    'flex-none text-muted opacity-0 transition-opacity group-hover/activity-heading:opacity-100 group-focus-visible/activity-heading:opacity-100 group-data-[expanded=false]/activity-heading:opacity-100',
+                    !onMarkAllDone && 'ml-auto',
+                )}
                 size={12}
             />
         </div>

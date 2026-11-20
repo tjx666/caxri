@@ -32,7 +32,11 @@ import {
     mobileChangesModeSchema,
 } from './mobile-changes-contract.js';
 import { mobileComputerMethods } from './mobile-computer-contract.js';
-import { mobileDashboardSessionSchema } from './mobile-dashboard-session-contract.js';
+import {
+    MOBILE_DASHBOARD_SESSIONS_MAX,
+    mobileDashboardParametersSchema,
+    mobileDashboardSessionSchema,
+} from './mobile-dashboard-session-contract.js';
 import { mobileDesktopUpdateMethods } from './mobile-desktop-update-contract.js';
 import { mobileDeviceActionMethods } from './mobile-device-action-contract.js';
 import { mobileDiagnosticsMethods } from './mobile-diagnostics-contract.js';
@@ -146,12 +150,27 @@ const mobileDeviceSummarySchema = z.strictObject({
     revokedAt: z.number().int().positive().optional(),
 });
 
+const groupTotalSchema = z.number().int().nonnegative().max(4_096);
+
 export const mobileDashboardResultSchema = z.strictObject({
     hostDisplayName: z.string().trim().min(1).max(100),
     deviceRole: z.enum(['view', 'reply', 'control']).nullable(),
     projects: z.array(mobileProjectSummarySchema).max(MOBILE_MAX_PROJECT_GRANTS),
-    sessions: z.array(mobileDashboardSessionSchema).max(64),
+    sessions: z.array(mobileDashboardSessionSchema).max(MOBILE_DASHBOARD_SESSIONS_MAX),
+    /**
+     * Every home row the read matched, across all groups. Sessions the home list hides (a second opinion, delegated
+     * work listed under its creator) are neither sent nor counted.
+     */
     total: z.number().int().nonnegative().max(4_096),
+    /**
+     * Each group's home rows the read matched, so the phone can offer to load the rows it does not hold yet.
+     */
+    groupTotals: z.strictObject({
+        pinned: groupTotalSchema,
+        attention: groupTotalSchema,
+        working: groupTotalSchema,
+        idle: groupTotalSchema,
+    }),
     truncated: z.boolean(),
 });
 
@@ -274,7 +293,7 @@ export const mobileMethods = {
     },
     'mobile.dashboard': {
         ...commandPolicy('server', 'read', ['sessions.read']),
-        params: noParameters,
+        params: mobileDashboardParametersSchema,
         result: mobileDashboardResultSchema,
     },
     'mobile.session.show': {

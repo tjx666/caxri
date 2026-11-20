@@ -1,6 +1,7 @@
 export { SessionAgentHistoryService } from './agent-history';
 export { createSessionAgentRuntimeHandlers } from './agent-runtime-handlers';
 export { AirplaneMode, isAirplaneModeHolding } from './airplane-mode';
+export { AutoMarkDone } from './attention/auto-mark-done';
 export { SessionAutoNamingService } from './auto-naming';
 export { ChatAwayRecap } from './away-recap';
 export { createBackgroundSession, discardEmptySession } from './background';

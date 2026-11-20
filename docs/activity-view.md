@@ -48,12 +48,36 @@ question ("is it my move?") across three headings. A Session leaves only when:
 
 - the user marks it done: the row's check button, **Mark as Done** in its context menu, or
   `Delete` / `Backspace` on the selected row (`session.markDone`);
+- the user marks the whole queue done: the **Mark All as Done** button on the Needs attention
+  heading, or **Mark All Needing Attention as Done** in the Command Palette, after one confirmation
+  (`session.markDoneMany`, one transaction and one row republish per Server, in batches of at most
+  `SESSION_MARK_DONE_BATCH_MAX`);
+- Caxri marks it done automatically (see below);
 - a new turn starts, from the user's prompt or because the Agent resumed on its own;
 - its question is answered elsewhere.
 
 A Session marked done goes to the top of **Idle**. GitHub notifications and Linear's Inbox separate
 "read" from "Done" the same way, and Orca's smart order keeps the same three tiers. Unread Attention
 still exists, but only decides how a row looks (a medium-weight title), never its group.
+
+**Automatic Mark as Done.** A queue the user does not watch fills with results nobody will act on:
+work whose pull request already merged, and Sessions untouched for weeks. Server Core settles
+those the way T3 Code auto-settles finished threads, controlled by two Settings under
+General > Sidebar:
+
+- `agentActivity.autoMarkDoneOnPullRequestClose` (default on): the Session's pull request merged
+  or closed;
+- `agentActivity.autoMarkDoneAfterInactivity` (`off`, `1d`, `3d`, `7d` (default), `14d`): its last
+  activity is older than the threshold.
+
+A Session waiting on the user (a question or permission prompt) or running is never settled: that
+is a blocked Agent, not a forgotten result. The sweep runs at startup, every 10 minutes, and soon
+after a pull request merges or closes; it resolves the current generation with the same guard as
+`session.markDone`, in one transaction and one `state.changed` event, and logs
+`session_attention.auto_mark_done` with per-reason counts (`pullRequestClosed`, `inactive`). An
+automatically settled Session keeps its place in **Idle** by its last real activity instead of
+jumping to the top, because nobody just ticked it. The code lives in
+`apps/server/src/domains/session/attention/auto-mark-done.ts`.
 
 Every group lists the newest arrival first, keyed by when the row entered the group, and that key
 holds still while the row stays there: a row moves when it changes group, never on its own, so the
@@ -269,6 +293,7 @@ too.
 | `Delete` / `Backspace`  | Mark the row done, moving it to the top of Idle                |
 | Row's check button      | The pointer equivalent of Delete                               |
 | Row's Archive button    | Archive the Session (Needs attention rows)                     |
+| Heading's double check  | Mark every Session in Needs attention done, after confirming   |
 | Double-click, Rename    | Edit that Session's title inline                               |
 | `session.rename`        | Edit the selected Session's title inline                       |
 | Right-click             | The Session context menu, with Mark as Done when pending       |

@@ -36,7 +36,6 @@ describe('mobile session model', () => {
     it('groups into attention, working, and idle and orders attention by tier then recency', () => {
         const result = buildMobileSessionSections({
             total: 5,
-            truncated: false,
             sessions: [
                 session({ id: 'result', sessionActivityAt: 500, lastAttentionKind: 'completed' }),
                 session({
@@ -74,7 +73,6 @@ describe('mobile session model', () => {
     it('lists a compacting Agent under working, as Desktop Activity does', () => {
         const result = buildMobileSessionSections({
             total: 1,
-            truncated: false,
             sessions: [
                 session({
                     agentActivityState: 'idle',
@@ -89,7 +87,6 @@ describe('mobile session model', () => {
     it('keeps a read Session in attention until it is marked done', () => {
         const result = buildMobileSessionSections({
             total: 1,
-            truncated: false,
             sessions: [session({ hasUnread: false, agentActivityState: 'completed' })],
         });
         expect(result.groups.attention.map((item) => item.id)).toEqual(['session-1']);
@@ -98,7 +95,6 @@ describe('mobile session model', () => {
     it('orders working by turn start, leaving a background wait in place, and lifts a just-resolved Session in idle', () => {
         const result = buildMobileSessionSections({
             total: 4,
-            truncated: false,
             sessions: [
                 session({
                     id: 'plain',
@@ -138,7 +134,6 @@ describe('mobile session model', () => {
     it('files a detached Session with pending attention under attention, not working', () => {
         const result = buildMobileSessionSections({
             total: 2,
-            truncated: false,
             sessions: [
                 session({
                     id: 'detached',
@@ -160,7 +155,6 @@ describe('mobile session model', () => {
     it('lists a pinned Session only under Pinned, in pinned order, even when it has news', () => {
         const result = buildMobileSessionSections({
             total: 3,
-            truncated: false,
             sessions: [
                 session({ id: 'pinned-attention', pinnedAt: 2 }),
                 session({
@@ -191,7 +185,6 @@ describe('mobile session model', () => {
     it('recognizes a stopped Agent Terminal', () => {
         const item = buildMobileSessionSections({
             total: 1,
-            truncated: false,
             sessions: [session()],
         }).groups.attention[0];
 
@@ -216,7 +209,6 @@ describe('mobile session model', () => {
 
         const result = buildMobileSessionSections({
             total: sessions.length,
-            truncated: false,
             sessions,
         });
 
@@ -227,7 +219,6 @@ describe('mobile session model', () => {
     it('labels a running Session that only waits on background work ', () => {
         const result = buildMobileSessionSections({
             total: 2,
-            truncated: false,
             sessions: [
                 session({
                     agentActivityState: 'running',
@@ -249,7 +240,6 @@ describe('mobile session model', () => {
         });
         const result = buildMobileSessionSections({
             total: 1,
-            truncated: false,
             sessions: [waiting],
         });
         expect(result.groups.idle.map((item) => item.id)).toEqual(['session-1']);
@@ -258,7 +248,6 @@ describe('mobile session model', () => {
         // The wait ends: the unread failure shows again.
         const ended = buildMobileSessionSections({
             total: 1,
-            truncated: false,
             sessions: [{ ...waiting, primaryTerminal: terminal }],
         });
         expect(ended.groups.attention).toHaveLength(1);

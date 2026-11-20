@@ -1,4 +1,4 @@
-import type { MobileConnectionStatus } from '../connection/connection-state';
+import type { MobileConnectionStatus } from '../../connection/connection-state';
 
 /**
  * `sent` means the subscribe frame is on the wire but not yet acknowledged; the first read may already travel behind
@@ -14,8 +14,14 @@ interface DashboardEvent {
     kind: string;
 }
 
-export const dashboardQueryKey = (connectionScopeKey: string) =>
+export const dashboardPairingQueryKey = (connectionScopeKey: string) =>
     ['mobile', 'dashboard', connectionScopeKey] as const;
+
+/**
+ * One query per pairing and Session home scope (`dashboardScopeKey`: the Project filter and each group's wanted rows).
+ */
+export const dashboardQueryKey = (connectionScopeKey: string, scopeKey = '') =>
+    [...dashboardPairingQueryKey(connectionScopeKey), scopeKey] as const;
 
 export const isDashboardRouteVisible = (pathname: string, hostId: string): boolean => {
     const home = `/h/${encodeURIComponent(hostId)}`;

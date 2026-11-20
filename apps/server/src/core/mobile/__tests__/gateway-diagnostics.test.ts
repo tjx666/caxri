@@ -314,6 +314,7 @@ describe('MobileGateway diagnostics', () => {
             projects: [],
             sessions: [],
             total: 0,
+            groupTotals: { pinned: 0, attention: 0, working: 0, idle: 0 },
             truncated: false,
         }));
         const gateway = new MobileGateway({
@@ -429,6 +430,7 @@ describe('MobileGateway diagnostics', () => {
                         projects: [],
                         sessions: [],
                         total: 0,
+                        groupTotals: { pinned: 0, attention: 0, working: 0, idle: 0 },
                         truncated: false,
                     }),
                 },

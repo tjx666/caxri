@@ -15,10 +15,10 @@ import type { MobileTheme } from '../../../theme/tokens';
 
 /**
  * A notice that needs nothing from the user, drawn as a small capsule floating over the top center of the screen like a
- * Dynamic Island: an automatic reconnect, the saved copy on screen, or a truncated Session list. It takes no layout
- * height, so the list and the Session underneath never move when it appears or clears. Only the capsule takes touches;
- * pressing it runs its shortcut (Reconnect now, Search) through a 48dp target, and its accessible name reads the full
- * notice sentence. While a toast is on screen the notice steps aside, since both share the same capsule spot.
+ * Dynamic Island: an automatic reconnect, or the saved copy on screen. It takes no layout height, so the list and the
+ * Session underneath never move when it appears or clears. Only the capsule takes touches; pressing it runs its
+ * shortcut (Reconnect now) through a 48dp target, and its accessible name reads the full notice sentence. While a toast
+ * is on screen the notice steps aside, since both share the same capsule spot.
  */
 export const NoticeIsland = ({
     accessibilityLabel,

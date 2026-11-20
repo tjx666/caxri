@@ -142,3 +142,9 @@ export function sessionAttentionVariant(
 ): SessionAttentionVariant {
     return lastAttentionKind === 'waiting' ? 'waiting' : 'result';
 }
+
+/**
+ * The largest `session.markDoneMany` batch, shared so a Client clearing a longer Needs attention queue splits it into
+ * requests the Server accepts. It matches the other bulk Session operations' bound.
+ */
+export const SESSION_MARK_DONE_BATCH_MAX = 200;

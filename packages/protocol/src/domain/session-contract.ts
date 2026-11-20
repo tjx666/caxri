@@ -15,6 +15,7 @@ import {
     sessionRestorePlacementSchema,
     sessionStateSchema,
 } from './session.js';
+import { SESSION_MARK_DONE_BATCH_MAX } from './session/session-activity-group.js';
 import { airplaneModeStateSchema } from './session/session-airplane-mode.js';
 import {
     sessionArchiveWorktreeChoiceSchema,
@@ -86,6 +87,10 @@ const sessionAttentionDoneResult = z.object({
     sessionId: identifierSchema,
     attentionGeneration: z.number().int().nonnegative(),
     hasPendingAttention: z.boolean(),
+});
+const sessionMarkDoneEntry = z.object({
+    sessionId: identifierSchema,
+    attentionGeneration: z.number().int().nonnegative(),
 });
 export const sessionMethods = {
     'session.compactWarm': {
@@ -303,6 +308,19 @@ export const sessionMethods = {
             attentionGeneration: z.number().int().nonnegative(),
         }),
         result: sessionAttentionDoneResult,
+    },
+    /**
+     * `session.markDone` for a whole Needs attention queue in one transaction and one row republish. Each entry carries
+     * the generation the Client showed, with the same guard: a newer generation stays pending. A Session archived or
+     * deleted since the Client rendered it is skipped rather than failing the batch, since the user asked to clear what
+     * is left, not to assert that every row still exists.
+     */
+    'session.markDoneMany': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.object({
+            sessions: z.array(sessionMarkDoneEntry).min(1).max(SESSION_MARK_DONE_BATCH_MAX),
+        }),
+        result: z.object({ resolvedSessionIds: z.array(identifierSchema) }),
     },
     /**
      * Owner-only: a title is the user's own naming, so neither an Agent Endpoint nor a paired phone sets it.

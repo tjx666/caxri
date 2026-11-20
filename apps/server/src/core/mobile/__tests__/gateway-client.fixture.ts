@@ -15,7 +15,7 @@ import {
     openMobilePayload,
     sealMobilePayload,
 } from '@caxri/mobile-transport';
-import type { Principal } from '@caxri/protocol';
+import type { MethodResult, MobileDeviceRole, Principal } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { expect } from 'vitest';
 import type { ClientOptions } from 'ws';
@@ -30,6 +30,21 @@ import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 /**
  * Creates an isolated in-memory device registry for a single test.
  */
+/**
+ * A `mobile.dashboard` reply with one granted Project and no Sessions, for tests that only need the read to succeed.
+ */
+export const emptyDashboardResult = (
+    deviceRole: MobileDeviceRole,
+): MethodResult<'mobile.dashboard'> => ({
+    hostDisplayName: 'Test computer',
+    deviceRole,
+    projects: [{ id: 'project-1', title: 'Test Project' }],
+    sessions: [],
+    total: 0,
+    groupTotals: { pinned: 0, attention: 0, working: 0, idle: 0 },
+    truncated: false,
+});
+
 export function registryFixture() {
     let byte = 1;
     return MobileDeviceRegistry.open({

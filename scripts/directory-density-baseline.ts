@@ -97,8 +97,8 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 39, directory: 'apps/mobile/src/features/connection' },
     { cap: 39, directory: 'apps/mobile/src/features/conversation' },
     { cap: 23, directory: 'apps/mobile/src/features/panels' },
-    { cap: 36, directory: 'apps/mobile/src/features/sessions' },
-    { cap: 53, directory: 'apps/mobile/src/features/sessions/components' },
+    { cap: 34, directory: 'apps/mobile/src/features/sessions' },
+    { cap: 52, directory: 'apps/mobile/src/features/sessions/components' },
     { cap: 28, directory: 'apps/mobile/src/features/sessions/hooks' },
     { cap: 22, directory: 'apps/mobile/src/features/terminal' },
 

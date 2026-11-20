@@ -83,6 +83,8 @@ export const settingRowSources: SettingRowSource[] = [
         binding: { type: 'session-menu' },
     }),
     specRow('agentActivity.showExcerpts', { subcategory: generalGroups.sidebar }),
+    specRow('agentActivity.autoMarkDoneOnPullRequestClose', { subcategory: generalGroups.sidebar }),
+    specRow('agentActivity.autoMarkDoneAfterInactivity', { subcategory: generalGroups.sidebar }),
     specRow('primarySidebar.translucent', { subcategory: generalGroups.sidebar }),
     specRow('agentChat.longPasteThreshold', { advanced: true }),
     specRow('agentChat.workingIndicator', { advanced: true }),

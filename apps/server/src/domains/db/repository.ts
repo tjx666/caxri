@@ -55,7 +55,7 @@ import {
     reconcileWindowsAfterRemoval,
 } from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
-import { markAttentionDone, markAttentionRead } from './session-attention-marks';
+import { SessionAttentionMarks } from './session-attention-marks';
 import type { CreateSessionOptions } from './session-create';
 import { createSession as createSessionRow } from './session-create';
 import {
@@ -101,6 +101,7 @@ export class CaxriDatabase {
     readonly botPendingNotices: CaxriDatabase_['botPendingNotices'];
     readonly terminalSurfaces: TerminalSurfaces;
     readonly windowOpenSessions: WindowOpenSessionsStore;
+    readonly attentionMarks: SessionAttentionMarks;
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
@@ -116,6 +117,7 @@ export class CaxriDatabase {
         this.botPendingNotices = this.db.botPendingNotices;
         this.terminalSurfaces = new TerminalSurfaces(this.db);
         this.windowOpenSessions = new WindowOpenSessionsStore(this.db);
+        this.attentionMarks = new SessionAttentionMarks(this.db);
     }
 
     /**
@@ -432,14 +434,6 @@ export class CaxriDatabase {
             this.db.appState.set('lastSelectedProjectId', session.projectId);
             return selectInWindow(this.db, windowKey, sessionId);
         });
-    }
-
-    markSessionAttentionRead(sessionId: string, generation: number) {
-        return markAttentionRead(this.db, sessionId, generation);
-    }
-
-    markSessionAttentionDone(sessionId: string, generation: number, now = Date.now()) {
-        return markAttentionDone(this.db, sessionId, generation, now);
     }
 
     deleteSession(sessionId: string): void {

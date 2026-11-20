@@ -34,13 +34,12 @@ const SWIPE_ACTION_WIDTH = 76;
 /**
  * How far a left drag travels before the row takes it. The library default (10dp) let the sideways drift of an ordinary
  * upward flick open the row and freeze the list (#2540); at 20dp the list's own vertical slop (8dp) wins any mostly
- * vertical drag first. It stays below the Project pager's 24dp, so a left drag that starts on a swipeable row reveals
- * its actions instead of paging to the next Project.
+ * vertical drag first.
  */
 const SWIPE_ACTIVATION_DP = 20;
 /**
- * A right drag on a closed row never activates the row's swipe, so it falls through to the Project pager and pages to
- * the previous Project. Once the row is open, a right drag closes it instead.
+ * A right drag on a closed row never activates the row's swipe: there are no leading actions to reveal. Once the row is
+ * open, a right drag closes it instead.
  */
 const SWIPE_CLOSED_RIGHT_OFFSET = Number.MAX_SAFE_INTEGER;
 /**
@@ -241,8 +240,8 @@ const SessionRowSwipe = ({
  * One Session in the home list. Swiping it left reveals its row actions (`sessionRowSwipeActions`): Mark as Done, which
  * resolves its Pending Attention as the check on a Desktop Activity row does, and Archive. Only a tap on an action runs
  * it, so a stray swipe changes nothing, and the screen reader reaches the same actions on the row itself. A row with no
- * actions does not swipe, which leaves every sideways drag to the Project pager. The trailing swipe actions follow the
- * T3 Code and monocode phone thread lists, and leaving a right drag to the pager around the row follows monocode.
+ * actions does not swipe. The list has no sideways gesture of its own (Projects switch by their chips), so a left drag
+ * always belongs to the row. The trailing swipe actions follow the T3 Code and monocode phone thread lists.
  */
 export const SessionRow = ({
     isActionPending = false,

@@ -1,9 +1,15 @@
-import type { MethodResult, MobileDeviceRole, SessionActivityGroupId } from '@caxri/protocol';
+import type {
+    MethodResult,
+    MobileDashboardResult,
+    MobileDeviceRole,
+    SessionActivityGroupId,
+} from '@caxri/protocol';
 import {
     compareSessionActivityGroupRows,
     compareSessionPinnedOrder,
     isPinnedSession,
     isSessionAgentRunning,
+    MOBILE_DASHBOARD_GROUPS,
     SESSION_ACTIVITY_GROUP_ORDER,
     sessionActivityGroup,
 } from '@caxri/protocol';
@@ -18,9 +24,10 @@ export type MobileTerminal = NonNullable<MobileSession['primaryTerminal']>;
 
 /**
  * The home list's sections in order: Pinned, then the status groups Desktop's Activity view uses (see
- * `session-activity-group.ts` in `@caxri/protocol`), so a Session sits under the same heading on both.
+ * `session-activity-group.ts` in `@caxri/protocol`), so a Session sits under the same heading on both. The Server pages
+ * the dashboard by the same groups.
  */
-export const MOBILE_SESSION_LIST_GROUPS = ['pinned', ...SESSION_ACTIVITY_GROUP_ORDER] as const;
+export const MOBILE_SESSION_LIST_GROUPS = MOBILE_DASHBOARD_GROUPS;
 
 export type MobileSessionListGroup = (typeof MOBILE_SESSION_LIST_GROUPS)[number];
 
@@ -41,9 +48,19 @@ export interface MobileSessionSections {
      * Every Session once, in list order: a pinned Session is listed only under Pinned.
      */
     sessions: MobileSessionItem[];
+    /**
+     * Each group's rows on the Server, including the ones the phone has not loaded yet.
+     */
+    groupTotals: MobileDashboardResult['groupTotals'];
     total: number;
-    truncated: boolean;
 }
+
+export const emptyMobileGroupTotals = (): MobileDashboardResult['groupTotals'] => ({
+    pinned: 0,
+    attention: 0,
+    working: 0,
+    idle: 0,
+});
 
 export const emptyMobileSessionGroups = (): Record<
     MobileSessionListGroup,
@@ -113,7 +130,7 @@ export type SessionRowSwipeAction = 'archive' | 'markDone';
 /**
  * The actions a left swipe on a Session row reveals, in order from the row toward the trailing edge. Mark as Done
  * follows `canMarkDoneFromRow`; Archive needs a live list and the control role, the same gate as the long-press sheet's
- * Archive. An empty list means the row does not swipe, so the drag stays with the Project pager.
+ * Archive. An empty list means the row does not swipe.
  */
 export const sessionRowSwipeActions = (
     session: Pick<MobileSession, 'hasPendingAttention'>,
@@ -140,11 +157,18 @@ const compareMobileSessionRows =
     (left: MobileSessionItem, right: MobileSessionItem): number =>
         compareSessionActivityGroupRows(group, orderFacts(left), orderFacts(right));
 
+/**
+ * The home list section a Session is listed under: Pinned for a pinned Session, otherwise its status group. The Server
+ * pages the dashboard by the same rule, so a group's rows on the phone are a prefix of the Server's.
+ */
+export const mobileSessionListGroup = (session: MobileSession): MobileSessionListGroup =>
+    isPinnedSession(session) ? 'pinned' : groupForSession(session);
+
 export const buildMobileSessionSections = (
     input: {
+        groupTotals?: MobileDashboardResult['groupTotals'];
         sessions: MobileSession[];
         total: number;
-        truncated: boolean;
     },
     t: Translate = translate,
     now = Date.now(),
@@ -179,7 +203,17 @@ export const buildMobileSessionSections = (
         seen.add(item.id);
         return true;
     });
-    return { groups, sessions, total: input.total, truncated: input.truncated };
+    return {
+        groups,
+        groupTotals: input.groupTotals ?? {
+            pinned: groups.pinned.length,
+            attention: groups.attention.length,
+            working: groups.working.length,
+            idle: groups.idle.length,
+        },
+        sessions,
+        total: input.total,
+    };
 };
 
 export const isMobileTerminalStopped = (session: MobileSessionItem): boolean => {

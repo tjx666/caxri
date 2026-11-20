@@ -48,7 +48,7 @@ import {
 } from '../apps/mobile/src/features/connection/mobile-gateway-client';
 import type { MobileGatewayConnection } from '../apps/mobile/src/features/connection/mobile-gateway-connection';
 import { createMobileRouteHints } from '../apps/mobile/src/features/connection/route-hints';
-import { startDashboardSubscription } from '../apps/mobile/src/features/sessions/dashboard-query';
+import { startDashboardSubscription } from '../apps/mobile/src/features/sessions/dashboard/query';
 import { createMemoryMobileDeviceStore } from '../apps/server/src/core/__tests__/credential-stores.fixture';
 import { MobileDeviceRegistry } from '../apps/server/src/core/mobile/device-registry';
 import { MobileGateway } from '../apps/server/src/core/mobile/gateway';
@@ -180,6 +180,7 @@ const cannedResult = (method: string): unknown => {
                 projects: [{ id: 'project-1', title: 'Example' }],
                 sessions: [session],
                 total: 1,
+                groupTotals: { pinned: 0, attention: 0, working: 0, idle: 1 },
                 truncated: false,
             };
         }

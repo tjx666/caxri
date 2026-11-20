@@ -16,5 +16,13 @@ export const agentActivity = {
     'agentActivity.glyph.detached': 'Detached',
     'agentActivity.markDone': 'Mark as Done',
     'agentActivity.markSessionDone': 'Mark {{title}} as Done',
+    'agentActivity.markAllDone.action': 'Mark All as Done',
+    'agentActivity.markAllDone.title': 'Mark All Sessions as Done?',
+    'agentActivity.markAllDone.messageOne':
+        '{{count}} Session in Needs attention moves to Idle. Its conversation and Agent are not affected.',
+    'agentActivity.markAllDone.messageOther':
+        '{{count}} Sessions in Needs attention move to Idle. Their conversations and Agents are not affected.',
+    'agentActivity.markAllDone.confirm': 'Mark as Done',
+    'agentActivity.markAllDone.failed': 'Unable to mark the Sessions as Done',
     'agentActivity.note.background': 'Waiting on background work',
 } as const;

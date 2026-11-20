@@ -102,3 +102,14 @@ export const sessionPullRequestsLogEvents = {
     autoArchive: 'session_pull_requests.auto_archive',
     startupReconcile: 'session_pull_requests.startup_reconcile',
 } as const;
+
+/**
+ * The automatic Mark as Done sweep (`apps/server/src/domains/session/attention/auto-mark-done.ts`). `autoMarkDone` is
+ * one record per sweep that resolved anything, carrying per-reason counts (`pullRequestClosed`, `inactive`) and the
+ * total, never Session titles. `autoMarkDoneFailed` records a sweep that threw, so a stuck Needs attention queue has a
+ * cause.
+ */
+export const sessionAttentionLogEvents = {
+    autoMarkDone: 'session_attention.auto_mark_done',
+    autoMarkDoneFailed: 'session_attention.auto_mark_done_failed',
+} as const;

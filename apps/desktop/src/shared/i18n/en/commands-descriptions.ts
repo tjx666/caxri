@@ -44,6 +44,8 @@ export const commandDescriptions = {
         'Switch between active Sessions in recently used order',
     'commands.description.session.focusNextAttention':
         'Select the next Session with an event you have not opened yet',
+    'commands.description.session.markAllAttentionDone':
+        'Move every Session in Needs attention to Idle after confirming',
     'commands.description.session.openPinned1': 'Select Session 1 in the Pinned group',
     'commands.description.session.openPinned2': 'Select Session 2 in the Pinned group',
     'commands.description.session.openPinned3': 'Select Session 3 in the Pinned group',

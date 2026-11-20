@@ -206,6 +206,7 @@ describe('MobileGateway over a real Relay', () => {
                     projects: [],
                     sessions: [],
                     total: 0,
+                    groupTotals: { pinned: 0, attention: 0, working: 0, idle: 0 },
                     truncated: false,
                 };
             });

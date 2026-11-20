@@ -9,7 +9,7 @@ import type { HomeNoticeKind } from './session-home-notice-banners';
 import { ConnectionBanner, ListNotice, UpdateBanner } from './session-home-notice-banners';
 
 /**
- * Which banner renders each notice kind, so `SessionHomeNotice` branches on three families rather than eight kinds
+ * Which banner renders each notice kind, so `SessionHomeNotice` branches on three families rather than seven kinds
  * (react-doctor/no-high-complexity-react-function).
  */
 const homeNoticeFamily: Record<HomeNoticeKind, 'connection' | 'list' | 'update'> = {
@@ -17,19 +17,18 @@ const homeNoticeFamily: Record<HomeNoticeKind, 'connection' | 'list' | 'update'>
     'connection-unverified': 'connection',
     'list-error': 'list',
     'saved-copy': 'list',
-    'truncated': 'list',
     'update-available': 'update',
     'update-mismatch': 'update',
     'update-required': 'update',
 };
 
 /**
- * The one notice across the top of Session home. Connection, update, list failure, saved copy, and truncation can all
- * be true at once; `homeNoticeCandidates` orders them and Session home keeps only the most severe so the bars never
- * stack above the list. Notices that need nothing from the user float as a `NoticeIsland` and take no height; only
- * those the user must act on push the list down as a banner. The saved copy's age rides inside the stale connection
- * message. A notice that usually clears within a moment waits `useSettledHomeNotice`'s delay first, so a quick startup
- * does not push the list down and back up.
+ * The one notice across the top of Session home. Connection, update, list failure, and saved copy can all be true at
+ * once; `homeNoticeCandidates` orders them and Session home keeps only the most severe so the bars never stack above
+ * the list. Notices that need nothing from the user float as a `NoticeIsland` and take no height; only those the user
+ * must act on push the list down as a banner. The saved copy's age rides inside the stale connection message. A notice
+ * that usually clears within a moment waits `useSettledHomeNotice`'s delay first, so a quick startup does not push the
+ * list down and back up.
  */
 export const SessionHomeNotice = ({
     connection,
@@ -60,7 +59,7 @@ export const SessionHomeNotice = ({
 }) => {
     const { t } = useTranslation();
     const { sessions } = useHostSessions();
-    const { error, hasLoaded, savedAt, sections } = sessions;
+    const { error, hasLoaded, savedAt } = sessions;
     const candidates = homeNoticeCandidates({
         connection,
         isListErrorShown: isSessionListErrorShown({
@@ -70,7 +69,6 @@ export const SessionHomeNotice = ({
         }),
         isListVisible,
         isSavedCopy: savedAt !== null,
-        isTruncated: sections.truncated,
         update: update?.kind ?? null,
     });
     const kind = useSettledHomeNotice(candidates);

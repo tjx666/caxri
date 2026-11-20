@@ -21,6 +21,7 @@ import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { SessionRevealRow } from '../primary-sidebar/session-reveal-row';
 import { didMarkSessionDone } from '../session/session-commands';
+import { markAllAttentionSessionsDone } from './agent-activity-commands';
 import { AgentActivityHeading } from './agent-activity-heading';
 import { AgentActivityNewSessionBar } from './agent-activity-new-session-bar';
 import { AgentActivityRowItem } from './agent-activity-row-item';
@@ -246,6 +247,13 @@ export function AgentActivityView() {
                                         heading={heading}
                                         roving={rovingRowId === entry.id}
                                         onFocus={() => setFocusedRowId(entry.id)}
+                                        {...(entry.group.id === 'attention' &&
+                                            entry.group.rows.length > 0 && {
+                                                onMarkAllDone: () => {
+                                                    // Fire-and-forget: `tryCommand` inside turns a rejection into one toast.
+                                                    void markAllAttentionSessionsDone();
+                                                },
+                                            })}
                                         onToggle={() => {
                                             if (!entry.expanded) markExpandScroll(entry.id);
                                             groupCollapse.toggle(entry.id);

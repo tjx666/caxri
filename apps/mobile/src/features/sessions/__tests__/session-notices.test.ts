@@ -5,7 +5,6 @@ import {
     connectionBannerModel,
     connectionIslandLabel,
     connectionNoticeMessage,
-    createFirstShownTimes,
     createHomeNoticeSelections,
     drawnHomeNotice,
     HOME_NOTICE_SETTLE_MS,
@@ -15,8 +14,6 @@ import {
     isSessionListErrorShown,
     pinnedRouteOf,
     selectHomeNotice,
-    transientNoticeRemainingMs,
-    TRUNCATED_NOTICE_VISIBLE_MS,
     waitingHomeNotice,
 } from '../session-notices';
 
@@ -84,7 +81,6 @@ describe('selectHomeNotice', () => {
         isListErrorShown: false,
         isListVisible: true,
         isSavedCopy: false,
-        isTruncated: false,
         update: null,
     } as const;
 
@@ -99,7 +95,6 @@ describe('selectHomeNotice', () => {
                 isListErrorShown: true,
                 isListVisible: true,
                 isSavedCopy: true,
-                isTruncated: true,
                 update: 'available',
             }),
         ).toBe('connection-stale');
@@ -124,10 +119,6 @@ describe('selectHomeNotice', () => {
         expect(selectHomeNotice({ ...none, isSavedCopy: true, update: 'available' })).toBe(
             'update-available',
         );
-        expect(selectHomeNotice({ ...none, isSavedCopy: true, isTruncated: true })).toBe(
-            'saved-copy',
-        );
-        expect(selectHomeNotice({ ...none, isTruncated: true })).toBe('truncated');
     });
 
     it('keeps the list-only notices off a Session detail', () => {
@@ -137,7 +128,6 @@ describe('selectHomeNotice', () => {
                 isListErrorShown: true,
                 isListVisible: false,
                 isSavedCopy: true,
-                isTruncated: true,
             }),
         ).toBeNull();
         expect(selectHomeNotice({ ...none, connection: 'stale', isListVisible: false })).toBe(
@@ -218,7 +208,6 @@ describe('waitingHomeNotice', () => {
         isListErrorShown: false,
         isListVisible: true,
         isSavedCopy: false,
-        isTruncated: false,
         update: null,
     } as const;
 
@@ -251,7 +240,6 @@ describe('homeNoticeSettleDelay', () => {
         for (const kind of [
             'connection-unverified',
             'list-error',
-            'truncated',
             'update-available',
             'update-mismatch',
             'update-required',
@@ -326,20 +314,5 @@ describe('createHomeNoticeSelections', () => {
         selections.release('saved-copy');
         expect(selections.since('saved-copy')).toBeNull();
         expect(selections.acquire('saved-copy', 9_000)).toBe(9_000);
-    });
-});
-
-describe('transient truncated island', () => {
-    it('keeps the first draw time per count, so the island does not return when the list comes back into view', () => {
-        const firstShown = createFirstShownTimes();
-        expect(firstShown('host:64/65', 1_000)).toBe(1_000);
-        expect(firstShown('host:64/65', 9_000)).toBe(1_000);
-        expect(firstShown('host:64/66', 9_000)).toBe(9_000);
-    });
-
-    it('gives a redrawn island only what is left of its time', () => {
-        expect(transientNoticeRemainingMs(1_000, 1_000)).toBe(TRUNCATED_NOTICE_VISIBLE_MS);
-        expect(transientNoticeRemainingMs(1_000, 2_500)).toBe(TRUNCATED_NOTICE_VISIBLE_MS - 1_500);
-        expect(transientNoticeRemainingMs(1_000, 1_000 + TRUNCATED_NOTICE_VISIBLE_MS + 1)).toBe(0);
     });
 });

@@ -284,6 +284,12 @@ export const appSettingsSchema = z.object({
     'primarySidebar.showSubagents': booleanField(spec['primarySidebar.showSubagents']),
     'primarySidebar.sessionMenu': sessionMenuLayoutSchema,
     'agentActivity.showExcerpts': booleanField(spec['agentActivity.showExcerpts']),
+    'agentActivity.autoMarkDoneOnPullRequestClose': booleanField(
+        spec['agentActivity.autoMarkDoneOnPullRequestClose'],
+    ),
+    'agentActivity.autoMarkDoneAfterInactivity': z
+        .enum(enumValues(spec['agentActivity.autoMarkDoneAfterInactivity'].options))
+        .default(spec['agentActivity.autoMarkDoneAfterInactivity'].default),
     'primarySidebar.translucent': booleanField(spec['primarySidebar.translucent']),
     'zen.fullScreen': booleanField(spec['zen.fullScreen']),
     'zen.restore': booleanField(spec['zen.restore']),

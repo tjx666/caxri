@@ -220,3 +220,48 @@ export const projectMoveActions = (
  */
 export const projectMoveTarget = (actionName: string, index: number): number | null =>
     actionName === 'moveEarlier' ? index - 1 : actionName === 'moveLater' ? index + 1 : null;
+
+/**
+ * How recently a Project must have seen work or a visit for its chip to stay in the strip.
+ */
+export const PROJECT_CHIP_ACTIVE_WINDOW_MS = 14 * 24 * 60 * 60 * 1_000;
+
+/**
+ * The Project chips the strip shows, in the given order: each Project active within `PROJECT_CHIP_ACTIVE_WINDOW_MS`
+ * (`lastActivityAt`, the later of its newest Session activity and visit), plus the chosen one so the selection always
+ * has a chip. The rest wait behind More, so a computer with many dormant Projects keeps a short strip.
+ */
+export const visibleProjectChips = <Project extends { id: string; lastActivityAt?: number }>(
+    projects: readonly Project[],
+    activeProjectId: string | null,
+    now: number,
+): { hiddenCount: number; visible: Project[] } => {
+    const visible = projects.filter(
+        (project) =>
+            project.id === activeProjectId ||
+            (project.lastActivityAt !== undefined &&
+                now - project.lastActivityAt <= PROJECT_CHIP_ACTIVE_WINDOW_MS),
+    );
+    return { hiddenCount: projects.length - visible.length, visible };
+};
+
+/**
+ * Turns a move among the shown chips into a place in the full Project order, so the moved Project lands right beside
+ * the chip it was dropped next to: just after the shown chip before it, or just before the first shown chip. The
+ * Projects More hides keep their places.
+ */
+export const projectIndexInFullOrder = (
+    allIds: readonly string[],
+    visibleIds: readonly string[],
+    projectId: string,
+    toVisibleIndex: number,
+): number => {
+    const from = visibleIds.indexOf(projectId);
+    if (from === -1) return allIds.indexOf(projectId);
+    const shown = visibleIds.filter((id) => id !== projectId);
+    const target = Math.min(shown.length, Math.max(0, toVisibleIndex));
+    const rest = allIds.filter((id) => id !== projectId);
+    if (target === 0)
+        return shown.length === 0 ? allIds.indexOf(projectId) : rest.indexOf(shown[0]);
+    return rest.indexOf(shown[target - 1]) + 1;
+};

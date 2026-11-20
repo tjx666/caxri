@@ -44,6 +44,7 @@ export const commands: TranslatedNamespace<typeof source> = {
     'commands.session.selectPrevious': '选择上一个会话',
     'commands.session.switchMru': '切换到最近使用的会话',
     'commands.session.focusNextAttention': '转到下一个待处理会话',
+    'commands.session.markAllAttentionDone': '将所有需要处理的会话标为已处理',
     'commands.session.openPinned1': '切换到第 1 个置顶会话',
     'commands.session.openPinned2': '切换到第 2 个置顶会话',
     'commands.session.openPinned3': '切换到第 3 个置顶会话',

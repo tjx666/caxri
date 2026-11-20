@@ -1,5 +1,5 @@
-import type { DashboardSubscriptionMode } from './dashboard-query';
-import { dashboardPollInterval } from './dashboard-query';
+import type { DashboardSubscriptionMode } from './dashboard';
+import { dashboardPollInterval } from './dashboard';
 
 export const sessionShowRefresh = ({
     isObservable,

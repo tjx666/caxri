@@ -19,6 +19,20 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-list-idle-cap',
     },
+    'MOB-SESSION-LIST-PAGING-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'session-list-paging',
+    },
+    'MOB-SESSION-LIST-CHIPS-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'session-list-project-chips',
+    },
     'MOB-SESSION-LIST-MOTION-01': {
         appLocale: 'zh-CN',
         desktopProfile: 'managed-by-isolated-e2e',

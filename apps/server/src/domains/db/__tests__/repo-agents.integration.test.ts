@@ -111,7 +111,7 @@ describe('CaxriDatabase Agent metadata', () => {
             title: 'Still needs input',
         });
         expect(database.getSession(created.session.id)?.attentionGeneration).toBe(1);
-        expect(database.markSessionAttentionRead(created.session.id, 1)).toMatchObject({
+        expect(database.attentionMarks.read(created.session.id, 1)).toMatchObject({
             acknowledged: true,
             session: { hasUnread: false, acknowledgedAttentionGeneration: 1 },
         });
@@ -129,7 +129,7 @@ describe('CaxriDatabase Agent metadata', () => {
             observedAt: Date.now(),
             status: 'completed',
         });
-        expect(database.markSessionAttentionRead(created.session.id, 1)).toMatchObject({
+        expect(database.attentionMarks.read(created.session.id, 1)).toMatchObject({
             acknowledged: false,
             session: {
                 attentionGeneration: 2,
@@ -137,7 +137,7 @@ describe('CaxriDatabase Agent metadata', () => {
                 acknowledgedAttentionGeneration: 1,
             },
         });
-        expect(database.markSessionAttentionRead(created.session.id, 2)).toMatchObject({
+        expect(database.attentionMarks.read(created.session.id, 2)).toMatchObject({
             acknowledged: true,
             session: {
                 attentionGeneration: 2,

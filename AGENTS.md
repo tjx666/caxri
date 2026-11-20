@@ -287,23 +287,23 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 
 ## Skill routing
 
-| Work                                                      | Load                   |
-| --------------------------------------------------------- | ---------------------- |
-| Substantial new product feature; competing approaches     | `competitors`          |
-| Process, IPC, package, persistence, or toolchain contract | `project-architecture` |
-| File placement, naming, splits, test location             | `source-layout`        |
-| Adding/editing a doc, ADR, or retiring a plan/spike       | `write-docs`           |
-| React composition, hooks, shared helpers                  | `react`                |
-| Renderer visual and interaction design                    | `DESIGN.md`            |
-| React render-count audit over CDP with react-scan         | `react-rerender-audit` |
-| Focused lint / type / test / knip; formatting             | `quality-check`        |
-| Vitest unit/integration regressions                       | `unit-testing`         |
-| Playwright Electron workflows                             | `e2e-testing`          |
-| Product failures (UI, Terminal), CDP, owned process stop  | `debug`                |
-| Public-content confidentiality review                     | `oss-confidentiality`  |
-| Isolated worktrees and desktop lease                      | `switch-worktree`      |
-| GitHub issues                                             | `file-issue`           |
-| Commits                                                   | `commit`               |
-| Pull requests and CI watch                                | `pull-request`         |
-| Packaging, GitHub Release, local uninstall                | `$release`             |
-| Promotional images (README hero, release, social)         | `promo-images`         |
+| Work                                                                                                       | Load                   |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Substantial new product feature; competing approaches                                                      | `competitors`          |
+| How shipped behavior works (e.g. Project order); process, IPC, package, persistence, or toolchain contract | `project-architecture` |
+| File placement, naming, splits, test location                                                              | `source-layout`        |
+| Adding/editing a doc, ADR, or retiring a plan/spike                                                        | `write-docs`           |
+| React composition, hooks, shared helpers                                                                   | `react`                |
+| Renderer visual and interaction design                                                                     | `DESIGN.md`            |
+| React render-count audit over CDP with react-scan                                                          | `react-rerender-audit` |
+| Focused lint / type / test / knip; formatting                                                              | `quality-check`        |
+| Vitest unit/integration regressions                                                                        | `unit-testing`         |
+| Playwright Electron workflows                                                                              | `e2e-testing`          |
+| Product failures (UI, Terminal), CDP, owned process stop                                                   | `debug`                |
+| Public-content confidentiality review                                                                      | `oss-confidentiality`  |
+| Isolated worktrees and desktop lease                                                                       | `switch-worktree`      |
+| GitHub issues                                                                                              | `file-issue`           |
+| Commits                                                                                                    | `commit`               |
+| Pull requests and CI watch                                                                                 | `pull-request`         |
+| Packaging, GitHub Release, local uninstall                                                                 | `$release`             |
+| Promotional images (README hero, release, social)                                                          | `promo-images`         |

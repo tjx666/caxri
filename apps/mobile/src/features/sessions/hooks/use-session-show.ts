@@ -4,12 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useTranslation } from '../../../i18n';
 import { useMobileClient } from '../../connection/mobile-client-provider';
-import type { DashboardSubscriptionMode } from '../dashboard-query';
+import type { DashboardSubscriptionMode } from '../dashboard';
 import {
     readDashboardSnapshot,
     shouldObserveDashboard,
     startDashboardSubscription,
-} from '../dashboard-query';
+} from '../dashboard';
 import { buildMobileSessionSections } from '../session-model';
 import { sessionShowRefresh } from '../session-show-refresh';
 import { allMobileSessions } from './use-session-polling';
@@ -121,7 +121,6 @@ export const useSessionShow = (sessionId: string | null, shouldFetch: boolean) =
                           {
                               sessions: [query.data.session],
                               total: 1,
-                              truncated: false,
                           },
                           t,
                       ),

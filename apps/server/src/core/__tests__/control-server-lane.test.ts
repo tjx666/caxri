@@ -302,6 +302,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'session.interruptAndCompact': 'ordered',
     'session.markRead': 'ordered',
     'session.markDone': 'ordered',
+    'session.markDoneMany': 'ordered',
     'usage.dismissNotice': 'ordered',
     'session.refreshDeliveryOnFocus': 'ordered',
     'session.reopenConversation': 'ordered',

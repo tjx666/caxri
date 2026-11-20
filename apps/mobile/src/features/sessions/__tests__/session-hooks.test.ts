@@ -40,7 +40,6 @@ const session = (overrides: Partial<MobileSession> = {}): MobileSession => ({
 describe('mobile Session hooks', () => {
     const sections = buildMobileSessionSections({
         total: 2,
-        truncated: false,
         sessions: [
             session(),
             session({
@@ -58,10 +57,7 @@ describe('mobile Session hooks', () => {
         expect(nextSelectedSessionId('missing', sections)).toBeNull();
         expect(nextSelectedSessionId(null, sections)).toBeNull();
         expect(
-            nextSelectedSessionId(
-                null,
-                buildMobileSessionSections({ sessions: [], total: 0, truncated: false }),
-            ),
+            nextSelectedSessionId(null, buildMobileSessionSections({ sessions: [], total: 0 })),
         ).toBeNull();
     });
 
@@ -87,7 +83,6 @@ describe('mobile Session hooks', () => {
         } as const;
         const nested = buildMobileSessionSections({
             total: 10,
-            truncated: false,
             sessions: [
                 session({ id: 'creator', ...settled }),
                 session({
@@ -180,11 +175,11 @@ describe('mobile Session hooks', () => {
         const latest = {
             deviceRole: 'control' as const,
             hostDisplayName: 'Test computer',
+            projectId: null,
             projects: [],
             sections: buildMobileSessionSections({
                 sessions: [session({ id: 'session-3', hasUnread: false })],
                 total: 1,
-                truncated: false,
             }),
         };
         const frozen = projectSessionList(latest, sections, 'session-1');
