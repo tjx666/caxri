@@ -131,10 +131,32 @@ export function mapLinearIssue(
 }
 
 const acceptanceReportSchema = z.object({
+    failedChecks: z.number().nullish(),
     passedChecks: z.number().nullish(),
     totalChecks: z.number().nullish(),
+    uncertainChecks: z.number().nullish(),
     verdict: z.string().nullish(),
 });
+
+/**
+ * The report's pass count, filled in when the provider left it out. A round that re-verifies only some checks is
+ * published with `totalChecks` and a `passed` verdict but no per-outcome counts, and without this the tally vanished
+ * from both surfaces exactly when a round fully passed. A `passed` verdict with no failed or uncertain check can only
+ * mean every check passed; any other gap stays a gap rather than a guess.
+ */
+function acceptancePassedChecks(
+    report: z.infer<typeof acceptanceReportSchema> | null | undefined,
+): number | undefined {
+    if (typeof report?.passedChecks === 'number') return report.passedChecks;
+    if (
+        report?.verdict === 'passed' &&
+        typeof report.totalChecks === 'number' &&
+        !(report.failedChecks ?? 0) &&
+        !(report.uncertainChecks ?? 0)
+    )
+        return report.totalChecks;
+    return undefined;
+}
 
 /**
  * Only the fields the two Caxri surfaces draw. The bundle also carries every check, every review, and a usage ledger;
@@ -189,6 +211,7 @@ export function mapAcceptanceBundle(
     const verdict = ACCEPTANCE_VERDICTS.has(rawVerdict as AcceptanceVerdict)
         ? (rawVerdict as AcceptanceVerdict)
         : undefined;
+    const passedChecks = acceptancePassedChecks(report);
     return {
         id: reference.id,
         state: acceptanceProjectStatusState({ status, verdict }),
@@ -197,7 +220,7 @@ export function mapAcceptanceBundle(
         ...(bundle.subject?.title && { title: bundle.subject.title }),
         ...(status && { status }),
         ...(verdict && { verdict }),
-        ...(typeof report?.passedChecks === 'number' && { passedChecks: report.passedChecks }),
+        ...(passedChecks !== undefined && { passedChecks }),
         ...(typeof report?.totalChecks === 'number' && { totalChecks: report.totalChecks }),
         ...(rounds.length > 0 && { roundCount: rounds.length }),
     };

@@ -22,6 +22,18 @@ describe('acceptance chip label', () => {
         ).toBe('11/12');
     });
 
+    it('names the round the tally belongs to, so a stale tally cannot pass for a fresh one', () => {
+        expect(
+            acceptanceChipLabel(
+                acceptance({ passedChecks: 3, totalChecks: 3, roundCount: 5 }),
+                translate,
+            ),
+        ).toBe('3/3 · Round 5');
+        expect(acceptanceChipLabel(acceptance({ status: 'verifying', round: 2 }), translate)).toBe(
+            'Verifying · Round 2',
+        );
+    });
+
     it('falls back to the lifecycle word when no round has produced a tally', () => {
         expect(acceptanceChipLabel(acceptance({ status: 'verifying' }), translate)).toBe(
             'Verifying',
@@ -73,6 +85,18 @@ describe('acceptance chip accessible name', () => {
             ),
         ).toBe(
             'Open acceptance report, Recover a stalled diff, Round 2, Awaiting review, Checks passed, 11 of 12 checks passed, From the pull request description',
+        );
+    });
+
+    it('says the tally comes from the latest of several rounds when no round was pinned', () => {
+        expect(
+            acceptanceAriaLabel(
+                acceptance({ status: 'delivered', passedChecks: 3, totalChecks: 3, roundCount: 5 }),
+                0,
+                translate,
+            ),
+        ).toBe(
+            'Acceptance report, Latest of 5 rounds, Awaiting review, 3 of 3 checks passed, From the pull request description',
         );
     });
 

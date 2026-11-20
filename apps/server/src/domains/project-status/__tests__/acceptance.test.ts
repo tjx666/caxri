@@ -135,7 +135,54 @@ describe('Status panel acceptance rows', () => {
     });
 });
 
+/**
+ * The chip's view of one bundle, linked from the pull request body exactly as written.
+ */
+function chipFor(response: string, pullRequestBody: string) {
+    const store = new AcceptanceStore(() => Promise.resolve(response));
+    return loadOverviewAcceptances(store, '/project', { conversation: [], pullRequestBody });
+}
+
 describe('status bar acceptance chip', () => {
+    it('answers for the latest round even when the pull request pinned an earlier one', async () => {
+        const acceptances = await chipFor(bundle(), link(ID, 1));
+        expect(acceptances).toEqual([
+            expect.objectContaining({
+                url: link(ID),
+                passedChecks: 11,
+                totalChecks: 12,
+                roundCount: 2,
+            }),
+        ]);
+        expect(acceptances[0]).not.toHaveProperty('round');
+    });
+
+    it('counts every check as passed when a passing round published no per-outcome counts', async () => {
+        const partial = {
+            totalChecks: 3,
+            passedChecks: null,
+            failedChecks: null,
+            verdict: 'passed',
+        };
+        const response = bundle({
+            latestReport: partial,
+            rounds: [{ report: partial, run: { roundIndex: 1 } }],
+        });
+        const acceptances = await chipFor(response, link(ID));
+        expect(acceptances[0]).toMatchObject({ passedChecks: 3, totalChecks: 3 });
+    });
+
+    it('leaves the pass count unknown when a round is not a clean pass', async () => {
+        const partial = {
+            totalChecks: 3,
+            passedChecks: null,
+            uncertainChecks: 1,
+            verdict: 'passed',
+        };
+        const acceptances = await chipFor(bundle({ latestReport: partial }), link(ID));
+        expect(acceptances[0]).not.toHaveProperty('passedChecks');
+    });
+
     it('resolves only the leading report and leaves the tail as links', async () => {
         const runner = vi.fn().mockResolvedValue(bundle());
         const acceptances = await loadOverviewAcceptances(new AcceptanceStore(runner), '/project', {
@@ -156,7 +203,7 @@ describe('status bar acceptance chip', () => {
             pullRequestBody: link(ID, 2),
         });
         expect(acceptances).toEqual([
-            { id: ID, state: 'unknown', url: link(ID, 2), round: 2, source: 'pull-request' },
+            { id: ID, state: 'unknown', url: link(ID), source: 'pull-request' },
         ]);
     });
 
