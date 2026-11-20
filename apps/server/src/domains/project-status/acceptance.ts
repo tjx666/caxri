@@ -38,7 +38,8 @@ export interface AcceptanceCandidateInput {
  *
  * The first mention of a report wins: a conversation that repeats what the pull request already linked does not produce
  * a second entry, and does not demote the statement the pull request made. A round pinned by the winning mention is the
- * round that is reported: pasting a link with `?turn=2` is how somebody says which round they mean.
+ * round the Status panel reports: pasting a link with `?turn=2` is how somebody says which round they mean. The status
+ * bar ignores it; see {@link loadOverviewAcceptances}.
  */
 export function collectAcceptanceCandidates(
     input: AcceptanceCandidateInput,
@@ -106,6 +107,11 @@ export async function loadPullRequestAcceptances(
  * The chip renders one report and counts the remainder, so resolving the tail would spend a CLI query per refresh on a
  * verdict nothing draws. A failed lookup degrades to the bare link rather than surfacing a provider error: the status
  * bar has no room to explain one, and the Status panel already reports provider outages properly.
+ *
+ * Every entry deliberately drops the round its link pinned. The chip answers "where does this branch's verification
+ * stand now", so it follows the latest round: a pull request body written after round 1 kept the chip at round 1's
+ * `2/5` while round 5 had passed everything. The pinned round stays a stable reference in the Status panel's rows,
+ * which still honor it.
  */
 export async function loadOverviewAcceptances(
     store: AcceptanceStore,
@@ -115,12 +121,14 @@ export async function loadOverviewAcceptances(
         pullRequestBody?: string;
     },
 ): Promise<ProjectStatusOverviewAcceptance[]> {
-    const candidates = collectAcceptanceCandidates(sources);
+    const candidates = collectAcceptanceCandidates(sources).map(
+        ({ id, source }): AcceptanceCandidate => ({ id, source }),
+    );
     if (candidates.length === 0) return [];
     const [lead, ...rest] = candidates;
     let resolved = unresolved(lead);
     try {
-        resolved = await store.report({ cwd, id: lead.id, round: lead.round });
+        resolved = await store.report({ cwd, id: lead.id });
     } catch {
         // Degrade to the link; the store has already remembered the failure, so the next poll does not respawn the CLI.
     }

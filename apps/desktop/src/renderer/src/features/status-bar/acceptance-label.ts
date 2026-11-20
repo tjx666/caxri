@@ -58,13 +58,25 @@ function moreReports(count: number, t: Translate): string {
  *
  * The id is deliberately never shown. It is an opaque UUID that tells a reader nothing, and it names a private
  * acceptance record: the identifier that earns the Linear chip its place has no counterpart here.
+ *
+ * The round follows, because a tally alone cannot say whether it is fresh: `2/5` from round 1 and `2/5` from round 5
+ * mean different things to a reviewer deciding whether to look again. The Server resolves the chip's report unpinned,
+ * so the round shown is the latest, counted by `roundCount`.
  */
 export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance, t: Translate): string {
     if (acceptance.state === 'unknown') return t('common.unknown');
-    if (acceptance.totalChecks !== undefined && acceptance.passedChecks !== undefined)
-        return `${acceptance.passedChecks}/${acceptance.totalChecks}`;
-    if (acceptance.status) return statusLabel(acceptance.status, t);
-    return t('statusBar.acceptance.noun');
+    const summary =
+        acceptance.totalChecks !== undefined && acceptance.passedChecks !== undefined
+            ? `${acceptance.passedChecks}/${acceptance.totalChecks}`
+            : acceptance.status
+              ? statusLabel(acceptance.status, t)
+              : t('statusBar.acceptance.noun');
+    // `roundCount` is 0 for a report that has not run a round yet, which has no round to name.
+    const latest = acceptance.roundCount === 0 ? undefined : acceptance.roundCount;
+    const round = acceptance.round ?? latest;
+    return round === undefined
+        ? summary
+        : [summary, t('statusBar.acceptance.round', { round })].join(' · ');
 }
 
 /**
@@ -80,7 +92,9 @@ export function acceptanceAriaLabel(
         t(acceptance.url ? 'statusBar.acceptance.openReport' : 'statusBar.acceptance.report'),
         acceptance.title,
         acceptance.round === undefined
-            ? undefined
+            ? acceptance.roundCount === undefined || acceptance.roundCount <= 1
+                ? undefined
+                : t('statusBar.acceptance.latestOfRounds', { count: acceptance.roundCount })
             : t('statusBar.acceptance.round', { round: acceptance.round }),
         acceptance.status && statusLabel(acceptance.status, t),
         acceptance.verdict && verdictLabel(acceptance.verdict, t),
