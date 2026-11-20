@@ -362,9 +362,12 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agents.longRunningShellCommands.description':
         '本来就会一直运行的命令，例如开发服务器。判断 Agent 这一轮是否结束时，Caxri 不会等它们退出',
 
-    'settings.agents.sessionInstructions.title': '会话说明',
-    'settings.agents.sessionInstructions.description':
-        'Agent 启动时追加在它自己的系统提示词之后，让它知道自己运行在 Caxri 中，以及如何在另一个会话中开始工作。清空则不追加任何内容；修改只对之后启动的 Agent 生效',
+    'settings.agents.sessionInstructions.includeBuiltIn.title': 'Caxri 会话说明',
+    'settings.agents.sessionInstructions.includeBuiltIn.description':
+        'Agent 启动时，在它自己的系统提示词之后追加 Caxri 内置说明，让它知道自己运行在 Caxri 中，以及如何在另一个会话中开始工作。内置说明随 Caxri 版本更新；修改只对之后启动的 Agent 生效',
+    'settings.agents.sessionInstructions.custom.title': '自定义会话说明',
+    'settings.agents.sessionInstructions.custom.description':
+        '你自己的说明，追加在 Caxri 内置说明之后。留空则不追加；修改只对之后启动的 Agent 生效',
     'settings.agents.suggestLifecycleHooks.title': '建议启用生命周期 Hook',
     'settings.agents.suggestLifecycleHooks.description':
         '提供方的 Agent 在终端中运行但未启用生命周期 Hook 时，提示启用。对话从不需要',

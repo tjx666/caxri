@@ -1,7 +1,7 @@
-import type { AppLocale, TerminalRecord } from '@caxri/protocol';
+import type { AgentSessionInstructionSettings, AppLocale, TerminalRecord } from '@caxri/protocol';
 import {
     agentDisplayLanguageInstruction,
-    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+    BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -39,28 +39,32 @@ function signal(overrides: Partial<AgentLifecycleSignal> = {}): AgentLifecycleSi
     };
 }
 
-const preset = () => null;
+const builtIn = (): AgentSessionInstructionSettings => ({ includeBuiltIn: true, custom: null });
 
 describe('AgentTurnContext', () => {
-    it('adds the instructions the user wrote in Settings, read at each launch', () => {
-        let instructions: string | null = 'Reply in haiku.';
-        const context = new AgentTurnContext(database(), () => instructions);
+    it('follows the Settings as they are at each delivery', () => {
+        let settings: AgentSessionInstructionSettings = {
+            includeBuiltIn: true,
+            custom: 'Reply in haiku.',
+        };
+        const context = new AgentTurnContext(database(), () => settings);
 
-        expect(context.for(signal())).toBe('Reply in haiku.');
-        instructions = '  Answer in French.\n';
+        expect(context.for(signal())).toBe(
+            `${BUILT_IN_AGENT_SESSION_INSTRUCTIONS}\n\nReply in haiku.`,
+        );
+        settings = { includeBuiltIn: false, custom: '  Answer in French.\n' };
         expect(context.for(signal({ launchId: 'launch-2' }))).toBe('Answer in French.');
-        instructions = null;
+        settings = builtIn();
         expect(context.for(signal({ launchId: 'launch-3' }))).toBe(
-            DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+            BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
         );
     });
 
-    it('adds nothing when the user cleared the instructions', () => {
-        expect(new AgentTurnContext(database(), () => ' \n ').for(signal())).toBeUndefined();
+    it('adds nothing when the user turned both off', () => {
         expect(
             new AgentTurnContext(
                 database(),
-                () => '',
+                () => ({ includeBuiltIn: false, custom: ' \n ' }),
                 () => 'zh-CN',
             ).for(signal()),
         ).toBeUndefined();
@@ -68,10 +72,10 @@ describe('AgentTurnContext', () => {
 
     it("names Caxri's interface language as it is at each launch", () => {
         let locale: AppLocale = 'zh-CN';
-        const context = new AgentTurnContext(database(), preset, () => locale);
+        const context = new AgentTurnContext(database(), builtIn, () => locale);
 
         expect(context.for(signal())).toBe(
-            `${DEFAULT_AGENT_SESSION_INSTRUCTIONS}\n\n${agentDisplayLanguageInstruction('zh-CN')}`,
+            `${BUILT_IN_AGENT_SESSION_INSTRUCTIONS}\n\n${agentDisplayLanguageInstruction('zh-CN')}`,
         );
         locale = 'en';
         expect(context.for(signal({ launchId: 'launch-2' }))).toContain(
@@ -80,21 +84,43 @@ describe('AgentTurnContext', () => {
     });
 
     it('adds the context to the first turn of each launch', () => {
-        const context = new AgentTurnContext(database(), preset);
+        const context = new AgentTurnContext(database(), builtIn);
 
-        expect(context.for(signal())).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
+        expect(context.for(signal())).toBe(BUILT_IN_AGENT_SESSION_INSTRUCTIONS);
         expect(context.for(signal())).toBeUndefined();
         expect(context.for(signal({ launchId: 'launch-2' }))).toBe(
-            DEFAULT_AGENT_SESSION_INSTRUCTIONS,
+            BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
         );
     });
 
+    it('delivers it again when /clear starts a new provider session in the same launch', () => {
+        const context = new AgentTurnContext(database(), builtIn);
+
+        expect(context.for(signal({ agentSessionId: 'first' }))).toBe(
+            BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
+        );
+        expect(context.for(signal({ agentSessionId: 'first' }))).toBeUndefined();
+        expect(context.for(signal({ agentSessionId: 'cleared' }))).toBe(
+            BUILT_IN_AGENT_SESSION_INSTRUCTIONS,
+        );
+    });
+
+    it('delivers it again after a main-agent compaction, not a subagent one', () => {
+        const context = new AgentTurnContext(database(), builtIn);
+        context.for(signal());
+
+        context.observe(signal({ phase: 'compactionFinished', agentId: 'subagent' }));
+        expect(context.for(signal())).toBeUndefined();
+        context.observe(signal({ phase: 'compactionFinished' }));
+        expect(context.for(signal())).toBe(BUILT_IN_AGENT_SESSION_INSTRUCTIONS);
+    });
+
     it('delivers it again after the launch is forgotten', () => {
-        const context = new AgentTurnContext(database(), preset);
+        const context = new AgentTurnContext(database(), builtIn);
         context.for(signal());
         context.forget('agent');
 
-        expect(context.for(signal())).toBe(DEFAULT_AGENT_SESSION_INSTRUCTIONS);
+        expect(context.for(signal())).toBe(BUILT_IN_AGENT_SESSION_INSTRUCTIONS);
     });
 
     it.each([
@@ -105,6 +131,6 @@ describe('AgentTurnContext', () => {
         ['Caxri Bot', { terminalId: 'bot' }],
         ['an unknown Terminal', { terminalId: 'missing' }],
     ])('adds nothing for %s', (_label, overrides) => {
-        expect(new AgentTurnContext(database(), preset).for(signal(overrides))).toBeUndefined();
+        expect(new AgentTurnContext(database(), builtIn).for(signal(overrides))).toBeUndefined();
     });
 });

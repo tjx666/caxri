@@ -223,10 +223,11 @@ const settingsProjection: SettingsProjection = {
      */
     'agents.longRunningShellCommands': (patterns) =>
         patterns.map((pattern) => redactCommandLine(pattern)),
+    'agents.sessionInstructions.includeBuiltIn': exportAsIs,
     /**
-     * Free text written for an Agent: support learns only whether it is Caxri's preset, never the user's wording.
+     * Free text written for an Agent: support learns only whether and how much the user added, never the wording.
      */
-    'agents.sessionInstructions': (value) => (value === null ? 'default' : redactText(value)),
+    'agents.sessionInstructions.custom': (value) => (value === null ? null : redactText(value)),
     'agents.suggestLifecycleHooks': exportAsIs,
     'agents.notifications.enabled': exportAsIs,
     'agents.notifications.completionThresholdSeconds': exportAsIs,

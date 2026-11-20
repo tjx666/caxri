@@ -312,14 +312,18 @@ export const appSettingsSchema = z.object({
     'agents.providers': agentProvidersSchema,
     'agents.delegation': agentDelegationSettingsSchema,
     'agents.longRunningShellCommands': longRunningShellCommandsSchema,
+    'agents.sessionInstructions.includeBuiltIn': booleanField(
+        spec['agents.sessionInstructions.includeBuiltIn'],
+    ),
     /**
-     * Not `nullableStringField`: `null` is Caxri's preset, while an empty value is the choice to add no instructions.
+     * Not `nullableStringField`: prose is kept verbatim so its line breaks survive, and a whitespace-only value is
+     * trimmed to nothing when used instead of making the whole settings file invalid.
      */
-    'agents.sessionInstructions': z
+    'agents.sessionInstructions.custom': z
         .string()
-        .max(spec['agents.sessionInstructions'].maxLength)
+        .max(spec['agents.sessionInstructions.custom'].maxLength)
         .nullable()
-        .default(spec['agents.sessionInstructions'].default),
+        .default(spec['agents.sessionInstructions.custom'].default),
     'agents.suggestLifecycleHooks': booleanField(spec['agents.suggestLifecycleHooks']),
     'agents.notifications.enabled': booleanField(spec['agents.notifications.enabled']),
     'agents.notifications.completionThresholdSeconds': integerField(

@@ -1,9 +1,15 @@
 import { agentProviderIds } from '../agent/agents.js';
-import {
-    DEFAULT_AGENT_SESSION_INSTRUCTIONS,
-    MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
-} from './agent-session-instructions.js';
+import { MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH } from './agent-session-instructions.js';
 import type { SettingSpec } from './settings-spec.js';
+
+const SESSION_INSTRUCTION_KEYWORDS = [
+    'prompt',
+    'system prompt',
+    'instructions',
+    'context',
+    'caxri cli',
+    'session',
+];
 
 /**
  * The Agents category's own settings: providers, lifecycle hooks, background commands, Session instructions, and
@@ -57,16 +63,25 @@ export const agentSettingsSpec = [
         ],
     },
     {
-        kind: 'string',
-        key: 'agents.sessionInstructions',
-        title: 'Session instructions',
+        kind: 'boolean',
+        key: 'agents.sessionInstructions.includeBuiltIn',
+        title: 'Caxri Session instructions',
         description:
-            "Added after each Agent's own system prompt when it starts, so it knows it runs inside Caxri and how to start work in another Session. Clear it to add nothing; changes apply to Agents started afterward",
+            "Add Caxri's built-in instructions after each Agent's own system prompt, so it knows it runs inside Caxri and how to start work in another Session. They update with Caxri; changes apply to Agents started afterward",
         category: 'agents',
-        keywords: ['prompt', 'system prompt', 'instructions', 'context', 'caxri cli', 'session'],
+        keywords: SESSION_INSTRUCTION_KEYWORDS,
+        default: true,
+    },
+    {
+        kind: 'string',
+        key: 'agents.sessionInstructions.custom',
+        title: 'Custom Session instructions',
+        description:
+            "Your own instructions, added after Caxri's. Leave empty to add nothing; changes apply to Agents started afterward",
+        category: 'agents',
+        keywords: SESSION_INSTRUCTION_KEYWORDS,
         nullable: true,
         multiline: true,
-        preset: DEFAULT_AGENT_SESSION_INSTRUCTIONS,
         maxLength: MAX_AGENT_SESSION_INSTRUCTIONS_LENGTH,
         default: null,
     },

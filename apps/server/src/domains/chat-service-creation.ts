@@ -1,7 +1,7 @@
 import process from 'node:process';
 
 import type { ServerEvent } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentSessionInstructionSettings, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentChatServiceOptions } from './agent-chat';
@@ -138,7 +138,8 @@ export function createAgentChatService({
         isStartFenced: () => isAirplaneModeHolding(database.getAppState('airplaneMode')),
         longRunningShellCommands: () =>
             configuration.getSettings().value['agents.longRunningShellCommands'],
-        sessionInstructions: () => configuration.getSettings().value['agents.sessionInstructions'],
+        sessionInstructions: () =>
+            agentSessionInstructionSettings(configuration.getSettings().value),
         displayLocale: displayLocaleReader(configuration, dependencies),
         onReady: (terminalId) => {
             botHooks.chatReady(terminalId);
