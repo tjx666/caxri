@@ -139,3 +139,19 @@ export const resetSessionListReveals = (states: SessionListGroupStates): Session
     Object.fromEntries(
         Object.entries(states).map(([group, state]) => [group, { isCollapsed: state.isCollapsed }]),
     );
+
+/**
+ * How far a touch on a group heading or reveal row may travel and still count as a tap. The list has no sideways
+ * gesture of its own since the Project pager went away, so a sideways swipe across a heading reaches the heading; React
+ * Native fires `onPress` for any release inside the heading, which would fold the group under the swipe.
+ */
+export const SESSION_LIST_TAP_SLOP_DP = 10;
+
+/**
+ * Whether a touch that went down at `start` and came up at `end` (page coordinates, dp) is a tap rather than a drag.
+ */
+export const isSessionListTap = (
+    start: { pageX: number; pageY: number },
+    end: { pageX: number; pageY: number },
+): boolean =>
+    Math.hypot(end.pageX - start.pageX, end.pageY - start.pageY) <= SESSION_LIST_TAP_SLOP_DP;

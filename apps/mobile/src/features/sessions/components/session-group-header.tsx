@@ -1,4 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { useRef } from 'react';
+import type { GestureResponderEvent, PressableProps } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { LucideIcon } from 'lucide-react-native';
@@ -8,6 +10,7 @@ import { SectionLabel } from '../../../components/section-label';
 import { useTranslation } from '../../../i18n';
 import { mobileControl, mobileSpace, mobileType } from '../../../theme/scale';
 import type { MobileTheme } from '../../../theme/tokens';
+import { isSessionListTap } from '../session-list-groups';
 import type { MobileSessionListGroup } from '../session-model';
 
 /**
@@ -20,6 +23,24 @@ const GROUP_ICONS: Record<MobileSessionListGroup, LucideIcon> = {
     attention: Hand,
     working: Zap,
     idle: Moon,
+};
+
+/**
+ * Press handlers that run `onTap` only for a tap, not for a swipe released over the same row (`isSessionListTap`).
+ */
+const useTapOnly = (onTap: () => void): Pick<PressableProps, 'onPress' | 'onPressIn'> => {
+    const start = useRef<{ pageX: number; pageY: number } | null>(null);
+    return {
+        onPressIn: ({ nativeEvent }: GestureResponderEvent) => {
+            start.current = { pageX: nativeEvent.pageX, pageY: nativeEvent.pageY };
+        },
+        onPress: ({ nativeEvent }: GestureResponderEvent) => {
+            // An accessibility activation presses without a touch down, so it has no start and always counts.
+            const from = start.current;
+            start.current = null;
+            if (!from || isSessionListTap(from, nativeEvent)) onTap();
+        },
+    };
 };
 
 /**
@@ -45,15 +66,16 @@ export const SessionGroupHeader = ({
     const { t } = useTranslation();
     const Icon = GROUP_ICONS[group];
     const Chevron = isCollapsed ? ChevronRight : ChevronDown;
+    const press = useTapOnly(() => onToggle(group));
     return (
         <Pressable
+            {...press}
             accessibilityHint={t(
                 isCollapsed ? 'sessions.list.expandHint' : 'sessions.list.collapseHint',
             )}
             accessibilityLabel={t('sessions.list.groupLabel', { count, label })}
             accessibilityRole="button"
             accessibilityState={{ expanded: !isCollapsed }}
-            onPress={() => onToggle(group)}
             style={styles.row}
             testID={`session-group-${group}`}
         >
@@ -87,10 +109,11 @@ export const SessionGroupReveal = ({
     windowCount: number;
 }) => {
     const { t } = useTranslation();
+    const press = useTapOnly(() => onReveal(group, windowCount));
     return (
         <Pressable
+            {...press}
             accessibilityRole="button"
-            onPress={() => onReveal(group, windowCount)}
             style={styles.reveal}
             testID={`session-group-reveal-${group}`}
         >

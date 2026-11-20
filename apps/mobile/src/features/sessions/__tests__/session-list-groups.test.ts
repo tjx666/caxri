@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { SessionListEntry } from '../hooks/use-session-polling';
 import {
+    isSessionListTap,
     resetSessionListReveals,
     revealSessionListGroup,
+    SESSION_LIST_TAP_SLOP_DP,
     sessionListRows,
     toggleSessionListGroup,
 } from '../session-list-groups';
@@ -122,5 +124,21 @@ describe('sessionListRows with Server totals', () => {
             idle: { isCollapsed: undefined },
             working: { isCollapsed: true },
         });
+    });
+});
+
+describe('isSessionListTap', () => {
+    const start = { pageX: 100, pageY: 200 };
+
+    it('counts a still or slightly moved touch as a tap', () => {
+        expect(isSessionListTap(start, start)).toBe(true);
+        expect(isSessionListTap(start, { pageX: 100 + SESSION_LIST_TAP_SLOP_DP, pageY: 200 })).toBe(
+            true,
+        );
+    });
+
+    it('treats a sideways swipe across a heading as a drag, not a tap', () => {
+        expect(isSessionListTap(start, { pageX: 360, pageY: 204 })).toBe(false);
+        expect(isSessionListTap(start, { pageX: 20, pageY: 200 })).toBe(false);
     });
 });

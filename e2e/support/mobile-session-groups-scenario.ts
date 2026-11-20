@@ -240,8 +240,12 @@ export async function executeMobileSessionSwipeScenario(
                 // eslint-disable-next-line no-await-in-loop -- each sample is a timed observation of the same screen.
                 await pause(SETTLE_MS);
                 // eslint-disable-next-line no-await-in-loop -- see above.
-                if (!isFilterSelected(await mobileSemantics(serial), 'project-filter-all'))
+                const swiped = await mobileSemantics(serial);
+                if (!isFilterSelected(swiped, 'project-filter-all'))
                     throw new Error(`A ${name} list swipe switched Project`);
+                // The swipe crosses the Idle heading; it must not count as a tap that folds the group.
+                if (!checkBounds(swiped, `session-row-${dragged}`))
+                    throw new Error(`A ${name} list swipe folded the Idle group`);
             }
             // eslint-disable-next-line no-await-in-loop -- one capture per swipe.
             await capture(environment, `${name}-swipe-kept-project`, artifacts);
