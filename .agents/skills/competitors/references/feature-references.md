@@ -72,6 +72,7 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 - **Zen Mode**: `Cmd+K Z` hides every side bar, the Panel, tab bars, and the status bar as a temporary overlay that leaves the stored layout untouched, and revealing any surface leaves it (VS Code Zen Mode). The remainder follows `zenMode.fullScreen` and `zenMode.restore` (both default on, as `zen.fullScreen` and `zen.restore`) and `zenMode.silentNotifications` (only failures, persistent notices, and notices with a follow-up button stay visible). VS Code's double Escape exit is not adopted because Escape stops a running Chat turn and is an application key in the Terminal; a hover exit button replaces it. Evidence: `apps/desktop/src/renderer/src/stores/chrome-layout.ts`; `packages/protocol/src/domain/default-keybindings.ts`; `apps/desktop/src/renderer/src/features/zen-mode/`; `apps/desktop/src/renderer/src/stores/notifications.ts`.
 - **Command palette Recently Used group**: A leading group of the last few run commands, newest first, before the full list. Evidence: `apps/desktop/src/renderer/src/features/palette/recent-commands.ts`.
 - **Row hovers wait for each row**: Tree and list row tooltips anchored at the pointer wait out the full open delay on every row instead of chaining instantly after a sibling row's tooltip, while toolbar and status bar tooltips keep chaining (VS Code `WorkbenchHoverDelegate`: `'mouse'` placement without `instantHover`, `'element'` placement with it). Evidence: `apps/desktop/src/renderer/src/components/ui/tooltip.tsx`; `apps/desktop/src/renderer/src/components/tooltip-positioning.ts`; `e2e/file-tree-row-tooltip.e2e.ts`.
+- **Selected child's guide lit**: The branch guide path to the selected child row is drawn brighter than the rest of the guide (VS Code `workbench.tree.renderIndentGuides` active guide). Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-children/session-child-guide.tsx`.
 - **Hover open delay**: Shared tooltips and extension tree row hovers open after 1500 ms of rest (VS Code `workbench.hover.delay` macOS default; 500 ms on Windows and Linux). Evidence: `apps/desktop/src/renderer/src/components/tooltip-positioning.ts`.
 
 ## GitLens (MIT, except `plus/` directories)
@@ -356,6 +357,14 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 ## Linear (closed product reference)
 
 - **Chat code block folding**: A long fenced block folds to its first lines under a fade, with a centered `Expand (N lines)` pill and a `Collapse` pill below the expanded block. Evidence: `apps/desktop/src/renderer/src/components/markdown/code-collapse.ts`; `apps/desktop/src/renderer/src/components/markdown/code-collapse-toggle.tsx`; `DESIGN.md` (transcript blocks).
+
+## Notion (closed product reference)
+
+- **Icon doubles as the fold toggle**: Hovering a Session row with child rows swaps its Agent icon for the fold chevron, so the toggle spends no extra column (Notion sidebar page icon). Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-children/session-children-disclosure.tsx`.
+
+## GitHub Discussions (closed product reference)
+
+- **Rounded branch to each child**: The sidebar child rows hang off one trunk with a rounded arc per row, the way threaded replies connect to their parent. Evidence: `apps/desktop/src/renderer/src/features/primary-sidebar/session-children/session-child-guide-paths.ts`.
 
 ## prettier-plugin-jsdoc (MIT)
 

@@ -12,6 +12,7 @@ import {
     primarySidebarDelegatedRevealRowId,
     primarySidebarDelegatedRowId,
 } from '../primary-sidebar-tree';
+import { SessionChildGuide } from '../session-children/session-child-guide';
 import { SessionRevealRow } from '../session-reveal-row';
 import type { DelegatedRowLookups } from './hooks/use-delegated-row-lookups';
 
@@ -61,9 +62,9 @@ interface DelegatedSessionRowsProperties {
 
 /**
  * The Sessions a host delegated work to, as level-3 rows under it (issue #3572). Each is an ordinary Session row (the
- * same hover card, context menu, rename, and archive) that names its own Project and shows its status, indented under a
- * guide line like the subagent rows above it. The rows keep their real Session ids for every action; only the tree row
- * id (`delegated-session:<id>`) is namespaced.
+ * same hover card, context menu, rename, and archive) that names its own Project and shows its status, tied to the host
+ * by the same branch guide as the subagent rows above it. The rows keep their real Session ids for every action; only
+ * the tree row id (`delegated-session:<id>`) is namespaced.
  *
  * A nested Session lists no subagents, and it cannot be dragged, dropped on, or moved with `Alt+Arrow`: it follows from
  * the Session that created it. The failure glyph and the creator's title arrive as plain fields per row so the memoized
@@ -87,21 +88,24 @@ export function DelegatedSessionRows({
     if (hiddenCount === 0 && visibleSessions.length === 0) return null;
     const hostTitle = sessionTitleForDisplay(host.title, t);
     const revealRowId = primarySidebarDelegatedRevealRowId(host.id);
+    // A nested Session whose Project is gone renders no row, so it gets no branch either.
+    const rowSessions = visibleSessions.filter((session) =>
+        lookups.projectsById.has(session.projectId),
+    );
+    const selectedIndex = rowSessions.findIndex((session) => session.id === selectedSessionId);
     return (
         <div
             aria-label={t('primarySidebar.delegated.ariaLabel', { title: hostTitle })}
-            className="delegated-list relative pl-4"
+            className="delegated-list relative pl-7"
             role="group"
         >
-            {/*
-             * Decorative indent guide under the host's Agent icon (x = row padding + half the 14px icon), the same line
-             * the subagent rows draw, tying the rows to the Session above them. Not a click target.
-             */}
-            <span
-                aria-hidden="true"
-                className="delegated-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-muted/40"
+            <SessionChildGuide
+                className="delegated-guide"
+                continuesBelow={false}
+                rows={rowSessions.map(() => 'branch')}
+                selectedIndex={selectedIndex === -1 ? undefined : selectedIndex}
             />
-            {visibleSessions.map((session) => {
+            {rowSessions.map((session) => {
                 const project = lookups.projectsById.get(session.projectId);
                 if (!project) return null;
                 const rowId = primarySidebarDelegatedRowId(session.id);

@@ -10,10 +10,12 @@ import {
     primarySidebarSubagentMoreRowId,
     primarySidebarSubagentRowId,
 } from './primary-sidebar-tree';
+import { SessionChildGuide } from './session-children/session-child-guide';
 import { openSessionSubagent } from './session-subagent-commands';
 import {
     activeSubagentTaskId,
     sessionSubagentSummaries,
+    subagentGuideRows,
     subagentWindow,
 } from './session-subagents';
 import { useSubagentExpansionStore } from './subagent-expansion-store';
@@ -37,10 +39,21 @@ interface SessionSubagentRowsProperties {
      * The roving row id when it is one of these rows; see `rovingSubagentRowId`.
      */
     rovingRowId?: string;
+    /**
+     * True when the host's delegated Session rows follow these rows, so the branch guide's trunk runs on into them.
+     */
+    continuesBelow?: boolean;
+    /**
+     * True when the selected Session is one of the host's delegated Sessions below, which lights this list's trunk.
+     */
+    selectedBelow?: boolean;
 }
 
+/**
+ * Every child row shares one box: 24px tall, starting 28px in (past the branch guide), with its glyph at 34px.
+ */
 const ROW_CLASS_NAME =
-    'subagent-row flex h-6 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent pr-2 pl-8 text-left text-[12px] text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none';
+    'subagent-row ml-7 flex h-6 w-[calc(100%-1.75rem)] cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-1.5 text-left text-[12px] text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none';
 
 /**
  * The subagents a Chat Session started, as rows one level under the Session row (issue caxri#2260). Callers render it
@@ -57,6 +70,8 @@ export function SessionSubagentRows({
     terminal,
     showSubagents,
     rovingRowId,
+    continuesBelow = false,
+    selectedBelow = false,
 }: SessionSubagentRowsProperties) {
     const { t } = useTranslation();
     const isExpanded = useSubagentExpansionStore((state) =>
@@ -73,7 +88,8 @@ export function SessionSubagentRows({
     const subagents = sessionSubagentSummaries(terminal, showSubagents);
     if (isCollapsed || !terminal || subagents.length === 0) return null;
     const terminalId = terminal.id;
-    const { visible, toggleIndex, hiddenCount } = subagentWindow(subagents, isExpanded);
+    const subagentWindowResult = subagentWindow(subagents, isExpanded);
+    const { visible, toggleIndex, hiddenCount } = subagentWindowResult;
     const moreRowId = primarySidebarSubagentMoreRowId(sessionId);
     const toggleRow = (
         <button
@@ -137,20 +153,19 @@ export function SessionSubagentRows({
     });
     // The toggle sits where the folded list ends, in both states; `subagentWindow` explains why.
     if (toggleIndex !== undefined) rows.splice(toggleIndex, 0, toggleRow);
+    const guide = subagentGuideRows(subagentWindowResult, activeTaskId);
     return (
         <div
             className="subagent-list relative"
             role="group"
             aria-label={t('primarySidebar.subagents.ariaLabel')}
         >
-            {/*
-             * Decorative indent guide under the Session's Agent icon (x = row padding + half the 14px icon), tying the
-             * rows to the Session above them the way Claude Desktop's sidebar does. Not a click target: a 1px line is
-             * too thin to hit and invisible to the keyboard, so folding stays on the toggle row.
-             */}
-            <span
-                aria-hidden="true"
-                className="subagent-guide pointer-events-none absolute top-0 bottom-1.5 left-[15px] w-px bg-muted/40"
+            <SessionChildGuide
+                className="subagent-guide"
+                continuesBelow={continuesBelow}
+                rows={guide.rows}
+                selectedBelow={selectedBelow}
+                selectedIndex={guide.selectedIndex}
             />
             {rows}
         </div>

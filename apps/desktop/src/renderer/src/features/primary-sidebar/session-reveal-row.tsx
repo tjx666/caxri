@@ -1,4 +1,5 @@
 import { useTranslation } from '../../i18n';
+import { cn } from '../../lib/utilities';
 
 /**
  * The `Show N more` row that closes a windowed Session list, shared by Project groups, the Pinned group, and the
@@ -73,7 +74,14 @@ export function SessionRevealRow({
                 ));
     return (
         <button
-            className="session-reveal mt-0.5 ml-5.5 flex h-6 w-fit max-w-[calc(100%-22px)] cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent px-2 text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+            className={cn(
+                'session-reveal flex h-6 w-fit cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
+                /*
+                 * A nested reveal row already sits inside the child list's indent and keeps the child rows' 24px rhythm
+                 * with no top margin, so the branch guide (`SessionChildGuide`) can count it as one row.
+                 */
+                level === 3 ? 'max-w-full px-1.5' : 'mt-0.5 ml-5.5 max-w-[calc(100%-22px)] px-2',
+            )}
             role="treeitem"
             aria-label={ariaLabel}
             aria-level={level}

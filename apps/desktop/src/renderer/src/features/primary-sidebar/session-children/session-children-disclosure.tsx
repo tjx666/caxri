@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
@@ -21,10 +21,10 @@ interface SessionChildrenDisclosureProperties {
 }
 
 /**
- * The chevron that folds a host Session's child rows (its subagents and the Sessions it delegated), issue #4065. It
- * sits in the indent gutter left of the Agent icon, the column the group heading's own chevron uses, so a host row
- * keeps its icon and title where every other row has them. Always shown while folded, since it is then the only cue
- * that rows are hidden; shown on hover while open, so an ordinary list does not grow a column of chevrons.
+ * The chevron that folds a host Session's child rows (its subagents and the Sessions it delegated), issues #4065 and
+ * #4092. It lies over the host's Agent icon and appears only under pointer hover, while the icon fades out beneath it
+ * (Notion's page-icon toggle): a host row then needs no gutter column of its own, which read as one more group heading
+ * beside the Pinned and Project chevrons. The folded state is told by `SessionChildrenCount`, not by this chevron.
  *
  * Like the group heading's chevron it is a pointer target only (`tabIndex={-1}`) that hands focus back to its row; the
  * keyboard folds and unfolds with Left and Right on the row itself.
@@ -50,9 +50,8 @@ export function SessionChildrenDisclosure({
                 aria-expanded={!isCollapsed}
                 aria-label={label}
                 className={cn(
-                    'session-children-disclosure absolute top-0 -left-4 z-10 grid h-7 w-4 cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted hover:text-foreground',
-                    !isCollapsed &&
-                        'opacity-0 group-hover/session-row:opacity-100 focus-visible:opacity-100',
+                    // Centered on the 14px icon at the row's 8px inset: x 4 to 26, the full 28px row height.
+                    'session-children-disclosure absolute top-0 left-1 z-10 grid h-7 w-5.5 cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted opacity-0 transition-opacity duration-150 group-hover/session-row:opacity-100 hover:text-foreground focus-visible:opacity-100',
                 )}
                 data-session-children={isCollapsed ? 'collapsed' : 'expanded'}
                 tabIndex={-1}
@@ -63,24 +62,31 @@ export function SessionChildrenDisclosure({
                     focusDisclosureRow(event.currentTarget);
                 }}
             >
-                {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                <ChevronRight
+                    aria-hidden="true"
+                    className={cn('transition-transform duration-150', !isCollapsed && 'rotate-90')}
+                    size={14}
+                />
             </button>
         </Tooltip>
     );
 }
 
 /**
- * How many child rows a folded host hides, after its title. A warning dot joins the number when one of the hidden
- * Sessions waits on the user or failed, the same dot a collapsed Project heading shows, so folding never hides work
- * that needs a person. `aria-hidden` because the row's `aria-expanded` already tells assistive tech the rows are
- * folded, and the rows themselves are one Right arrow away.
+ * How many child rows a folded host hides, as a quiet pill just left of the row's status slot. A warning dot joins the
+ * number when one of the hidden Sessions waits on the user or failed, the same dot a collapsed Project heading shows,
+ * so folding never hides work that needs a person. Nothing else crosses the fold: a running or finished child would
+ * only repeat the spinner or pull request glyph the host shows for itself beside it. An expanded host shows no pill,
+ * since its rows are on screen. Like the other trailing glyphs it gives way to Pin and Archive under pointer hover.
+ * `aria-hidden` because the row's `aria-expanded` already tells assistive tech the rows are folded, and the rows
+ * themselves are one Right arrow away.
  */
 export function SessionChildrenCount({ rows }: { rows: SessionChildRows }) {
     if (!rows.isCollapsed) return null;
     return (
         <span
             aria-hidden="true"
-            className="session-children-count flex flex-none items-center gap-1 text-[11px] text-muted tabular-nums"
+            className="session-children-count flex h-4.5 flex-none items-center gap-1 rounded-full bg-muted/15 px-1.5 text-[11px] leading-none text-muted tabular-nums group-hover/session-row:hidden"
         >
             {rows.needsYou && <span className="size-1.5 rounded-full bg-warning" />}
             {rows.count}
