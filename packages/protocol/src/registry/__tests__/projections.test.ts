@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { agentProviderIds } from '../../agent/agents';
 import type { Principal } from '../../transport/principal';
-import { principalProjectionSchemas, projectListForPrincipal } from '../projections';
+import {
+    principalProjectionSchemas,
+    projectListForPrincipal,
+    projectListResultSchema,
+} from '../projections';
 
 const projects = [
     {
@@ -164,5 +168,19 @@ describe('principalProjectionSchemas.agent', () => {
                 status: 'working',
             }),
         ).toMatchObject({ provider });
+    });
+});
+
+describe('projectListResultSchema', () => {
+    it('lists every Project of a profile past a thousand registered worktrees', () => {
+        const many = Array.from({ length: 2_000 }, (_, index) => ({
+            ...projects[0],
+            id: `project-${index}`,
+            rootPath: `/worktrees/project-${index}`,
+            orderIndex: index,
+        }));
+        expect(projectListResultSchema.safeParse({ view: 'desktop', projects: many }).success).toBe(
+            true,
+        );
     });
 });

@@ -57,7 +57,7 @@ export const terminalQuerySchema = z.discriminatedUnion('mode', [
 const projectQueryResultSchema = z.union([
     z.object({
         view: z.enum(['desktop', 'human-cli']),
-        projects: z.array(humanProjectSchema).max(1_024),
+        projects: z.array(humanProjectSchema),
     }),
     z.object({
         view: z.enum(['agent', 'delegation-client', 'extension', 'paired-device']),
@@ -101,7 +101,7 @@ const sessionSummarySchema = sessionRecordSchema.pick({
 });
 const sessionQueryResultSchema = z.object({
     view: principalViewSchema,
-    sessions: z.array(sessionSummarySchema).max(4_096),
+    sessions: z.array(sessionSummarySchema),
 });
 
 const terminalSummarySchema = terminalRecordSchema.pick({
@@ -128,7 +128,7 @@ const terminalSummarySchema = terminalRecordSchema.pick({
 });
 const terminalQueryResultSchema = z.object({
     view: principalViewSchema,
-    terminals: z.array(terminalSummarySchema).max(8_192),
+    terminals: z.array(terminalSummarySchema),
 });
 
 export const inspectableSettingsSchema = appSettingsSchema.pick({

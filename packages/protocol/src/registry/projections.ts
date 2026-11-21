@@ -14,8 +14,8 @@ import type { Principal } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
 
 export const projectListResultSchema = z.discriminatedUnion('view', [
-    z.object({ view: z.literal('desktop'), projects: z.array(projectRecordSchema).max(1_024) }),
-    z.object({ view: z.literal('human-cli'), projects: z.array(humanProjectSchema).max(1_024) }),
+    z.object({ view: z.literal('desktop'), projects: z.array(projectRecordSchema) }),
+    z.object({ view: z.literal('human-cli'), projects: z.array(humanProjectSchema) }),
     z.object({ view: z.literal('agent'), projects: z.array(scopedProjectSchema).max(128) }),
     z.object({
         view: z.literal('delegation-client'),

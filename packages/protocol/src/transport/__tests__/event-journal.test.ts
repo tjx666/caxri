@@ -184,6 +184,30 @@ describe('createEventJournal.recover cursor validation', () => {
         });
         await expect(journal.recover(10)).rejects.toThrow(CaxriError);
     });
+
+    it('recovers a snapshot for a profile with thousands of Projects, Sessions, and Terminals', async () => {
+        const ids = (prefix: string, count: number) =>
+            Array.from({ length: count }, (_, index) => `${prefix}-${index}`);
+        const journal = createEventJournal({
+            maximumEvents: 1,
+            snapshot: (cursor) => ({
+                cursor,
+                projectIds: ids('project', 5_000),
+                sessionIds: ids('session', 10_000),
+                terminalIds: ids('terminal', 10_000),
+                settingsRevision: cursor,
+                diagnosticsRevision: cursor,
+                agentRevision: cursor,
+            }),
+        });
+        journal.publish(durableEvent);
+        journal.publish(durableEvent);
+        // A reloaded window starts at cursor 0, behind the retained window, so it needs the snapshot.
+        const recovery = await journal.recover(0);
+        expect(recovery.kind).toBe('snapshot');
+        if (recovery.kind !== 'snapshot') return;
+        expect(recovery.snapshot.projectIds).toHaveLength(5_000);
+    });
 });
 
 describe('createDurableEventJournal', () => {
