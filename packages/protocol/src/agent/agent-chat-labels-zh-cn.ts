@@ -140,6 +140,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.tool.label.wrote': '已写入',
     'agentChat.tool.label.searched': '已搜索',
     'agentChat.tool.label.foundFiles': '已查找文件',
+    'agentChat.tool.label.explored': '已探索',
     'agentChat.tool.label.lookedUpTools': '已查找工具',
     'agentChat.tool.label.fetched': '已获取',
     'agentChat.tool.label.searchedWeb': '已搜索网页',

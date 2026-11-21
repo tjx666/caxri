@@ -394,11 +394,19 @@ export const agentToolOutcomeLabel = (
 };
 
 /**
- * How many files one read covers: a shell read of several files (`sed -n 1,80p a.ts && sed -n 1,40p b.ts`) counts each.
+ * What one tool contributes to a group's counts. A shell read of several files (`sed -n 1,80p a.ts && sed -n 1,40p
+ * b.ts`) counts each file, and an `Explored` command counts each read, search, and listing it chains.
  */
-function readFileCount(tool: Pick<ToolCall, 'summary'>): number {
+function toolKindCounts(tool: Pick<ToolCall, 'name' | 'summary'>): Array<[AgentToolKind, number]> {
+    const { kind, label } = describeAgentTool(tool);
+    if (kind !== 'read' && label !== 'Explored') return [[kind, 1]];
     const action = tool.summary ? describeShellCommand(unwrapShellCommand(tool.summary)) : null;
-    return action?.kind === 'read' ? action.paths.length : 1;
+    if (action?.kind === 'explore')
+        return action.steps.map((step) => [
+            step.kind,
+            step.kind === 'read' ? step.paths.length : 1,
+        ]);
+    return [[kind, action?.kind === 'read' ? action.paths.length : 1]];
 }
 
 /**
@@ -406,10 +414,9 @@ function readFileCount(tool: Pick<ToolCall, 'summary'>): number {
  */
 export const agentToolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>) => {
     const counts = new Map<AgentToolKind, number>();
-    for (const tool of tools) {
-        const { kind } = describeAgentTool(tool);
-        counts.set(kind, (counts.get(kind) ?? 0) + (kind === 'read' ? readFileCount(tool) : 1));
-    }
+    for (const tool of tools)
+        for (const [kind, count] of toolKindCounts(tool))
+            counts.set(kind, (counts.get(kind) ?? 0) + count);
     return [...counts].map(([kind, count]) => ({ kind, count }));
 };
 

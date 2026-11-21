@@ -3,6 +3,8 @@ import { describeCliStep, optionValue } from './tool-rows/shell/agent-shell-cli.
 import type { SearchPatternDialect } from './tool-rows/shell/agent-shell-search-pattern.js';
 import { searchPatternTerms } from './tool-rows/shell/agent-shell-search-pattern.js';
 import { withoutCapturedOutput } from './tool-rows/shell/output-capture.js';
+import { expandVariables, readAssignments } from './tool-rows/shell/variables.js';
+import { splitList, splitWords } from './tool-rows/shell/words.js';
 
 /**
  * What a shell command did, when it is one of the file reads, searches, or listings an Agent runs to explore a Project,
@@ -12,6 +14,23 @@ import { withoutCapturedOutput } from './tool-rows/shell/output-capture.js';
  */
 export type AgentShellCommandAction =
     | AgentShellCliAction
+    | AgentShellExploreStep
+    /**
+     * Different explorations chained in one command (`sed -n 1,40p a.ts; grep -n foo b.ts; ls src`), in order, the way
+     * the Codex app lists them under one `Explored` row. Same-kind chains merge into one step instead.
+     */
+    | { kind: 'explore'; steps: AgentShellExploreStep[] }
+    /**
+     * `targets` are the test files or directories the run names; `command` is the run without wrappers such as `rtk`.
+     */
+    | { kind: 'test'; targets: string[]; command: string }
+    | { kind: 'commit'; message?: string; isPushed: boolean }
+    | { kind: 'push'; branch?: string };
+
+/**
+ * One file read, search, or listing.
+ */
+export type AgentShellExploreStep =
     | { kind: 'read'; paths: string[] }
     /**
      * `isFileNames` when the pattern filters a file listing (`rg --files src | rg '\.test\.ts$'`) rather than file
@@ -28,13 +47,7 @@ export type AgentShellCommandAction =
           path?: string;
           isFileNames?: boolean;
       }
-    | { kind: 'list'; path?: string }
-    /**
-     * `targets` are the test files or directories the run names; `command` is the run without wrappers such as `rtk`.
-     */
-    | { kind: 'test'; targets: string[]; command: string }
-    | { kind: 'commit'; message?: string; isPushed: boolean }
-    | { kind: 'push'; branch?: string };
+    | { kind: 'list'; path?: string };
 
 const READ_COMMANDS = new Set(['cat', 'head', 'tail', 'nl', 'bat', 'less', 'more']);
 const SEARCH_COMMANDS = new Set(['rg', 'grep', 'egrep', 'ag', 'ack']);
@@ -93,90 +106,6 @@ const VALUE_OPTIONS: Partial<Record<string, ReadonlySet<string>>> = {
         '-size',
     ]),
 };
-
-/**
- * Splits one simple command into words, honoring single and double quotes. Returns `null` for anything a word split
- * cannot read faithfully: a redirection, a substitution, or a variable.
- */
-function splitWords(command: string): string[] | null {
-    const words: string[] = [];
-    let word = '';
-    let hasWord = false;
-    let quote: '"' | "'" | undefined;
-    for (const char of command) {
-        if (quote) {
-            if (char === quote) quote = undefined;
-            else word += char;
-            continue;
-        }
-        if (char === '"' || char === "'") {
-            quote = char;
-            hasWord = true;
-            continue;
-        }
-        if (/[<>`$(){}]/u.test(char)) return null;
-        if (/\s/u.test(char)) {
-            if (hasWord) words.push(word);
-            word = '';
-            hasWord = false;
-            continue;
-        }
-        word += char;
-        hasWord = true;
-    }
-    if (quote) return null;
-    if (hasWord) words.push(word);
-    return words;
-}
-
-/**
- * Splits on unquoted list operators (`&&`, `;`, a newline) into commands, and each command on unquoted pipes into its
- * stages. Returns `null` for `||` and for an empty command, which no single action describes.
- */
-function splitList(command: string): string[][] | null {
-    const commands: string[][] = [];
-    let stages: string[] = [];
-    let current = '';
-    let quote: '"' | "'" | undefined;
-    let index = 0;
-    const didEnd = (isCommandEnd: boolean): boolean => {
-        stages.push(current.trim());
-        current = '';
-        if (stages.includes('')) return false;
-        if (isCommandEnd) {
-            commands.push(stages);
-            stages = [];
-        }
-        return true;
-    };
-    while (index < command.length) {
-        const char = command[index] ?? '';
-        if (quote) {
-            if (char === quote) quote = undefined;
-            current += char;
-            index += 1;
-            continue;
-        }
-        if (char === '"' || char === "'") quote = char;
-        if (command.startsWith('||', index)) return null;
-        const operator = ['&&', ';', '\n', '|'].find((op) => command.startsWith(op, index));
-        if (operator && !quote) {
-            // A trailing `;` or newline ends the last command without starting another.
-            if (operator !== '|' && current.trim() === '' && stages.length === 0) {
-                index += operator.length;
-                continue;
-            }
-            if (!didEnd(operator !== '|')) return null;
-            index += operator.length;
-            continue;
-        }
-        current += char;
-        index += 1;
-    }
-    if (quote) return null;
-    if ((current.trim() !== '' || stages.length > 0) && !didEnd(true)) return null;
-    return commands.length > 0 ? commands : null;
-}
 
 /**
  * A commit message or pull request body passed as `"$(cat <<'EOF' ... EOF)"` spans lines and a substitution no word
@@ -326,7 +255,7 @@ function describeStage(words: readonly string[]): ExploreAction | null {
     return null;
 }
 
-type ExploreAction = Extract<AgentShellCommandAction, { kind: 'list' | 'read' | 'search' }>;
+type ExploreAction = AgentShellExploreStep;
 
 /**
  * One pipeline that explores: its first stage reads, searches, or lists, and every later stage only filters what it
@@ -355,15 +284,38 @@ function describeExplorePipeline(stages: readonly string[][]): ExploreAction | n
 }
 
 /**
- * Several explorations chained with `&&` or `;` read as one when they do the same thing: reads list every file (`sed -n
- * 1,40p a.ts && sed -n 1,40p b.ts` reads `a.ts, b.ts`), and searches or listings keep the first.
+ * Several explorations chained with `&&` or `;` read as one. When they do the same thing, reads list every file (`sed
+ * -n 1,40p a.ts && sed -n 1,40p b.ts` reads `a.ts, b.ts`), and searches or listings keep the first. Different kinds
+ * stay in order as one `explore` action, with adjacent reads merged the same way.
  */
-function mergeExplorations(actions: readonly ExploreAction[]): ExploreAction | null {
+function mergeExplorations(
+    actions: readonly ExploreAction[],
+): ExploreAction | Extract<AgentShellCommandAction, { kind: 'explore' }> | null {
     const first = actions.at(0);
-    if (!first || actions.some((action) => action.kind !== first.kind)) return null;
-    if (first.kind !== 'read') return first;
-    const paths = actions.flatMap((action) => (action.kind === 'read' ? action.paths : []));
-    return { kind: 'read', paths: [...new Set(paths)] };
+    if (!first) return null;
+    if (actions.every((action) => action.kind === first.kind)) {
+        if (first.kind !== 'read') return first;
+        const paths = actions.flatMap((action) => (action.kind === 'read' ? action.paths : []));
+        return { kind: 'read', paths: [...new Set(paths)] };
+    }
+    const steps: ExploreAction[] = [];
+    for (const action of actions) {
+        const previous = steps.at(-1);
+        if (previous?.kind === 'read' && action.kind === 'read')
+            steps[steps.length - 1] = {
+                kind: 'read',
+                paths: [...new Set([...previous.paths, ...action.paths])],
+            };
+        else steps.push(action);
+    }
+    return { kind: 'explore', steps };
+}
+
+/**
+ * `echo ---` between explorations only separates their output, so it does not stop the chain reading as exploration.
+ */
+function isOutputSeparator(stages: readonly string[][]): boolean {
+    return stages.length === 1 && stages[0]?.[0] === 'echo';
 }
 
 /**
@@ -479,7 +431,7 @@ function testTargets(arguments_: readonly string[]): string[] {
  */
 const GIT_SETUP_COMMANDS = new Set(['add', 'status', 'diff', 'log', 'fetch', 'show', 'stash']);
 
-type StepAction = Exclude<AgentShellCommandAction, ExploreAction>;
+type StepAction = Exclude<AgentShellCommandAction, ExploreAction | { kind: 'explore' }>;
 
 /**
  * What one command (its first pipeline stage, filters after it ignored) does among tests, Git, and pull requests:
@@ -544,10 +496,15 @@ export function describeShellCommand(command: string): AgentShellCommandAction |
     if (!listed) return null;
     const commands = withoutCapturedOutput(listed);
     const parsed: Array<{ stages: string[][]; text: string }> = [];
+    const variables = new Map<string, string>();
     for (const stages of commands) {
-        const words = stages.map((stage) => splitWords(stage));
+        const words = stages.map((stage) => splitWords(expandVariables(stage, variables)));
         if (words.some((stage) => !stage?.[0])) return null;
         const [first = [], ...rest] = words as string[][];
+        // `R=docs/references` on its own only names a path the commands after it use.
+        const isAssignment = rest.length === 0 && readAssignments(first, variables);
+        if (isAssignment === null) return null;
+        if (isAssignment) continue;
         const unwrapped = withoutWrappers(first);
         if (unwrapped.length === 0) return null;
         parsed.push({
@@ -556,7 +513,9 @@ export function describeShellCommand(command: string): AgentShellCommandAction |
         });
     }
     const body = parsed.filter(({ stages }, index) => index > 0 || stages[0]?.[0] !== 'cd');
-    const explorations = body.map(({ stages }) => describeExplorePipeline(stages));
+    const explorations = body
+        .filter(({ stages }) => !isOutputSeparator(stages))
+        .map(({ stages }) => describeExplorePipeline(stages));
     if (explorations.length > 0 && explorations.every(Boolean))
         return mergeExplorations(explorations as ExploreAction[]);
     const steps: StepAction[] = [];
