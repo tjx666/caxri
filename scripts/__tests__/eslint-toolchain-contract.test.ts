@@ -333,6 +333,24 @@ export { release, released };
         );
     });
 
+    it('keeps ES2023 findLast out of code the ES2022 Mobile runtime compiles', async () => {
+        const source = `
+export const lastName = (path: string): string | undefined => path.split('/').filter(Boolean).at(-1);
+`;
+        const [runtime, shared, test] = await Promise.all([
+            lintSource('apps/mobile/src/last-name.ts', source),
+            lintSource('packages/protocol/src/last-name.ts', source),
+            lintSource('apps/mobile/src/__tests__/last-name.test.ts', source),
+        ]);
+        expect(runtime.messages.map(({ ruleId }) => ruleId)).not.toContain(
+            'unicorn/prefer-array-find',
+        );
+        expect(shared.messages.map(({ ruleId }) => ruleId)).not.toContain(
+            'unicorn/prefer-array-find',
+        );
+        expect(test.messages.map(({ ruleId }) => ruleId)).toContain('unicorn/prefer-array-find');
+    });
+
     it('rejects platform imports across both mobile runtime roots', async () => {
         const cases = [
             ['apps/mobile/src/node-prefixed-import.ts', 'node:fs'],

@@ -732,14 +732,21 @@ export default defineConfig(
         },
     },
     /**
-     * Mobile runtime code compiles against ES2022 (`apps/mobile/tsconfig.runtime.json`), where Hermes has no
-     * `Promise.withResolvers`; following this rule there fails the workspace typecheck with TS2550. Tests run under
-     * Node and keep the rule.
+     * Mobile runtime code, and the browser-safe packages it imports from source, compile against ES2022
+     * (`apps/mobile/tsconfig.runtime.json`). The phone's Hermes has neither `Promise.withResolvers` nor the ES2023
+     * array methods: a `toSorted` call threw `undefined is not a function` on the New Session screen in an Android
+     * release build (#4082). Following these rules' fixes there fails the Mobile typecheck with TS2550, and the autofix
+     * applies the `findLast` rewrite on commit. Tests run under Node and keep both rules.
      */
     {
-        files: ['apps/mobile/app/**/*.{ts,tsx}', 'apps/mobile/src/**/*.{ts,tsx}'],
+        files: [
+            'apps/mobile/app/**/*.{ts,tsx}',
+            'apps/mobile/src/**/*.{ts,tsx}',
+            'packages/{markdown,mobile-transport,protocol,utils}/src/**/*.ts',
+        ],
         ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
         rules: {
+            'unicorn/prefer-array-find': ['error', { checkFromLast: false }],
             'unicorn/prefer-promise-with-resolvers': 'off',
         },
     },
