@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    sessionListMotionScope,
-    sessionListRowOrder,
-    shouldAnimateSessionListChange,
-} from '../session-list-motion';
+import { sessionListRowOrder, shouldAnimateSessionListChange } from '../session-list-motion';
 
 const order = (...ids: string[]): string => sessionListRowOrder(ids.map((id) => ({ id })));
 
@@ -35,22 +31,5 @@ describe('Session list motion', () => {
 
     it('never animates under reduced motion', () => {
         expect(change(order('a'), order('a', 'b'), { isReducedMotion: true })).toBe(false);
-    });
-
-    it('starts a new scope when a Project is chosen and again when its first read answers', () => {
-        const allRead = sessionListMotionScope({ activeProjectId: null, readProjectId: null });
-        const projectPending = sessionListMotionScope({
-            activeProjectId: 'p1',
-            readProjectId: null,
-        });
-        const projectRead = sessionListMotionScope({ activeProjectId: 'p1', readProjectId: 'p1' });
-        const backToAllPending = sessionListMotionScope({
-            activeProjectId: null,
-            readProjectId: 'p1',
-        });
-        expect(new Set([allRead, projectPending, projectRead, backToAllPending]).size).toBe(4);
-        expect(sessionListMotionScope({ activeProjectId: 'p1', readProjectId: 'p1' })).toBe(
-            projectRead,
-        );
     });
 });

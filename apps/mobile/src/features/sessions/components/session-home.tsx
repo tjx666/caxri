@@ -27,7 +27,6 @@ import {
 import type { SessionListRow } from '../session-list-groups';
 import { sessionListRows } from '../session-list-groups';
 import { createSessionListInteraction } from '../session-list-interaction';
-import { sessionListMotionScope } from '../session-list-motion';
 import type { MobileSessionItem } from '../session-model';
 import { sessionRowSwipeActions } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
@@ -431,7 +430,6 @@ export const SessionHome = ({
                 }
                 interactionRef={listInteractionReference}
                 listRef={listReference}
-                motionScope={sessionListMotionScope({ activeProjectId, readProjectId })}
                 bottomInset={layout === 'phone' ? PHONE_NEW_BUTTON_CLEARANCE : 0}
                 onLoad={restoreScroll}
                 onScroll={rememberScroll}
