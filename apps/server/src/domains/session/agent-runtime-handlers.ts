@@ -1,6 +1,6 @@
 import type { PermissionAutoAllowAccess } from '../agents';
 import type { DomainHandlers } from '../domain-services';
-import type { SessionAutoNamingService } from './auto-naming';
+import type { SessionAutoNamingService } from './naming';
 
 /**
  * Desktop Session methods that forward straight to `agent-runtime/runtime.ts`, which already owns their logging and

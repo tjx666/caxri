@@ -13,6 +13,22 @@ export type SessionRenameProviderSyncSkipReason =
     'agent-session-unidentified' | 'provider-rename-unsupported';
 
 /**
+ * Closed reason set for `session_rename.provider_sync_deferred`: what became of a manual title that was set before the
+ * primary Agent had a conversation, once one appeared. `synchronized` wrote it; `already-synchronized` found the
+ * conversation already carrying it; `native-name-kept` found a name the provider or the user gave the conversation,
+ * which Caxri has no authority to overwrite; `conversation-pending` means the provider has not recorded the
+ * conversation yet and the next turn tries again; `ineligible` means the Session, its title mode, or its primary Agent
+ * changed first; `failed` is a provider write that threw.
+ */
+export type SessionRenameProviderDeferredSyncReason =
+    | 'already-synchronized'
+    | 'conversation-pending'
+    | 'failed'
+    | 'ineligible'
+    | 'native-name-kept'
+    | 'synchronized';
+
+/**
  * Closed reason set for `path_browser.search_failed`. `files.search` and the Desktop-Server connection share the same
  * `UNAVAILABLE` wire code for two different situations (a packaged install missing the ripgrep binary or worker script,
  * or Main not currently attached to Server Core) so both fold into `'unavailable'` rather than inferring a split from

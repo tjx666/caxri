@@ -91,6 +91,11 @@ export const sessionQuitRestoreLogEvents = {
 export const sessionRenameLogEvents = {
     providerSyncSkipped: 'session_rename.provider_sync_skipped',
     providerTitleMismatch: 'session_rename.provider_title_mismatch',
+    /**
+     * One deferred write of a manual Session title to the primary Agent's conversation, once that conversation exists;
+     * see `SessionRenameProviderDeferredSyncReason`.
+     */
+    providerSyncDeferred: 'session_rename.provider_sync_deferred',
 } as const;
 
 export const sessionPullRequestsLogEvents = {

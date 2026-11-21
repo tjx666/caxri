@@ -2,23 +2,24 @@ import type {
     AgentProvider,
     ServerEvent,
     SessionRecord,
+    SessionRenameProviderDeferredSyncReason,
     SessionRenameProviderSyncSkipReason,
 } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { KeyedSerialQueue, logEventCatalog } from '@caxri/system';
 
-import type { AgentCoordinator, AgentService } from '../agents';
+import type { AgentCoordinator, AgentService } from '../../agents';
 /**
  * Server domain boundaries require the owning public root; structure tests reject cross-domain deep imports.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
-import { agentProviderStateRoot, isBareIssueReferenceTitle } from '../agents';
-import type { CaxriDatabase } from '../db';
+import { agentProviderStateRoot, isBareIssueReferenceTitle } from '../../agents';
+import type { CaxriDatabase } from '../../db';
 
 const MAXIMUM_AGENT_TARGET_CHANGES = 3;
 
-interface AgentRenameTarget {
+export interface AgentRenameTarget {
     agentSessionId: string;
     cwd: string;
     provider: AgentProvider;
@@ -107,7 +108,8 @@ export class SessionRenameService {
          * anything) has nothing to synchronize, not a failure to report. Refusing the rename here made the very first
          * thing a user does to a new Session fail, and the name they typed was discarded with it. Skipping provider
          * sync still commits the title locally, and `renameSession` marks the Session manually titled, so automatic
-         * naming will not overwrite it once the Agent does start.
+         * naming will not overwrite it once the Agent does start; `synchronizeManualTitle` writes it to the
+         * conversation then.
          */
         if (!terminal?.agentSessionId)
             return this.skipProviderSynchronization(
@@ -343,6 +345,92 @@ export class SessionRenameService {
                 });
             this.coordinator.probeTerminal(target.terminalId);
             return applied;
+        });
+    }
+
+    /**
+     * Writes a manual title to the primary Agent's conversation when the title predates it. A rename only reaches the
+     * provider when the conversation already exists, so a Session named at creation (every `--type` or `--new-session`
+     * delegation, whose first message is only a task pointer) left the native conversation listed by that pointer in
+     * the Codex app and `claude --resume`. Runs on the manual queue so it never interleaves with a user rename, and
+     * yields to a name the conversation already has the way automatic naming does: Codex records no provenance for a
+     * thread name, so an unknown source never grants authority to overwrite it.
+     *
+     * Resolves `true` once this conversation needs no further attempt, `false` when a later turn should try again.
+     */
+    synchronizeManualTitle(
+        sessionId: string,
+        target: AgentRenameTarget,
+        signal: AbortSignal,
+    ): Promise<boolean> {
+        return this.queue.run(sessionId, async () => {
+            const startedAt = performance.now();
+            let reason: SessionRenameProviderDeferredSyncReason = 'ineligible';
+            try {
+                const currentTitle = async (): Promise<string | undefined> => {
+                    const session = this.database.getSession(sessionId);
+                    if (
+                        !session ||
+                        signal.aborted ||
+                        session.titleMode !== 'manual' ||
+                        session.archivedAt !== undefined
+                    )
+                        return;
+                    const current = await this.primaryAgentTarget(sessionId);
+                    return current && SessionRenameService.isSameTarget(target, current)
+                        ? session.title
+                        : undefined;
+                };
+                if (!(await currentTitle())) return true;
+                const snapshot = await this.agents.snapshot(target.provider, {
+                    rootPath: target.cwd,
+                    agentSessionId: target.agentSessionId,
+                });
+                const title = await currentTitle();
+                if (!title) return true;
+                if (snapshot.sessionId !== target.agentSessionId) {
+                    reason = 'conversation-pending';
+                    return false;
+                }
+                if (snapshot.title === title) {
+                    reason = 'already-synchronized';
+                    return true;
+                }
+                if (
+                    snapshot.title &&
+                    snapshot.titleSource !== 'automatic' &&
+                    (snapshot.titleSource === 'explicit' ||
+                        !isBareIssueReferenceTitle(snapshot.title))
+                ) {
+                    reason = 'native-name-kept';
+                    return true;
+                }
+                await this.agents.renameSession(target.provider, {
+                    agentSessionId: target.agentSessionId,
+                    cwd: target.cwd,
+                    title,
+                    signal,
+                });
+                reason = 'synchronized';
+                this.coordinator.probeTerminal(target.terminalId);
+                return true;
+            } catch {
+                if (signal.aborted) return true;
+                reason = 'failed';
+                return false;
+            } finally {
+                /**
+                 * Only enums and timing enter diagnostics; neither the title nor provider error text do.
+                 */
+                this.logger.write(
+                    reason === 'failed' ? 'warn' : 'info',
+                    logEventCatalog.sessionRename.providerSyncDeferred,
+                    {
+                        durationMs: performance.now() - startedAt,
+                        fields: { provider: target.provider, reason, sessionId },
+                    },
+                );
+            }
         });
     }
 

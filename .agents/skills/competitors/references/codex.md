@@ -31,6 +31,23 @@ installed-version snapshot. No implementation code was copied.
 
 See [Caxri delegation](../../../../docs/agent-delegation.md) for the current implementation contract.
 
+## Thread names for spawned and delegated threads
+
+Research date: 2026-11-21. Local source reference: `ddfaef91` (2026-11-21) in `competitors/codex`.
+
+- A thread without a name is listed by its first user message (the Codex app and `codex resume`).
+  Only `thread/name/set` gives it a name
+  (`codex-rs/app-server/src/request_processors/thread_processor.rs`); nothing in core's spawn path
+  calls it, so a spawned child keeps its first prompt as its list label.
+- v2 `spawn_agent` requires a machine `task_name` (lowercase, digits, `_`) used as a path segment,
+  and Codex assigns a nickname from `core/assets/agent/agent_names.txt`; neither becomes the native
+  thread name.
+- Automatic titles live in the TUI client (`tui/src/app/thread_title.rs`), only for the active
+  thread's first completed message: a low-effort model call capped at 36 characters, falling back
+  to the first message truncated to 60. Spawned children are skipped.
+- Consequence for Caxri: a delegated child's first message is the task pointer, so Caxri must write
+  the Session title itself (T3 Code does the same through `applyThreadName`).
+
 ## Mouse selection in hosted terminals
 
 Research date: 2026-09-24. Local source reference: `3938a27c` (2026-09-21); installed CLI:

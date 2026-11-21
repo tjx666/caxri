@@ -123,7 +123,7 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 23, directory: 'apps/server/src/domains/files' },
     { cap: 35, directory: 'apps/server/src/domains/git' },
     { cap: 32, directory: 'apps/server/src/domains/project-status' },
-    { cap: 26, directory: 'apps/server/src/domains/session' },
+    { cap: 24, directory: 'apps/server/src/domains/session' },
     { cap: 45, directory: 'apps/server/src/domains/terminal' },
     { cap: 26, directory: 'apps/server/src/domains/usage' },
     { cap: 19, directory: 'apps/server/src/domains/workbench' },
