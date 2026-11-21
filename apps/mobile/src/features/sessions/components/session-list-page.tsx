@@ -44,6 +44,7 @@ export const SessionListPage = ({
     empty,
     interactionRef,
     listRef,
+    motionScope,
     bottomInset = 0,
     onLoad,
     onScroll,
@@ -57,6 +58,10 @@ export const SessionListPage = ({
     interactionRef: RefObject<ReturnType<typeof createSessionListInteraction> | null>;
     listRef: RefObject<FlashListRef<SessionListRow> | null>;
     /**
+     * Which list the rows belong to (see `sessionListMotionScope`). Rows animate only while it stays the same.
+     */
+    motionScope: string;
+    /**
      * Space kept below the last row so a control floating over the list (the phone's New Session button) never covers
      * its trailing glyph or pull request chip.
      */
@@ -69,14 +74,23 @@ export const SessionListPage = ({
     const [isAtTop, setIsAtTop] = useState(true);
     const isReducedMotion = useReducedMotion();
     const [shownRows, setShownRows] = useState(rows);
+    const [shownScope, setShownScope] = useState(motionScope);
     const [isMoving, setIsMoving] = useState(false);
     /**
-     * A Session appearing, leaving, or changing group fades and slides instead of jumping. The change lands in two
-     * renders: the first arms the cells' fades while still showing the old rows (Reanimated reads `exiting` only after
-     * a commit, so a row removed in the same commit would vanish), and the effect below then shows the new rows.
-     * Anything else, such as a row's status or title changing in place, applies at once.
+     * Rows for another scope replace the list at once, cancelling any motion still running for the old one, so choosing
+     * a Project never reads as its Sessions arriving.
      */
-    if (rows !== shownRows && !isMoving) {
+    if (motionScope !== shownScope) {
+        setShownScope(motionScope);
+        setShownRows(rows);
+        setIsMoving(false);
+    } else if (rows !== shownRows && !isMoving) {
+        /**
+         * A Session appearing, leaving, or changing group fades and slides instead of jumping. The change lands in two
+         * renders: the first arms the cells' fades while still showing the old rows (Reanimated reads `exiting` only
+         * after a commit, so a row removed in the same commit would vanish), and the effect below then shows the new
+         * rows. Anything else, such as a row's status or title changing in place, applies at once.
+         */
         const isAnimated = shouldAnimateSessionListChange({
             isReducedMotion,
             nextOrder: sessionListRowOrder(rows),
