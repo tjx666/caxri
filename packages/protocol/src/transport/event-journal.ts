@@ -266,13 +266,16 @@ export const protocolEventEnvelopeSchema = z.object({
 export type ProtocolEventEnvelope = z.infer<typeof protocolEventEnvelopeSchema>;
 
 /**
- * Bounded convergence metadata; full Desktop bootstrap data is deliberately not representable.
+ * Convergence metadata: identifiers only, so full Desktop bootstrap data is deliberately not representable. The ID
+ * lists carry no count cap: they mirror the user's own Projects, Sessions, and Terminals, which grow without bound
+ * (every registered worktree is a Project), and a cap here made every snapshot recovery fail once a profile passed it,
+ * leaving a new window unable to apply any later event.
  */
 const protocolRecoverySnapshotSchema = z.object({
     cursor: cursorSchema,
-    projectIds: z.array(z.string().min(1).max(200)).max(1_024),
-    sessionIds: z.array(z.string().min(1).max(200)).max(4_096),
-    terminalIds: z.array(z.string().min(1).max(200)).max(8_192),
+    projectIds: z.array(z.string().min(1).max(200)),
+    sessionIds: z.array(z.string().min(1).max(200)),
+    terminalIds: z.array(z.string().min(1).max(200)),
     settingsRevision: z.number().int().nonnegative(),
     diagnosticsRevision: z.number().int().nonnegative(),
     agentRevision: z.number().int().nonnegative(),
