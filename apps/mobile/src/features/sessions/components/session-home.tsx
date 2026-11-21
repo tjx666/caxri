@@ -20,6 +20,7 @@ import { useRowMarkDone } from '../hooks/use-row-mark-done';
 import { useSessionManagement } from '../hooks/use-session-management';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
 import { projectIndexInFullOrder, visibleProjectChips } from '../project-order';
+import { hasLoadedChosenProject } from '../session-home-empty-state';
 import {
     sessionListAttentionSource,
     shouldListFallbackToTerminal,
@@ -420,7 +421,11 @@ export const SessionHome = ({
                         <SessionHomeEmpty
                             activeProjectId={activeProjectId}
                             error={error}
-                            hasLoaded={hasLoaded}
+                            hasLoaded={hasLoadedChosenProject({
+                                activeProjectId,
+                                hasLoaded,
+                                readProjectId,
+                            })}
                             isLoading={isLoading}
                             onNewSession={onNewSession}
                             onRetry={refresh}
