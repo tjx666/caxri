@@ -23,6 +23,7 @@ const TOOL_LABEL_KEYS: Readonly<Record<string, AgentChatLabelKey>> = {
     'Wrote': 'agentChat.tool.label.wrote',
     'Searched': 'agentChat.tool.label.searched',
     'Found files': 'agentChat.tool.label.foundFiles',
+    'Explored': 'agentChat.tool.label.explored',
     'Looked up tools': 'agentChat.tool.label.lookedUpTools',
     'Fetched': 'agentChat.tool.label.fetched',
     'Searched the web': 'agentChat.tool.label.searchedWeb',

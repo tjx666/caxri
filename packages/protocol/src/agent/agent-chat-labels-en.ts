@@ -142,6 +142,7 @@ export const agentChatLabelsEn = {
     'agentChat.tool.label.wrote': 'Wrote',
     'agentChat.tool.label.searched': 'Searched',
     'agentChat.tool.label.foundFiles': 'Found files',
+    'agentChat.tool.label.explored': 'Explored',
     'agentChat.tool.label.lookedUpTools': 'Looked up tools',
     'agentChat.tool.label.fetched': 'Fetched',
     'agentChat.tool.label.searchedWeb': 'Searched the web',

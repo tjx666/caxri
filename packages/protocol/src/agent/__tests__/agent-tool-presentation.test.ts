@@ -104,8 +104,14 @@ describe('describeAgentTool', () => {
             kind: 'search',
             subject: 'TODO in src',
         });
-        // Different explorations chained together are still a plain command.
-        expect(describe('cat a.ts && rg TODO')).toMatchObject({ kind: 'command' });
+        expect(describe('cat a.ts && rg TODO')).toEqual({
+            kind: 'read',
+            label: 'Explored',
+            subject: 'a.ts · TODO',
+            isCodeSubject: true,
+        });
+        // Anything other than exploration in the chain keeps it a plain command.
+        expect(describe('cat a.ts && rm -rf out')).toMatchObject({ kind: 'command', label: 'Ran' });
     });
 
     it("names a skill when Codex reads the skill's SKILL.md", () => {

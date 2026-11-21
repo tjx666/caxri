@@ -1,5 +1,6 @@
 import { pathBasename } from '@caxri/utils';
 
+import type { AgentShellExploreStep } from '../../agent-shell-command.js';
 import { describeShellCommand } from '../../agent-shell-command.js';
 import type { AgentToolPresentation } from '../../agent-tool-presentation.js';
 import type { AgentShellPullRequestAction } from './agent-shell-cli.js';
@@ -76,38 +77,22 @@ export function describeShellRow(command: string): AgentToolPresentation {
 function describeShellAction(command: string): AgentToolPresentation | null {
     const action = describeShellCommand(command);
     switch (action?.kind) {
-        case 'read': {
-            const [only] = action.paths;
-            const skill = action.paths.length === 1 && describeSkillRead(only);
-            if (skill) return skill;
-            return {
-                kind: 'read',
-                label: 'Read',
-                subject: action.paths.map((path) => pathBasename(path)).join(', '),
-                isCodeSubject: true,
-                ...(action.paths.length === 1 && only && { path: only }),
-            };
-        }
-        case 'search': {
-            return {
-                kind: 'search',
-                label: action.isFileNames ? 'Found files' : 'Searched',
-                subject: action.path
-                    ? `${action.terms.join(', ')} in ${pathBasename(action.path)}`
-                    : action.terms.join(', '),
-                isCodeSubject: true,
-            };
-        }
+        case 'read':
+        case 'search':
         case 'list': {
-            const path = action.path === '.' ? undefined : action.path;
-            return path
-                ? {
-                      kind: 'list',
-                      label: 'Listed',
-                      subject: pathBasename(path),
-                      isCodeSubject: true,
-                  }
-                : { kind: 'list', label: 'Listed files', isCodeSubject: true };
+            return describeExploreStep(action);
+        }
+        case 'explore': {
+            const subjects = action.steps.flatMap(
+                (step) => describeExploreStep(step).subject ?? [],
+            );
+            return {
+                // The glyph follows the first step, as the group summary leads with the first kind.
+                kind: action.steps[0].kind,
+                label: 'Explored',
+                subject: [...new Set(subjects)].join(' · '),
+                isCodeSubject: true,
+            };
         }
         case 'test': {
             // Go's `./...` pattern names a package tree; its last segment alone would read `...`.
@@ -156,6 +141,47 @@ function describeShellAction(command: string): AgentToolPresentation | null {
         }
         case undefined: {
             return null;
+        }
+    }
+}
+
+/**
+ * One read, search, or listing as a row, also the subject of each step an `Explored` row lists.
+ */
+function describeExploreStep(step: AgentShellExploreStep): AgentToolPresentation {
+    switch (step.kind) {
+        case 'read': {
+            const [only] = step.paths;
+            const skill = step.paths.length === 1 && describeSkillRead(only);
+            if (skill) return skill;
+            return {
+                kind: 'read',
+                label: 'Read',
+                subject: step.paths.map((path) => pathBasename(path)).join(', '),
+                isCodeSubject: true,
+                ...(step.paths.length === 1 && only && { path: only }),
+            };
+        }
+        case 'search': {
+            return {
+                kind: 'search',
+                label: step.isFileNames ? 'Found files' : 'Searched',
+                subject: step.path
+                    ? `${step.terms.join(', ')} in ${pathBasename(step.path)}`
+                    : step.terms.join(', '),
+                isCodeSubject: true,
+            };
+        }
+        case 'list': {
+            const path = step.path === '.' ? undefined : step.path;
+            return path
+                ? {
+                      kind: 'list',
+                      label: 'Listed',
+                      subject: pathBasename(path),
+                      isCodeSubject: true,
+                  }
+                : { kind: 'list', label: 'Listed files', isCodeSubject: true };
         }
     }
 }
