@@ -95,8 +95,8 @@ function SideChatComposer({ isBusy, terminalId }: { isBusy: boolean; terminalId:
     };
     return (
         <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pt-1 pb-3">
-            {/* Same shell as the Chat composer: a surface card whose border only darkens on focus, no form-field ring. */}
-            <div className="flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted">
+            {/* Same shell as the Chat composer: a surface card whose border stays unchanged on focus, no form-field ring. */}
+            <div className="flex flex-col rounded-lg border border-border bg-surface">
                 <textarea
                     aria-label={t('agentChat.sideChat.placeholder')}
                     className="block field-sizing-content max-h-48 min-h-[4.5rem] w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-[13px] leading-5 text-inherit outline-none placeholder:text-muted"

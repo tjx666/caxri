@@ -165,13 +165,13 @@ function caxriSkillToggle(
 
 /**
  * The composer wrapper's classes. It owns `--agent-chat-composer-frame`, the border color the card and the composer
- * strip share, so the strip lights up with the card: `--muted` while the input has focus, `--accent` while a drop
- * hovers it.
+ * strip share, so the strip lights up with the card while a drop hovers it (`--accent`). Focus deliberately leaves the
+ * border unchanged, as in Codex and other Agent apps: the caret alone marks the focused input.
  */
 function composerFrameClassName(isDragOver: boolean): string {
     return isDragOver
         ? 'relative [--agent-chat-composer-frame:var(--accent)]'
-        : 'relative [--agent-chat-composer-frame:var(--border)] has-[form:focus-within]:[--agent-chat-composer-frame:var(--muted)]';
+        : 'relative [--agent-chat-composer-frame:var(--border)]';
 }
 
 /**
