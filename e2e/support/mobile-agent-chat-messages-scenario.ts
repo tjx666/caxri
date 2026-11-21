@@ -93,7 +93,8 @@ export async function executeMobileChatMessagesScenario(
 
         let isListed = false;
         let isReadingSelected = false;
-        let isFirstOnScreen = false;
+        let isFirstAtTop = false;
+        let isLatestStillShown = false;
         let isSheetClosed = false;
         if (isButtonShown) {
             await tapMobileCheck(serial, 'conversation-jump-messages');
@@ -103,10 +104,13 @@ export async function executeMobileChatMessagesScenario(
             isListed = MESSAGES.every((_, index) =>
                 hasCheck(sheet, `conversation-messages-row-${index}`),
             );
-            const third = sheet.find(
-                ({ checkId }) => checkId === `conversation-messages-row-${MESSAGES.length - 1}`,
+            // Only the last row, the message the reader scrolled up inside, is selected.
+            isReadingSelected = MESSAGES.every(
+                (_, index) =>
+                    sheet.find(({ checkId }) => checkId === `conversation-messages-row-${index}`)
+                        ?.selected ===
+                    (index === MESSAGES.length - 1),
             );
-            isReadingSelected = third?.selected === true;
             await capture(environment, 'messages-sheet', artifacts);
 
             await tapMobileCheck(serial, 'conversation-messages-row-0');
@@ -116,11 +120,21 @@ export async function executeMobileChatMessagesScenario(
                 5_000,
             );
             await settle(1200);
-            isFirstOnScreen = await isReachedWithin(
+            // The first message rests at the viewport's top, not merely mounted off screen by FlashList.
+            isFirstAtTop = await isReachedWithin(
                 serial,
-                (nodes) => hasCheck(nodes, `conversation-user-${userIds[0]}`),
+                (nodes) => {
+                    const first = checkBounds(nodes, `conversation-user-${userIds[0]}`);
+                    return (
+                        first !== undefined &&
+                        first.top >= frame.top &&
+                        first.top <= frame.top + (frame.bottom - frame.top) / 4
+                    );
+                },
                 8_000,
             );
+            const jumped = await mobileSemantics(serial);
+            isLatestStillShown = hasCheck(jumped, 'conversation-jump-latest');
             await capture(environment, 'messages-jumped-to-first', artifacts);
         }
 
@@ -133,9 +147,10 @@ export async function executeMobileChatMessagesScenario(
                 'Messages button shows after scrolling up': isButtonShown,
                 'Messages button stacks above Jump to latest': isStackedAbove,
                 'sheet lists every user message': isListed,
-                'sheet selects the message being read': isReadingSelected,
+                'sheet selects only the message being read': isReadingSelected,
                 'tapping a row closes the sheet': isSheetClosed,
-                'tapping the first row brings the first message on screen': isFirstOnScreen,
+                'the first message rests at the top of the viewport': isFirstAtTop,
+                'Jump to latest still shows after the jump': isLatestStillShown,
             },
         );
     } finally {
