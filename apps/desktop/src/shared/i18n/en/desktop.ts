@@ -197,7 +197,7 @@ export const desktop = {
     'desktop.quit.stopFailureDetail': 'Reopen Caxri to stop them.',
 
     'desktop.updateRestart.title': 'Restart to Update?',
-    'desktop.updateRestart.stopsRunning': '{{running}} will stop.',
+    'desktop.updateRestart.stopsRunning': '{{running}} will stop and continue after the update.',
     'desktop.updateRestart.detail': 'Caxri reopens on the new version.',
     'desktop.updateRestart.restart': 'Restart and Update',
     'desktop.sshServerUpdate.title': 'Update Server on SSH Host?',

@@ -142,6 +142,7 @@ describe('resolveAppQuit', () => {
             });
             expect(target.detachAll).toHaveBeenCalledTimes(shouldDetach ? 1 : 0);
             expect(target.stopServer).toHaveBeenCalledTimes(shouldStop ? 1 : 0);
+            if (shouldStop) expect(target.stopServer).toHaveBeenCalledWith('serverStop');
             expect(target.closeDesktop).toHaveBeenCalledTimes(shouldExit ? 1 : 0);
             expect(target.acceptQuit).toHaveBeenCalledTimes(shouldExit ? 1 : 0);
             expect(target.exit).toHaveBeenCalledTimes(shouldExit ? 1 : 0);
@@ -458,7 +459,7 @@ describe('resolveAppQuit for Restart to Update', () => {
         expect(target.decideUnsavedEditors).not.toHaveBeenCalled();
         expect(target.confirmUpdateRestart).not.toHaveBeenCalled();
         expect(target.confirm).not.toHaveBeenCalled();
-        expect(target.stopServer).toHaveBeenCalledOnce();
+        expect(target.stopServer).toHaveBeenCalledExactlyOnceWith('update');
         expect(target.applyUpdate).toHaveBeenCalledWith({ relaunch: true });
     });
 
@@ -486,7 +487,7 @@ describe('resolveAppQuit for Restart to Update', () => {
         expect(prompt.cancelId).toBe(1);
         expect(prompt.message).toBe('Restart to Update?');
         expect(prompt.detail).toBe(
-            '1 Terminal will stop.\n1 other client disconnects if tasks stop.',
+            '1 Terminal will stop and continue after the update.\n1 other client disconnects if tasks stop.',
         );
     });
 });

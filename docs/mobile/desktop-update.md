@@ -23,8 +23,9 @@ Settings' **Computer** section shows two rows after **Status**:
 
 The confirmation is the phone's version of Desktop's **Restart and Update?** prompt, because
 nobody may be at the computer to answer one. It names the running Terminals and Chats the restart
-stops, the Sessions whose Agent is still working (at most five titles), and the unsent review
-comments it loses. After **Restart and Update**, the row reads **Updating your computer to X…**
+stops, which continue on their own after the update (see
+[After an update](../session-quit-restore.md#after-an-update)), the Sessions whose Agent is still
+working (at most five titles), and the unsent review comments it loses. After **Restart and Update**, the row reads **Updating your computer to X…**
 until the phone reconnects to the restarted computer.
 
 The phone never installs:

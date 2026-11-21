@@ -83,6 +83,7 @@ export const sessionAirplaneModeLogEvents = {
 export const sessionQuitRestoreLogEvents = {
     offered: 'session.quit_stopped_offered',
     recorded: 'session.quit_stopped_recorded',
+    autoRestoreFailed: 'session.quit_stopped_auto_restore_failed',
     recordFailed: 'session.quit_stopped_record_failed',
     restored: 'session.quit_stopped_restored',
 } as const;

@@ -41,6 +41,13 @@ const QUIT_RESTORE_CONTINUE_PROMPT =
     'Continue where you left off. Caxri was quit with "Quit and Stop Tasks" while you were working, so your last turn was interrupted and any background subagents or commands were stopped; rerun what you still need.';
 
 /**
+ * What an Agent that Restart to Update stopped mid-work receives when the next start restores it on its own. The
+ * restart can land mid-action, so it is told to check before repeating, as Orca's restart continuation does.
+ */
+const UPDATE_RESTORE_CONTINUE_PROMPT =
+    'Continue where you left off. Caxri restarted to install an update while you were working, so your last turn was interrupted and any background subagents or commands were stopped. Check whether your most recent action completed before repeating it, then rerun what you still need.';
+
+/**
  * What an Agent whose turn Airplane Mode interrupted receives when the user cancels before anything stopped.
  */
 const AIRPLANE_CANCEL_CONTINUE_PROMPT =
@@ -224,10 +231,14 @@ export function createSessionMaintenanceServices(options: {
                 .map((terminal) => terminal.id),
         hasLiveChat: (sessionId) => agentChat.liveCount(sessionId) > 0,
         isWorking,
-        resume: (sessionId, stoppedTerminalIds, shouldContinue) =>
+        resume: (sessionId, stoppedTerminalIds, continueAfter) =>
             resumeStoppedSession(
                 sessionId,
-                shouldContinue ? QUIT_RESTORE_CONTINUE_PROMPT : undefined,
+                continueAfter === undefined
+                    ? undefined
+                    : continueAfter === 'update'
+                      ? UPDATE_RESTORE_CONTINUE_PROMPT
+                      : QUIT_RESTORE_CONTINUE_PROMPT,
                 { stoppedTerminalIds },
             ),
         logger,
@@ -273,13 +284,18 @@ export function createSessionMaintenanceServices(options: {
          * A quit samples what is still live before stopping it, so `session.restoreQuitStopped` can bring it back.
          */
         'terminal.terminateAll': async (parameters, ...rest) => {
-            if (parameters.reason === 'serverStop') quitRestore.record();
+            if (parameters.reason === 'serverStop') quitRestore.record('quit');
+            else if (parameters.reason === 'update') quitRestore.record('update');
             return terminateAll(parameters, ...rest);
         },
     };
     return {
         handlers,
-        start: () => airplaneMode.start(),
+        start: () => {
+            airplaneMode.start();
+            // Its own log records the outcome; a failed Session keeps its stopped Terminals for a manual restart.
+            void quitRestore.restoreAfterUpdate();
+        },
         close: () => {
             airplaneMode.close();
             restores.close();

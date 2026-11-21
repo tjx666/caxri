@@ -38,7 +38,10 @@ shows the state and asks for the next step.
    with the `update` intent: unsaved editors are confirmed as usual, and running Terminals, Chats,
    other connected clients, or pending review comments raise a single **Restart and Update?**
    prompt. There is no keep-running choice: Server Core is stopped, because a Server from the old
-   build would be replaced on the next launch anyway. A paired phone can start the same restart
+   build would be replaced on the next launch anyway. The prompt says the work continues after the
+   update: the new version's Server Core relaunches what the restart stopped and tells working
+   Agents to continue (see [Restore Sessions Stopped at Last Quit](session-quit-restore.md#after-an-update)).
+   A paired phone can start the same restart
    (see [Updating the computer from the phone](mobile/desktop-update.md)); it confirms on the
    phone instead, so the computer skips these prompts and cancels only on unsaved editors.
 5. **Install on quit.** An ordinary quit that stops Server Core also installs a staged update, so

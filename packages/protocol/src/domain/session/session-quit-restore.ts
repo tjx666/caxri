@@ -18,16 +18,21 @@ const quitStoppedSessionSchema = z.strictObject({
  */
 export const quitStoppedSessionsSchema = z.strictObject({
     stoppedAt: z.number().int().positive(),
+    /**
+     * Set when Restart to Update (on the computer or from a paired phone) wrote the record: the next Server Core start
+     * restores it on its own instead of offering it, since the user asked for an immediate restart.
+     */
+    restartedForUpdate: z.literal(true).optional(),
     sessions: z.array(quitStoppedSessionSchema).max(1_000),
 });
 export type QuitStoppedSessions = z.infer<typeof quitStoppedSessionsSchema>;
 
 /**
- * Why `terminal.terminateAll` runs. Only `serverStop` (a quit's "Quit and Stop Tasks", Restart to Update, or a Host
- * Environment's Stop Server) records what it stopped for a later restore; `windowClose` (Terminate and Close) keeps the
- * Server running and records nothing.
+ * Why `terminal.terminateAll` runs. `serverStop` (a quit's "Quit and Stop Tasks" or a Host Environment's Stop Server)
+ * records what it stopped for a later restore; `update` (Restart to Update) records it for the next start to restore on
+ * its own; `windowClose` (Terminate and Close) keeps the Server running and records nothing.
  */
-export const terminateAllReasonSchema = z.enum(['serverStop', 'windowClose']);
+export const terminateAllReasonSchema = z.enum(['serverStop', 'update', 'windowClose']);
 
 export const sessionRestoreQuitStoppedResultSchema = z.object({
     /**

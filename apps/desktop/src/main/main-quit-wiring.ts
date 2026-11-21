@@ -107,6 +107,6 @@ export function createMainQuitHandler(options: MainQuitWiringOptions) {
         quitIntent: options.quitIntent,
         readPendingReviewComments: () => server().request('gitReview.pending', {}),
         readStatus: () => readAppQuitStatus(server()),
-        stopServer: () => server().stopServer(),
+        stopServer: (reason) => server().stopServer(reason),
     });
 }

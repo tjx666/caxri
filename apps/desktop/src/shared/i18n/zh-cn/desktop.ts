@@ -185,7 +185,7 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.quit.stopFailureDetail': '重新打开 Caxri 以停止剩余任务。',
 
     'desktop.updateRestart.title': '重启以更新？',
-    'desktop.updateRestart.stopsRunning': '{{running}}将被终止。',
+    'desktop.updateRestart.stopsRunning': '{{running}}将停止，更新后自动继续。',
     'desktop.updateRestart.detail': 'Caxri 将以新版本重新打开。',
     'desktop.updateRestart.restart': '重启并更新',
     'desktop.sshServerUpdate.title': '更新 SSH Host 上的 Server？',

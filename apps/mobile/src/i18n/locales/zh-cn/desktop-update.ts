@@ -24,7 +24,7 @@ export const desktopUpdate: TranslatedNamespace<typeof source> = {
     'desktopUpdate.impact.reviewCommentsOne': '1 条未发送的 review 评论会丢失。',
     'desktopUpdate.impact.reviewCommentsOther': '{{count}} 条未发送的 review 评论会丢失。',
     'desktopUpdate.impact.separator': '、',
-    'desktopUpdate.impact.stops': '这会停止 {{work}}。',
+    'desktopUpdate.impact.stops': '这会停止 {{work}}，更新后自动继续。',
     'desktopUpdate.impact.terminalsOne': '1 个 Terminal',
     'desktopUpdate.impact.terminalsOther': '{{count}} 个 Terminal',
     'desktopUpdate.impact.working': '仍在工作的 Agent：{{titles}}。',
