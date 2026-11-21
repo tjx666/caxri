@@ -74,10 +74,12 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
 - Before presenting a competitor interaction as something Caxri lacks or should adopt, find
   Caxri's counterpart in any supplied Caxri screenshot, current code, `GLOSSARY.md`, `DESIGN.md`,
   and ADRs. Drop the item when Caxri already meets the same need another way or a documented
-  product choice explains the difference; state any remaining gap against that counterpart. For
-  example, a Maka sidebar "waiting for your reply" list is not a gap: the global question card and
-  the Attention view behind the bell already surface what needs the user, and a running turn's
-  elapsed time already shows above the composer.
+  product choice explains the difference; state any remaining gap against that counterpart.
+  Compare only surfaces that serve the same purpose, and do not recommend a behavior you inferred
+  from a label without seeing it. For example, a Maka sidebar "waiting for your reply" list is not
+  a gap: the global question card and the Attention view behind the bell already surface what needs
+  the user. Maka's composer is not evidence that Caxri's status bar is too dense, because Maka has
+  no status bar.
 - Check the license before copying any code. AGPL-3.0 (Warp, Termany, Mux), GPL-3.0 (cmux,
   Kero), and Elastic License 2.0 (Superset) products are reference-only.
 - For native Agent contracts, trace the event producer, persistence writer, and consuming reader.
