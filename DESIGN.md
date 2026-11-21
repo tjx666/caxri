@@ -596,12 +596,14 @@ carries the Session history pair: Back then Forward, ghost icon buttons in `--mu
 where every browser puts them. They are `no-drag` islands in the header's drag region. A direction
 with an empty stack renders disabled rather than hidden, so the pair never reflows and its
 position stays learnable; the shortcut and command name reach the user through the shared command
-tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
-with a global count: the footer row holds nothing else, so the whole row is one button that reads as
-the Session tree's last row (same height, glyph inset, 14px glyph, and `--state-hover` tint): archive
-glyph and a short `Archived` label on the left, the count on the right, and a chevron on hover
-because it opens a dialog. No divider sits above it; the list's bottom scroll cue marks that edge. A
-glyph-only chip left most of the row dead to clicks. Search, filters, Project-grouped results, restore, and delete live in a
+tooltip instead of a bespoke label. The PrimarySidebar footer is one row
+that reads as the Session tree's last row (same height, glyph inset, 14px glyph, and `--state-hover`
+tint), pairing Settings with Archived Sessions as Maka's sidebar does: a gear and the `Settings` label
+fill the row on the left as one button (the command tooltip shows its shortcut), and Archived Sessions is
+a 28px archive-glyph button on the right. The archived count is nothing the user acts on, so it shows only
+in that button's tooltip and accessible name, never as visible text. No divider sits above the row; the
+list's bottom scroll cue marks that edge. A glyph-only Archived chip alone in the row left most of it
+dead to clicks, which the Settings button now fills. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Its footer carries the jump to Session search as a small ghost
 `Search Sessions` button beside `Done`, the Keyboard Shortcuts `Edit Keybindings` pattern, so the
 header stays a title plus description. Project disclosures contain active Sessions only, so low-frequency
@@ -1457,7 +1459,7 @@ at 60% of the pane and scrolls past it. Above everything in the dock, a recovery
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
-and Resume. The card is inset 12px like the composer strip so the two share edges; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
+and Resume. The card is inset 16px like the composer strip so the two share edges; while either shows, Send is disabled. Running subagents and background shells, and the Agent's plan, live in the composer strip (below)
 as collapsible sections rather than cards or popovers. The Background work section lists failed then running
 tasks with elapsed time and their own Stop, and an `Ended N` button in its header, before Stop all, expands the ended
 tasks under them, most recent first, with how each ended (from a folded section it unfolds the section too); a shell is named by the Agent's
@@ -1477,8 +1479,12 @@ not an editable field or an open menu, list, or dialog. Once Stop is requested t
 a spinner and the status row reads `Stopping…` without the sweep; a failed request
 releases both and a toast says so. While the Chat starts, works, or waits on an answer, a 32px
 status row sits in a strip on top of the card rather than inside it, so the Chat's state never reads
-as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 12px
-from the card's sides, its top corners radius-8 and its hairline resting on the card's top border;
+as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 16px
+from the card's sides with radius-8 top corners, and it reads as part of the card, as Maka's composer
+tray does: it covers the card's top border where they meet (and its own last row's hairline), its frame
+takes the card's focus (`--muted`) and drop (`--accent`) colors, and a concave radius-8 fillet at each
+foot turns the card's top edge up into the strip's side like a browser tab, so the card's corner and
+the fillet form one S-curve;
 the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
 else that waits above the input joins that strip as hairline-divided sections instead of its own
 card, so the stack reads as one tray (references: LobeHub's input trays, T3 Code's composer drawer):

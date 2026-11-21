@@ -7,7 +7,6 @@ export const primarySidebar = {
     'primarySidebar.header.attentionOther': '{{count}} Sessions need attention',
     'primarySidebar.history.back': 'Go Back',
     'primarySidebar.history.forward': 'Go Forward',
-    'primarySidebar.footer.archived': 'Archived',
     'primarySidebar.footer.archivedAriaLabel': 'Archived Sessions ({{count}})',
 
     // Project tree

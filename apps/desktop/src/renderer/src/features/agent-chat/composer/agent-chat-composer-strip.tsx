@@ -4,6 +4,7 @@ import type { AgentChatActivity, AgentChatQueuedMessage, AgentChatSnapshot } fro
 
 import { SurfaceErrorBoundary } from '../../../components/surface-error-boundary';
 import { useTranslation } from '../../../i18n';
+import { cn } from '../../../lib/utilities';
 import { AgentChatGoalBar } from '../activity/agent-chat-goal-bar';
 import type { AgentChatWorkingActivity } from '../activity/agent-chat-goal-row';
 import { AgentChatDelegatedSessionsSection } from '../delegation/agent-chat-delegated-sessions-section';
@@ -20,6 +21,15 @@ import {
     agentChatLatestTurnStart,
     agentChatPlanSection,
 } from './strip/agent-chat-strip-sections';
+
+/**
+ * One concave fillet at a foot of the strip: a 9px box overlapping the strip's side border and the card's top border by
+ * 1px, whose radius-8 corner draws the 1px arc between them (the card's own corner radius), while a surface-colored
+ * spread shadow, clipped to the box, fills the wedge between the arc and the corner and hides the straight borders
+ * running under it.
+ */
+const stripFillet =
+    'pointer-events-none absolute bottom-0 hidden size-2.25 border-0 border-b border-solid border-(--agent-chat-composer-frame) shadow-[0_0_0_4px_var(--surface)] transition-[border-color] [clip-path:inset(0)] group-has-[[data-agent-chat-composer-strip-row]]/strip:block';
 
 /**
  * Guards one strip section. A section that throws while rendering shows an inline fault row in its slot while the
@@ -50,9 +60,14 @@ function AgentChatStripSection({
  * delegated work to (above its background work, since a delegated Session is the larger unit of work the user follows),
  * its background work as collapsible lists (so they are visible without opening anything, the way Claude Code's TUI
  * lists them above its prompt), queued messages, then the composer's own rows (`children`: the status row nearest the
- * input, since it changes most often, the edit bar, and the context notices). Its last row's hairline overlaps the
- * card's top border; with no row it collapses to `contents`, keeping the live regions announced without drawing an
- * empty tab.
+ * input, since it changes most often, the edit bar, and the context notices). With no row it collapses to `contents`,
+ * keeping the live regions announced without drawing an empty tab.
+ *
+ * The strip and the card read as one surface, as Maka's composer tray does: the strip paints over the card's top border
+ * where they meet (and over its own last row's hairline), its frame takes the card's focus and drop colors through
+ * `--agent-chat-composer-frame`, and a concave 8px fillet at each foot turns the card's top edge up into the strip's
+ * side, the way a browser tab meets its toolbar. The 16px inset leaves room for the card's own 8px corner and the
+ * fillet to form one S-curve without a gap or an overlap.
  */
 export function AgentChatComposerStrip({
     activeTurnId,
@@ -112,74 +127,85 @@ export function AgentChatComposerStrip({
         <div
             // The strip and its rows appear and leave at once, without a fade or an unfolding height: they report state,
             // and animating them made the composer's top edge jump whenever a row came or went (DESIGN.md "Motion").
-            className="mx-3 -mb-px overflow-hidden rounded-t-lg border border-b-0 border-solid border-border bg-surface not-has-[[data-agent-chat-composer-strip-row]]:contents"
+            className="group/strip relative z-[1] mx-4 -mb-px not-has-[[data-agent-chat-composer-strip-row]]:contents"
             data-agent-chat-composer-strip=""
         >
-            {/*
-             * The sections above the composer's own rows share one height cap and scroll past it, so a long plan, task
-             * list, and queue in a short split pane never squeeze the transcript away.
-             */}
-            <span aria-live="polite" className="sr-only" role="status">
-                {work && agentChatBackgroundWorkCounts(work, t).join(', ')}
-            </span>
-            <div className="max-h-64 overflow-y-auto">
-                <AgentChatStripSection name="delegation-origin" terminalId={terminalId}>
-                    <AgentChatDelegationOriginRow
-                        isBusy={
-                            isTurnRunning || pendingQueue.length > 0 || (queue?.length ?? 0) > 0
-                        }
-                        terminalId={terminalId}
-                    />
-                </AgentChatStripSection>
-                <AgentChatStripSection name="goal" terminalId={terminalId}>
-                    <AgentChatGoalBar
-                        goal={snapshot?.goal}
-                        goalUsage={snapshot?.goalUsage}
-                        liveActivity={goalActivity}
-                        terminalId={terminalId}
-                        turnId={activeTurnId}
-                        turns={snapshot?.turns}
-                    />
-                </AgentChatStripSection>
-                {plan && (
-                    <AgentChatStripSection name="plan" terminalId={terminalId}>
-                        <AgentChatPlanSection
+            <div className="relative overflow-hidden rounded-t-lg border border-b-0 border-solid border-(--agent-chat-composer-frame) bg-surface transition-[border-color] not-has-[[data-agent-chat-composer-strip-row]]:contents after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:hidden after:h-px after:bg-surface after:content-[''] group-has-[[data-agent-chat-composer-strip-row]]/strip:after:block">
+                {/*
+                 * The sections above the composer's own rows share one height cap and scroll past it, so a long plan,
+                 * task list, and queue in a short split pane never squeeze the transcript away.
+                 */}
+                <span aria-live="polite" className="sr-only" role="status">
+                    {work && agentChatBackgroundWorkCounts(work, t).join(', ')}
+                </span>
+                <div className="max-h-64 overflow-y-auto">
+                    <AgentChatStripSection name="delegation-origin" terminalId={terminalId}>
+                        <AgentChatDelegationOriginRow
+                            isBusy={
+                                isTurnRunning || pendingQueue.length > 0 || (queue?.length ?? 0) > 0
+                            }
+                            terminalId={terminalId}
+                        />
+                    </AgentChatStripSection>
+                    <AgentChatStripSection name="goal" terminalId={terminalId}>
+                        <AgentChatGoalBar
+                            goal={snapshot?.goal}
+                            goalUsage={snapshot?.goalUsage}
+                            liveActivity={goalActivity}
+                            terminalId={terminalId}
+                            turnId={activeTurnId}
+                            turns={snapshot?.turns}
+                        />
+                    </AgentChatStripSection>
+                    {plan && (
+                        <AgentChatStripSection name="plan" terminalId={terminalId}>
+                            <AgentChatPlanSection
+                                isTurnRunning={isTurnRunning}
+                                section={plan}
+                                terminalId={terminalId}
+                            />
+                        </AgentChatStripSection>
+                    )}
+                    {isShown && canShowDelegated && (
+                        <AgentChatStripSection name="delegated" terminalId={terminalId}>
+                            <AgentChatDelegatedSessionsSection terminalId={terminalId} />
+                        </AgentChatStripSection>
+                    )}
+                    {work && (
+                        <AgentChatStripSection name="background-work" terminalId={terminalId}>
+                            <AgentChatBackgroundWorkSection
+                                terminalId={terminalId}
+                                work={work}
+                                onOpenTask={onOpenTask}
+                            />
+                        </AgentChatStripSection>
+                    )}
+                    <AgentChatStripSection name="queue" terminalId={terminalId}>
+                        <AgentChatQueueList
                             isTurnRunning={isTurnRunning}
-                            section={plan}
+                            pending={pendingQueue}
+                            queue={queue}
+                            snapshot={{
+                                queuePaused: isQueuePaused,
+                                queuePauseReason: snapshot?.queuePauseReason,
+                            }}
                             terminalId={terminalId}
+                            onAction={onQueueAction}
+                            onEdit={onQueueEdit}
                         />
                     </AgentChatStripSection>
-                )}
-                {isShown && canShowDelegated && (
-                    <AgentChatStripSection name="delegated" terminalId={terminalId}>
-                        <AgentChatDelegatedSessionsSection terminalId={terminalId} />
-                    </AgentChatStripSection>
-                )}
-                {work && (
-                    <AgentChatStripSection name="background-work" terminalId={terminalId}>
-                        <AgentChatBackgroundWorkSection
-                            terminalId={terminalId}
-                            work={work}
-                            onOpenTask={onOpenTask}
-                        />
-                    </AgentChatStripSection>
-                )}
-                <AgentChatStripSection name="queue" terminalId={terminalId}>
-                    <AgentChatQueueList
-                        isTurnRunning={isTurnRunning}
-                        pending={pendingQueue}
-                        queue={queue}
-                        snapshot={{
-                            queuePaused: isQueuePaused,
-                            queuePauseReason: snapshot?.queuePauseReason,
-                        }}
-                        terminalId={terminalId}
-                        onAction={onQueueAction}
-                        onEdit={onQueueEdit}
-                    />
-                </AgentChatStripSection>
+                </div>
+                {children}
             </div>
-            {children}
+            {/* Painted after the strip so each fillet covers the bottom of the strip's side border. */}
+            <span
+                aria-hidden="true"
+                className={cn(stripFillet, '-left-2 rounded-br-lg border-r')}
+            />
+            <span
+                aria-hidden="true"
+                className={cn(stripFillet, '-right-2 rounded-bl-lg border-l')}
+            />
         </div>
     );
 }

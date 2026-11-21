@@ -10,7 +10,6 @@ import type {
 import { CAXRI_SKILL_NAME } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
-import { cn } from '../../../lib/utilities';
 import { useTerminal } from '../../../stores/selectors';
 import { usePaneViewSession } from '../../workbench/pane-view-session';
 import { agentChatLiveGoalActivity } from '../activity/agent-chat-goal-row';
@@ -162,6 +161,17 @@ function caxriSkillToggle(
             focusInput();
         },
     };
+}
+
+/**
+ * The composer wrapper's classes. It owns `--agent-chat-composer-frame`, the border color the card and the composer
+ * strip share, so the strip lights up with the card: `--muted` while the input has focus, `--accent` while a drop
+ * hovers it.
+ */
+function composerFrameClassName(isDragOver: boolean): string {
+    return isDragOver
+        ? 'relative [--agent-chat-composer-frame:var(--accent)]'
+        : 'relative [--agent-chat-composer-frame:var(--border)] has-[form:focus-within]:[--agent-chat-composer-frame:var(--muted)]';
 }
 
 /**
@@ -372,7 +382,7 @@ export function AgentChatComposer({
             {/*
              * The suggestion menus anchor to this wrapper rather than the form, so they open above the strip too.
              */}
-            <div className="relative">
+            <div className={composerFrameClassName(fileInput.isDragOver)}>
                 <AgentChatComposerStrip
                     activeTurnId={activeTurnId}
                     activity={activity}
@@ -410,10 +420,7 @@ export function AgentChatComposer({
                     />
                 </AgentChatComposerStrip>
                 <form
-                    className={cn(
-                        'flex flex-col rounded-lg border border-border bg-surface transition-[border-color] focus-within:border-muted',
-                        fileInput.isDragOver && 'border-accent focus-within:border-accent',
-                    )}
+                    className="flex flex-col rounded-lg border border-(--agent-chat-composer-frame) bg-surface transition-[border-color]"
                     onSubmit={submitForm}
                 >
                     <AgentChatSuggestionMenu

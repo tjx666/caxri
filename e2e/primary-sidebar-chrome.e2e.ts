@@ -232,8 +232,12 @@ test('Session rows support keyboard selection independently from rename', async 
         await expect(archivedEntry).toBeVisible();
         await expect(archivedEntry).toHaveAccessibleName('Archived Sessions (0)');
 
-        // The tree keeps one roving Tab stop, followed by the always-visible global archive entry.
+        // The tree keeps one roving Tab stop, followed by the footer's Settings entry and the global archive entry.
         await firstCard.focus();
+        await running.page.keyboard.press('Tab');
+        await expect(
+            running.page.locator('aside').getByRole('button', { name: 'Settings' }),
+        ).toBeFocused();
         await running.page.keyboard.press('Tab');
         await expect(archivedEntry).toBeFocused();
 
@@ -255,6 +259,9 @@ test('Session rows support keyboard selection independently from rename', async 
         await running.page.keyboard.press('Delete');
         await expect(secondCard).toHaveCount(0);
         await expect(firstCard).toBeFocused();
+
+        await running.page.locator('aside').getByRole('button', { name: 'Settings' }).click();
+        await expect(running.page.locator('[data-settings-page]')).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
@@ -501,7 +508,7 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
     }
 });
 
-test('primarySidebar omits Settings and Search while shortcuts and app menu keep both commands', async () => {
+test('primarySidebar omits Search while shortcuts and app menu keep the Settings and Search commands', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-primary-sidebar-entrypoints-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -510,7 +517,6 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await expect(running.page.locator('.primary-sidebar-footer')).toHaveCount(0);
-        await expect(running.page.getByRole('button', { name: 'Settings' })).toHaveCount(0);
         await expect(running.page.getByRole('button', { name: 'Search' })).toHaveCount(0);
         await expect(running.page.locator('.statusbar-toggle')).toHaveCount(0);
 

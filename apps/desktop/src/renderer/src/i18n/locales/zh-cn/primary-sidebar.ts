@@ -11,7 +11,6 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.header.attentionOther': '{{count}} 个会话待处理',
     'primarySidebar.history.back': '后退',
     'primarySidebar.history.forward': '前进',
-    'primarySidebar.footer.archived': '已归档',
     'primarySidebar.footer.archivedAriaLabel': '已归档的会话（{{count}}）',
 
     // Project tree
