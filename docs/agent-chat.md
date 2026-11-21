@@ -595,9 +595,13 @@ only; the PTY surface and Grok never get them.
   terminal count and no titles). A resumed Chat that reports the task again rewrites the row.
 - The Renderer shows running subagents first, then the rest by recency, newest 3 by default with a
   `Show N more` row right after them. Expanding opens the rest below that row, which then reads
-  `Show fewer`, so the list folds again from the same place. A decorative vertical guide under the
-  Session's Agent icon ties the rows to it. The setting `primarySidebar.showSubagents` (default on)
-  hides them.
+  `Show fewer`, so the list folds again from the same place. A decorative branch guide ties the rows
+  to the Session: a trunk under its Agent icon and an 8px arc to each child row, with no branch to a
+  `Show N more` row, and the path to the selected child drawn brighter
+  (`session-children/session-child-guide-paths.ts`). Child rows are 24px tall with 12px muted text.
+  Hovering the host row swaps its Agent icon for the fold chevron; folded, a count pill before the
+  status slot gives the child count, with an amber dot when a hidden child needs the user. The
+  setting `primarySidebar.showSubagents` (default on) hides them.
 - A Codex subagent first seen through a multi-agent v2 `subAgentActivity` item is titled with the
   last segment of its `agentPath` (`/root/planner/reviewer` reads `reviewer`).
 - Clicking a row selects its Session first, then opens the subagent's task tab.

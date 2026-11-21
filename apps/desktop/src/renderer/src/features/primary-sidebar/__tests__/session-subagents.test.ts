@@ -8,6 +8,7 @@ import {
     orderSubagents,
     rovingSubagentRowId,
     sessionSubagentSummaries,
+    subagentGuideRows,
     subagentWindow,
 } from '../session-subagents';
 
@@ -118,5 +119,31 @@ describe('activeSubagentTaskId', () => {
         expect(activeSubagentTaskId({ kind: 'terminal', terminalId: 't1' }, 't1')).toBeUndefined();
         expect(activeSubagentTaskId(resource, undefined)).toBeUndefined();
         expect(activeSubagentTaskId(undefined, 't1')).toBeUndefined();
+    });
+});
+
+describe('subagentGuideRows', () => {
+    const many = Array.from({ length: 5 }, (_, index) =>
+        summary(`t${index}`, 'completed', index, index + 1),
+    );
+
+    it('puts a pass row where the toggle sits and counts it in the selected index', () => {
+        const expanded = subagentWindow(many, true);
+        expect(subagentGuideRows(expanded, 't0')).toEqual({
+            rows: ['branch', 'branch', 'branch', 'pass', 'branch', 'branch'],
+            selectedIndex: 5,
+        });
+        expect(subagentGuideRows(expanded, 't3').selectedIndex).toBe(1);
+    });
+
+    it('leaves the selection out when the active task is hidden or absent', () => {
+        const folded = subagentWindow(many, false);
+        expect(subagentGuideRows(folded, 't0')).toEqual({
+            rows: ['branch', 'branch', 'branch', 'pass'],
+        });
+        const short = subagentWindow(many.slice(0, 2), false);
+        expect(subagentGuideRows(short, undefined)).toEqual({
+            rows: ['branch', 'branch'],
+        });
     });
 });

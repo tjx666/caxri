@@ -21,6 +21,11 @@ export interface DelegatedHostSummary {
      * needs nobody yet.
      */
     needsYou: boolean;
+    /**
+     * True when the selected Session is one of the host's nested Sessions, which lights the host's branch guide down to
+     * it (`SessionChildGuide`) through any subagent rows above.
+     */
+    selectedIsNested: boolean;
 }
 
 const NEEDS_YOU_STATUS_KINDS: ReadonlySet<string> = new Set(['attention', 'failed', 'usageWait']);
@@ -32,10 +37,11 @@ const NEEDS_YOU_STATUS_KINDS: ReadonlySet<string> = new Set(['attention', 'faile
 export function delegatedHostRowProperties(
     summaries: ReadonlyMap<string, DelegatedHostSummary> | undefined,
     sessionId: string,
-): { nestedNeedsYou: boolean; nestedSessionCount: number } {
+): { nestedNeedsYou: boolean; nestedSelected: boolean; nestedSessionCount: number } {
     const summary = summaries?.get(sessionId);
     return {
         nestedNeedsYou: summary?.needsYou ?? false,
+        nestedSelected: summary?.selectedIsNested ?? false,
         nestedSessionCount: summary?.count ?? 0,
     };
 }
@@ -56,6 +62,7 @@ export function delegatedHostSummary(
                 child.id !== selectedSessionId &&
                 NEEDS_YOU_STATUS_KINDS.has(statusKinds.get(child.id) ?? 'default'),
         ),
+        selectedIsNested: children.some((child) => child.id === selectedSessionId),
     };
 }
 

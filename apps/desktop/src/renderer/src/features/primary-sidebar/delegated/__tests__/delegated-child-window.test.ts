@@ -145,6 +145,7 @@ describe('delegatedHostSummary', () => {
         expect(delegatedHostSummary(children(4), new Map([['c2', 'running']]), undefined)).toEqual({
             count: 4,
             needsYou: false,
+            selectedIsNested: false,
         });
         for (const kind of ['attention', 'failed', 'usageWait'])
             expect(
@@ -152,22 +153,24 @@ describe('delegatedHostSummary', () => {
             ).toBe(true);
     });
 
-    it('does not flag the selected child, which stays on screen under a folded host', () => {
-        expect(
-            delegatedHostSummary(children(2), new Map([['c1', 'attention']]), 'c1').needsYou,
-        ).toBe(false);
+    it('does not flag the selected child, which stays on screen under a folded host, but says it is nested here', () => {
+        const summary = delegatedHostSummary(children(2), new Map([['c1', 'attention']]), 'c1');
+        expect(summary.needsYou).toBe(false);
+        expect(summary.selectedIsNested).toBe(true);
     });
 });
 
 describe('delegatedHostRowProperties', () => {
     it('reads a host summary as primitive row props and defaults a Session that hosts none', () => {
-        const summaries = new Map([['host', { count: 3, needsYou: true }]]);
+        const summaries = new Map([['host', { count: 3, needsYou: true, selectedIsNested: true }]]);
         expect(delegatedHostRowProperties(summaries, 'host')).toEqual({
             nestedNeedsYou: true,
+            nestedSelected: true,
             nestedSessionCount: 3,
         });
         expect(delegatedHostRowProperties(summaries, 'other')).toEqual({
             nestedNeedsYou: false,
+            nestedSelected: false,
             nestedSessionCount: 0,
         });
     });

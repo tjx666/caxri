@@ -1,6 +1,8 @@
 import type { PaneResource, TerminalRecord, TerminalSubagentSummary } from '@caxri/protocol';
 import { parseAgentTaskTab } from '@caxri/protocol';
 
+import type { SessionChildGuideRow } from './session-children/session-child-guide-paths';
+
 /**
  * Pure rules for the subagent rows nested under a Chat Session in the PrimarySidebar (see `docs/agent-chat.md`). Kept
  * out of the components so ordering and the show-more window are covered by fast unit tests.
@@ -108,4 +110,20 @@ export function activeSubagentTaskId(
     if (terminalId === undefined || resource?.kind !== 'file') return undefined;
     const task = parseAgentTaskTab(resource.path);
     return task?.terminalId === terminalId ? task.taskId : undefined;
+}
+
+/**
+ * The branch guide's rows for one Session's subagent list, in render order: a branch for each visible subagent and a
+ * pass for the show-more/show-fewer toggle at `toggleIndex`, plus the selected subagent's index among those rows.
+ */
+export function subagentGuideRows(
+    { toggleIndex, visible }: SubagentWindow,
+    activeTaskId: string | undefined,
+): { rows: SessionChildGuideRow[]; selectedIndex?: number } {
+    const rows: SessionChildGuideRow[] = visible.map(() => 'branch');
+    if (toggleIndex !== undefined) rows.splice(toggleIndex, 0, 'pass');
+    const visibleIndex = visible.findIndex((subagent) => subagent.taskId === activeTaskId);
+    if (visibleIndex === -1) return { rows };
+    const isAfterToggle = toggleIndex !== undefined && visibleIndex >= toggleIndex;
+    return { rows, selectedIndex: visibleIndex + Number(isAfterToggle) };
 }

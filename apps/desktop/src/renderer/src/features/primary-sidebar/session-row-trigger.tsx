@@ -86,7 +86,12 @@ export function SessionRowTrigger({
             onDragOver={nested ? undefined : (event) => sessionOrder.dragOver(event, session.id)}
             onDrop={nested ? undefined : (event) => sessionOrder.drop(event, session.id)}
             className={cn(
-                'session-card flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground hover:bg-state-hover',
+                'session-card flex w-full cursor-pointer items-center rounded-md border-0 bg-transparent text-left text-foreground hover:bg-state-hover',
+                /*
+                 * A nested row is one step smaller than its host: 24px tall with 12px text, the same box as a subagent
+                 * row, so the branch guide (`SessionChildGuide`) can lay every child row on one 24px rhythm.
+                 */
+                nested ? 'h-6 gap-1.5 px-1.5 text-[12px]' : 'h-7 gap-2 px-2',
                 // Room for the hover actions, which a renaming row does not show.
                 !renaming && 'group-hover/session-row:pr-[var(--session-hover-actions)]',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',

@@ -3,7 +3,6 @@ import { useState } from 'react';
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useIsSessionOpenElsewhere } from '../../stores/open-sessions';
 import { BotSessionMarker } from '../caxri-bot/bot-session-marker';
@@ -18,7 +17,9 @@ import { useSessionChildRows } from './session-children/hooks/use-session-child-
 import {
     SessionChildrenCount,
     SessionChildrenDisclosure,
+    SessionRowAgentIcon,
 } from './session-children/session-children-disclosure';
+import { sessionTitleToneClassName } from './session-children/session-title-tone';
 import { SessionOpenLabel } from './session-open-label';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
@@ -68,6 +69,11 @@ interface ActiveSessionRowProperties {
      * (`DelegatedHostSummary.needsYou`), which a folded host marks beside its hidden-row count.
      */
     nestedNeedsYou?: boolean;
+    /**
+     * True when the selected Session is nested under this host (`DelegatedHostSummary.selectedIsNested`), so the
+     * subagent rows' branch guide lights its trunk on the way down to it.
+     */
+    nestedSelected?: boolean;
     /**
      * The rows this row's list shows, in order, for `Alt+Arrow` reordering.
      */
@@ -168,6 +174,7 @@ export function ActiveSessionRow({
     inPinnedGroup,
     nested,
     nestedNeedsYou,
+    nestedSelected,
     nestedSessionCount,
     visibleSessionIds,
     focusRenameInput,
@@ -258,8 +265,12 @@ export function ActiveSessionRow({
             onFocusChange={setFocused}
             aria-expanded={childRows.isExpanded}
         >
-            {/* A plain brand-color mark: its color is what tells Agents apart; lifecycle lives at the right edge. */}
-            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
+            <SessionRowAgentIcon
+                identity={terminal?.kind ?? 'shell'}
+                isRenaming={renaming}
+                nested={nested}
+                rows={childRows}
+            />
             {renaming ? (
                 <SessionRenameInput
                     sessionId={session.id}
@@ -287,7 +298,15 @@ export function ActiveSessionRow({
                          * being truncated. The title now claims its natural width up to the whole row, and the Project
                          * name takes whatever is left.
                          */
-                        className="session-title max-w-full min-w-0 flex-none overflow-hidden font-medium whitespace-nowrap"
+                        className={cn(
+                            'session-title max-w-full min-w-0 flex-none overflow-hidden whitespace-nowrap',
+                            sessionTitleToneClassName({
+                                approvalPending,
+                                delegationFailed,
+                                nested,
+                                selected,
+                            }),
+                        )}
                         onPointerEnter={() => setHovered(true)}
                         onPointerLeave={() => setHovered(false)}
                     >
@@ -304,7 +323,6 @@ export function ActiveSessionRow({
                             {detail.suffix}
                         </span>
                     )}
-                    <SessionChildrenCount rows={childRows} />
                     <SessionHostMark isShown={showHostMark} sessionId={session.id} />
                     <SessionOpenLabel isOpenElsewhere={isOpenElsewhere} />
                     {/*
@@ -331,6 +349,7 @@ export function ActiveSessionRow({
                 <>
                     <SessionSignalMarkers className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
                     <BotSessionMarker className={HIDDEN_ON_ROW_HOVER} sessionId={session.id} />
+                    <SessionChildrenCount rows={childRows} />
                 </>
             )}
             {/*
@@ -405,6 +424,9 @@ export function ActiveSessionRow({
             sessionId={session.id}
             showSubagents={showSubagents}
             terminal={terminal}
+            // The host's delegated Session rows render right after these, so the guide's trunk runs on into them.
+            nestedSessionCount={nestedSessionCount}
+            selectedBelow={nestedSelected}
         />
     );
     if (renaming)
