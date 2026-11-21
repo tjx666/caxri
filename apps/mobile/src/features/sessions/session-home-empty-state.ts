@@ -24,6 +24,21 @@ export const SESSION_LOAD_STALL_MS = 8_000;
 export const isAwaitingFirstLoad = (status: MobileConnectionStatus, hasLoaded: boolean): boolean =>
     !hasLoaded && (status === 'stale' || status === 'connecting');
 
+/**
+ * Whether an empty list may say the chosen Project has no Sessions: only once the Server answered a read for that
+ * Project. Until then the list holds the previous filter's rows narrowed to this one, and their being empty says
+ * nothing about the new Project, so the home keeps showing it is loading.
+ */
+export const hasLoadedChosenProject = ({
+    activeProjectId,
+    hasLoaded,
+    readProjectId,
+}: {
+    activeProjectId: string | null;
+    hasLoaded: boolean;
+    readProjectId: string | null;
+}): boolean => hasLoaded && readProjectId === activeProjectId;
+
 export const describeSessionHomeEmptyState = (
     {
         activeProjectId,

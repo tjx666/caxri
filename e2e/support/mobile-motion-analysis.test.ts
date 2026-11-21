@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GrayFrame } from './mobile-motion-analysis';
-import { departuresFromFinalPicture, panelTransitions } from './mobile-motion-analysis';
+import {
+    departuresFromFinalPicture,
+    panelTransitions,
+    pictureChanges,
+} from './mobile-motion-analysis';
 
 const geometry = { height: 12, width: 60 };
 const BACKGROUND = 40;
@@ -121,5 +125,40 @@ describe('departures from the final picture', () => {
 
     it('counts every frame that moves away after the final picture first appeared', () => {
         expect(departuresFromFinalPicture(recording([null, 0, 6, 0, -4, 0])).departures).toBe(2);
+    });
+});
+
+describe('picture changes', () => {
+    const before = panel(3);
+    const placeholder = panel(11);
+    const after = panel(19);
+    const recording = (pictures: number[][][], opacities?: number[]): GrayFrame[] =>
+        pictures.map((blocks, index) => ({
+            data: draw(blocks, 0, opacities?.[index] ?? 1),
+            time: index * 16,
+        }));
+
+    it('counts one change for a picture replaced in one step', () => {
+        expect(pictureChanges(recording([before, before, after, after, after]))).toEqual({
+            count: 1,
+            spanMs: 0,
+        });
+    });
+
+    it('counts a placeholder that holds for many frames as one more change, not one per frame', () => {
+        const pictures = [before, placeholder, placeholder, placeholder, placeholder, after, after];
+        expect(pictureChanges(recording(pictures)).count).toBe(2);
+    });
+
+    it('counts every frame of a fade', () => {
+        const pictures = [before, after, after, after, after, after];
+        expect(pictureChanges(recording(pictures, [1, 0.2, 0.4, 0.6, 0.8, 1])).count).toBe(5);
+    });
+
+    it('counts none for a region that never changed', () => {
+        expect(pictureChanges(recording([before, before, before]))).toEqual({
+            count: 0,
+            spanMs: 0,
+        });
     });
 });

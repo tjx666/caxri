@@ -20,6 +20,7 @@ import { useRowMarkDone } from '../hooks/use-row-mark-done';
 import { useSessionManagement } from '../hooks/use-session-management';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
 import { projectIndexInFullOrder, visibleProjectChips } from '../project-order';
+import { hasLoadedChosenProject } from '../session-home-empty-state';
 import {
     sessionListAttentionSource,
     shouldListFallbackToTerminal,
@@ -27,6 +28,7 @@ import {
 import type { SessionListRow } from '../session-list-groups';
 import { sessionListRows } from '../session-list-groups';
 import { createSessionListInteraction } from '../session-list-interaction';
+import { sessionListMotionScope } from '../session-list-motion';
 import type { MobileSessionItem } from '../session-model';
 import { sessionRowSwipeActions } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
@@ -419,7 +421,11 @@ export const SessionHome = ({
                         <SessionHomeEmpty
                             activeProjectId={activeProjectId}
                             error={error}
-                            hasLoaded={hasLoaded}
+                            hasLoaded={hasLoadedChosenProject({
+                                activeProjectId,
+                                hasLoaded,
+                                readProjectId,
+                            })}
                             isLoading={isLoading}
                             onNewSession={onNewSession}
                             onRetry={refresh}
@@ -430,6 +436,7 @@ export const SessionHome = ({
                 }
                 interactionRef={listInteractionReference}
                 listRef={listReference}
+                motionScope={sessionListMotionScope({ activeProjectId, readProjectId })}
                 bottomInset={layout === 'phone' ? PHONE_NEW_BUTTON_CLEARANCE : 0}
                 onLoad={restoreScroll}
                 onScroll={rememberScroll}

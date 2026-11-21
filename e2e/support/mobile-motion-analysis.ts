@@ -366,6 +366,19 @@ export async function bandDeparturePeak(
 }
 
 /**
+ * How many times a recorded region's picture changed: each frame that differs from the one before it. A region replaced
+ * in one step changes once (twice when a placeholder shows first, however long it stays); an animated change differs on
+ * nearly every frame of its duration. `spanMs` runs from the first change to the last.
+ */
+export function pictureChanges(frames: readonly GrayFrame[]): { count: number; spanMs: number } {
+    const times = frames
+        .slice(1)
+        .filter((frame, index) => isDifferent(frame, frames[index]))
+        .map(({ time }) => time);
+    return { count: times.length, spanMs: times.length > 0 ? times.at(-1)! - times[0] : 0 };
+}
+
+/**
  * The frames a recorded region drew while changing from its first picture to its last one: each frame that differs from
  * both. A change applied in one commit draws none or one (a list's measuring pass); an animated change draws one per
  * frame for its whole duration. `spanMs` runs from the first frame that left the first picture to the first frame that

@@ -2,9 +2,31 @@ import { describe, expect, it } from 'vitest';
 
 import {
     describeSessionHomeEmptyState,
+    hasLoadedChosenProject,
     isAwaitingFirstLoad,
     SESSION_LOAD_STALL_MS,
 } from '../session-home-empty-state';
+
+describe('chosen Project load', () => {
+    it('keeps loading until the read for a newly chosen Project answers', () => {
+        expect(
+            hasLoadedChosenProject({ activeProjectId: 'p2', hasLoaded: true, readProjectId: 'p1' }),
+        ).toBe(false);
+        expect(
+            hasLoadedChosenProject({ activeProjectId: null, hasLoaded: true, readProjectId: 'p1' }),
+        ).toBe(false);
+        expect(
+            hasLoadedChosenProject({ activeProjectId: 'p2', hasLoaded: true, readProjectId: 'p2' }),
+        ).toBe(true);
+        expect(
+            hasLoadedChosenProject({
+                activeProjectId: null,
+                hasLoaded: false,
+                readProjectId: null,
+            }),
+        ).toBe(false);
+    });
+});
 
 describe('Session home empty state', () => {
     it('keeps the loaded Project empty state actionable', () => {

@@ -32,6 +32,7 @@ export interface MobileSessionPagingSeed {
      * A Project with work two days ago, so its chip stays in the strip.
      */
     recentProjectId: string;
+    recentSessionId: string;
     /**
      * A Project untouched for a month, so its chip waits behind More.
      */
@@ -74,7 +75,8 @@ export function run(input: Input): MobileSessionPagingSeed {
             attentionAt.push({ id, at: now - 60_000 - index * 1_000 });
         }
         const newIdle = create(backlog.id, 'Plan the next release');
-        aged.push({ id: create(recent.id, 'Review the docs draft'), at: now - 2 * DAY_MS });
+        const recentSessionId = create(recent.id, 'Review the docs draft');
+        aged.push({ id: recentSessionId, at: now - 2 * DAY_MS });
         const dormantSessionId = create(dormant.id, 'Old experiment');
         aged.push({ id: dormantSessionId, at: now - 30 * DAY_MS });
         seed = {
@@ -82,6 +84,7 @@ export function run(input: Input): MobileSessionPagingSeed {
             attention,
             newIdle,
             recentProjectId: recent.id,
+            recentSessionId,
             dormantProjectId: dormant.id,
             dormantSessionId,
         };
