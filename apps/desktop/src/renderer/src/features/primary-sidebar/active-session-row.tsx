@@ -3,7 +3,6 @@ import { useState } from 'react';
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
 import { useTranslation } from '../../i18n';
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import { useIsSessionOpenElsewhere } from '../../stores/open-sessions';
 import { BotSessionMarker } from '../caxri-bot/bot-session-marker';
@@ -18,7 +17,9 @@ import { useSessionChildRows } from './session-children/hooks/use-session-child-
 import {
     SessionChildrenCount,
     SessionChildrenDisclosure,
+    SessionRowAgentIcon,
 } from './session-children/session-children-disclosure';
+import { sessionTitleToneClassName } from './session-children/session-title-tone';
 import { SessionOpenLabel } from './session-open-label';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
@@ -173,7 +174,7 @@ export function ActiveSessionRow({
     inPinnedGroup,
     nested,
     nestedNeedsYou,
-    nestedSelected = false,
+    nestedSelected,
     nestedSessionCount,
     visibleSessionIds,
     focusRenameInput,
@@ -264,22 +265,12 @@ export function ActiveSessionRow({
             onFocusChange={setFocused}
             aria-expanded={childRows.isExpanded}
         >
-            {/*
-             * A plain brand-color mark: its color is what tells Agents apart; lifecycle lives at the right edge. On a
-             * host row it fades out under pointer hover, where `SessionChildrenDisclosure` shows its chevron in the
-             * same spot, so folding needs no gutter column of its own. A nested row's mark is 12px, one step below
-             * its host's.
-             */}
-            <span
-                className={cn(
-                    'session-agent-icon flex flex-none transition-opacity duration-150',
-                    childRows.isExpanded !== undefined &&
-                        !renaming &&
-                        'group-hover/session-row:opacity-0',
-                )}
-            >
-                <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={nested ? 12 : 14} />
-            </span>
+            <SessionRowAgentIcon
+                identity={terminal?.kind ?? 'shell'}
+                isRenaming={renaming}
+                nested={nested}
+                rows={childRows}
+            />
             {renaming ? (
                 <SessionRenameInput
                     sessionId={session.id}
@@ -309,17 +300,12 @@ export function ActiveSessionRow({
                          */
                         className={cn(
                             'session-title max-w-full min-w-0 flex-none overflow-hidden whitespace-nowrap',
-                            /*
-                             * A nested row steps down to regular weight and muted text so the hierarchy reads from the
-                             * rows themselves, not only from the guide line. It returns to full contrast when the
-                             * pointer, the selection, or a cue that needs the user (approval, failure) lands on it.
-                             */
-                            nested
-                                ? 'font-normal text-muted group-hover/session-row:text-foreground'
-                                : 'font-medium',
-                            nested && selected && 'text-foreground',
-                            nested && approvalPending === true && 'text-foreground',
-                            nested && delegationFailed === true && 'text-foreground',
+                            sessionTitleToneClassName({
+                                approvalPending,
+                                delegationFailed,
+                                nested,
+                                selected,
+                            }),
                         )}
                         onPointerEnter={() => setHovered(true)}
                         onPointerLeave={() => setHovered(false)}
@@ -439,7 +425,7 @@ export function ActiveSessionRow({
             showSubagents={showSubagents}
             terminal={terminal}
             // The host's delegated Session rows render right after these, so the guide's trunk runs on into them.
-            continuesBelow={(nestedSessionCount ?? 0) > 0}
+            nestedSessionCount={nestedSessionCount}
             selectedBelow={nestedSelected}
         />
     );

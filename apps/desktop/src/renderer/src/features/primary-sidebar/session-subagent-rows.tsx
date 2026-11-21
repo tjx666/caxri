@@ -40,9 +40,10 @@ interface SessionSubagentRowsProperties {
      */
     rovingRowId?: string;
     /**
-     * True when the host's delegated Session rows follow these rows, so the branch guide's trunk runs on into them.
+     * How many delegated Session rows the host shows after these rows. When any do, the branch guide's trunk runs on
+     * into them.
      */
-    continuesBelow?: boolean;
+    nestedSessionCount?: number;
     /**
      * True when the selected Session is one of the host's delegated Sessions below, which lights this list's trunk.
      */
@@ -70,7 +71,7 @@ export function SessionSubagentRows({
     terminal,
     showSubagents,
     rovingRowId,
-    continuesBelow = false,
+    nestedSessionCount = 0,
     selectedBelow = false,
 }: SessionSubagentRowsProperties) {
     const { t } = useTranslation();
@@ -162,7 +163,7 @@ export function SessionSubagentRows({
         >
             <SessionChildGuide
                 className="subagent-guide"
-                continuesBelow={continuesBelow}
+                continuesBelow={nestedSessionCount > 0}
                 rows={guide.rows}
                 selectedBelow={selectedBelow}
                 selectedIndex={guide.selectedIndex}

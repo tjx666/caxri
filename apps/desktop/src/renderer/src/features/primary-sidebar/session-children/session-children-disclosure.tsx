@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react';
 
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
+import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
 import { cn } from '../../../lib/utilities';
 import { focusDisclosureRow } from '../primary-sidebar-focus';
 import type { SessionChildRows } from './hooks/use-session-child-rows';
@@ -90,6 +91,39 @@ export function SessionChildrenCount({ rows }: { rows: SessionChildRows }) {
         >
             {rows.needsYou && <span className="size-1.5 rounded-full bg-warning" />}
             {rows.count}
+        </span>
+    );
+}
+
+/**
+ * A Session row's Agent mark: a plain brand-color glyph whose color tells Agents apart; lifecycle lives at the row's
+ * right edge. On a host row it fades out under pointer hover, where `SessionChildrenDisclosure` shows its chevron in
+ * the same spot, so folding needs no gutter column of its own. A nested row's mark is 12px, one step below its host's.
+ */
+export function SessionRowAgentIcon({
+    identity,
+    isRenaming,
+    nested = false,
+    rows,
+}: {
+    identity: string;
+    /**
+     * True while the row is being renamed: the disclosure is hidden then, so the icon stays.
+     */
+    isRenaming: boolean;
+    nested?: boolean;
+    rows: SessionChildRows;
+}) {
+    // Only a host row has a disclosure (`isExpanded` is defined) to take the icon's place.
+    const isYieldsToDisclosure = rows.isExpanded !== undefined && !isRenaming;
+    return (
+        <span
+            className={cn(
+                'session-agent-icon flex flex-none transition-opacity duration-150',
+                isYieldsToDisclosure && 'group-hover/session-row:opacity-0',
+            )}
+        >
+            <AgentIdentityIcon identity={identity} size={nested ? 12 : 14} />
         </span>
     );
 }
