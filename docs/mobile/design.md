@@ -491,7 +491,9 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   echoes, local command output) renders as a compact event row: status icon and a short title,
   expandable detail, never as the user's own bubble. Reminder-only turns are hidden.
 - Auto-follow new content only while the reader is at the bottom. Otherwise show a round
-  jump-to-latest button; never pull the reader down.
+  jump-to-latest button; never pull the reader down. From the second user message a `Your
+messages` button stacks above it and opens a sheet of the user's messages to jump back to
+  ([Mobile Conversation](conversation.md#returning-to-an-earlier-message)).
 - Truncated history starts with `Earlier messages are available on your computer.`
 - Unsupported Agents or missing records fall back to Terminal with `Conversation view isn't available
 for this Agent. Showing the Terminal.` A plain shell never shows this notice.

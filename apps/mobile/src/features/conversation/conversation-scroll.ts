@@ -296,3 +296,5 @@ export const createConversationFollower = ({
         request,
     };
 };
+
+export type ConversationFollower = ReturnType<typeof createConversationFollower>;

@@ -15,7 +15,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { ConversationDisclosure } from './conversation-disclosure';
 import { ConversationEntry } from './conversation-entry';
-import { ConversationHistory } from './conversation-history';
+import { useConversationHistoryHeader } from './conversation-history';
 import { ConversationJumpLatest } from './conversation-jump-latest';
 import type { ConversationMessageTarget } from './conversation-message-actions';
 import { ConversationMessageActions } from './conversation-message-actions';
@@ -31,6 +31,7 @@ import {
 } from './conversation-model';
 import { createConversationFollower } from './conversation-scroll';
 import { conversationStyles as styles } from './conversation-styles';
+import { ConversationMessageIndexControl } from './message-index/conversation-message-index-control';
 import { isTimelineMessageClipped, MessageReadOfflineError } from './read-whole-message';
 import { useConversationOlderPages } from './use-conversation-older-pages';
 import { useConversationOpening } from './use-conversation-opening';
@@ -147,6 +148,7 @@ export const ConversationList = <Entry extends { id: string }>({
     followKey,
     isConnected,
     isTurnStart,
+    messagePreview,
     onFollowingChange,
     onRetry,
     renderEntry,
@@ -170,6 +172,12 @@ export const ConversationList = <Entry extends { id: string }>({
      * viewport at the list's end; when unset, the list simply ends at its last row. Keep it a stable function.
      */
     isTurnStart?: (entry: Entry) => boolean;
+    /**
+     * The words of a row that is the user's message, `undefined` for every other row. When set, a reader away from the
+     * end gets a Messages button above Jump to latest that lists those messages and jumps to the one picked. Keep it a
+     * stable function.
+     */
+    messagePreview?: (entry: Entry) => string | undefined;
     /**
      * Reports whether the list follows its end, so a caller can tell a reader parked on earlier content from one
      * tracking the latest output. Starts as `true`.
@@ -346,30 +354,7 @@ export const ConversationList = <Entry extends { id: string }>({
             scrollToEnd: jumpToLatest,
         });
     }, [followKey, jumpToLatest]);
-    const header = useMemo(
-        () => (
-            <ConversationHistory
-                error={timeline.error}
-                historyExpired={timeline.historyExpired}
-                isLoadingOlder={timeline.isLoadingOlder}
-                needsConnection={timeline.needsConnectionForOlder === true}
-                onLoadOlder={onLoadOlder}
-                olderCursor={timeline.olderCursor}
-                theme={theme}
-                truncated={timeline.truncated}
-            />
-        ),
-        [
-            onLoadOlder,
-            theme,
-            timeline.error,
-            timeline.historyExpired,
-            timeline.isLoadingOlder,
-            timeline.needsConnectionForOlder,
-            timeline.olderCursor,
-            timeline.truncated,
-        ],
-    );
+    const header = useConversationHistoryHeader(timeline, onLoadOlder, theme);
     const maintainPosition = hasTurnSpacer
         ? MAINTAIN_TURN_POSITION
         : MAINTAIN_VISIBLE_CONTENT_POSITION;
@@ -434,10 +419,28 @@ export const ConversationList = <Entry extends { id: string }>({
                 {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
                     <ConversationJumpLatest onPress={jumpToLatest} theme={theme} />
                 ) : null}
+                {messagePreview ? (
+                    <ConversationMessageIndexControl
+                        entries={entries}
+                        header={header}
+                        isButtonShown={shouldShowConversationJump(isAtBottom, entries.length > 0)}
+                        messagePreview={messagePreview}
+                        follower={follower}
+                        list={list}
+                        onLeaveEnd={() => setIsAtBottom(false)}
+                        theme={theme}
+                    />
+                ) : null}
             </View>
         </ConversationDisclosure>
     );
 };
+
+/**
+ * A terminal Agent's user messages, the rows its Messages sheet lists.
+ */
+const userMessagePreview = (entry: GroupedEntry): string | undefined =>
+    entry.type === 'userMessage' ? entry.text : undefined;
 
 export const ConversationView = ({
     canSend = true,
@@ -496,6 +499,7 @@ export const ConversationView = ({
                 entries={entries}
                 enterFrom={enterFrom}
                 isConnected={isConnected}
+                messagePreview={userMessagePreview}
                 onRetry={onRetry}
                 renderEntry={renderEntry}
                 theme={theme}
