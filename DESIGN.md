@@ -1356,10 +1356,10 @@ selects the standard themed fill, workbench canvas, inline surface, or an embedd
 `InputGroup`; all variants share one border, focus ring, invalid, and disabled contract. Adorned
 search/path fields use `InputGroup`, never feature-local field chrome.
 
-**Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
-while focused (the pane ring already carries the accent focus) and `--accent` while a file is
-dragged over the Chat. The whole pane takes the drop under a faint `--accent` tint with a centered
-`--elevated` label (`Drop to add images, files, or folders`, or `Drop to add files or folders` when
+**Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that stays unchanged
+while focused (the caret marks focus, as in Codex; the pane ring already carries the accent focus)
+and turns `--accent` while a file is dragged over the Chat. The whole pane takes the drop under a
+faint `--accent` tint with a centered `--elevated` label (`Drop to add images, files, or folders`, or `Drop to add files or folders` when
 the provider takes no images). A dropped image attaches when the provider accepts images; any other
 file or folder from Finder becomes a card, while a Files entry or Editor tab dragged from inside
 Caxri is inserted at the caret as its path, spelled relative to the Agent's directory the way a
@@ -1482,7 +1482,7 @@ status row sits in a strip on top of the card rather than inside it, so the Chat
 as part of the draft (reference: LobeHub's chat input). The strip is a `--surface` tab inset 16px
 from the card's sides with radius-8 top corners, and it reads as part of the card, as Maka's composer
 tray does: it covers the card's top border where they meet (and its own last row's hairline), its frame
-takes the card's focus (`--muted`) and drop (`--accent`) colors, and a concave radius-8 fillet at each
+takes the card's drop (`--accent`) color, and a concave radius-8 fillet at each
 foot turns the card's top edge up into the strip's side like a browser tab, so the card's corner and
 the fillet form one S-curve;
 the `Editing an earlier message` bar and the idle context notices below use the same strip. Everything
