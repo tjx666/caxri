@@ -1,8 +1,8 @@
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { QuitRestoreOptions } from '../quit-restore';
-import { QuitRestore } from '../quit-restore';
+import type { QuitRestoreCause, QuitRestoreOptions } from '../quit-restore';
+import { QUIT_RESTORE_AUTO_MAX_AGE_MS, QuitRestore } from '../quit-restore';
 
 interface Fixture {
     archived?: string[];
@@ -25,8 +25,12 @@ function createHarness(fixture: Fixture = {}) {
             sessionId: fixture.bot,
             sessionIds: [],
         });
-    const resumed: Array<{ sessionId: string; terminalIds: string[]; shouldContinue: boolean }> =
-        [];
+    const resumed: Array<{
+        sessionId: string;
+        terminalIds: string[];
+        continueAfter: QuitRestoreCause | undefined;
+    }> = [];
+    const clock = { now: 1_000 };
     const database = {
         getAppState: (key: string) => stored.get(key),
         setAppState: (key: string, value: unknown) => {
@@ -52,16 +56,16 @@ function createHarness(fixture: Fixture = {}) {
         livePtyIds: (sessionId) => fixture.live?.[sessionId] ?? [],
         hasLiveChat: (sessionId) => fixture.liveChats?.includes(sessionId) ?? false,
         isWorking: (sessionId) => fixture.working?.includes(sessionId) ?? false,
-        resume: (sessionId, terminalIds, shouldContinue) => {
+        resume: (sessionId, terminalIds, continueAfter) => {
             if (fixture.failing?.includes(sessionId))
                 return Promise.reject(new Error('spawn failed'));
-            resumed.push({ sessionId, terminalIds: [...terminalIds], shouldContinue });
+            resumed.push({ sessionId, terminalIds: [...terminalIds], continueAfter });
             return Promise.resolve();
         },
         logger: { write } as unknown as StructuredLogger,
-        now: () => 1_000,
+        now: () => clock.now,
     });
-    return { archived, restore, resumed, sessions, stored, write };
+    return { archived, clock, restore, resumed, sessions, stored, write };
 }
 
 describe('QuitRestore', () => {
@@ -74,9 +78,9 @@ describe('QuitRestore', () => {
         restore.record();
         await expect(restore.restore()).resolves.toEqual({ restored: 3, skipped: 0 });
         expect(resumed).toEqual([
-            { sessionId: 's1', terminalIds: ['t-s1'], shouldContinue: false },
-            { sessionId: 's2', terminalIds: ['t-s2'], shouldContinue: true },
-            { sessionId: 's3', terminalIds: [], shouldContinue: false },
+            { sessionId: 's1', terminalIds: ['t-s1'], continueAfter: undefined },
+            { sessionId: 's2', terminalIds: ['t-s2'], continueAfter: 'quit' },
+            { sessionId: 's3', terminalIds: [], continueAfter: undefined },
         ]);
     });
 
@@ -125,6 +129,99 @@ describe('QuitRestore', () => {
         restore.record();
         await restore.restore();
         expect(resumed.map(({ sessionId }) => sessionId)).toEqual(['s1']);
+    });
+
+    describe('restoreAfterUpdate', () => {
+        it('restores what Restart to Update stopped, telling working Agents the update stopped them', async () => {
+            const { restore, resumed } = createHarness({
+                live: { s1: ['t-s1'] },
+                liveChats: ['s2'],
+                working: ['s2'],
+            });
+            restore.record('update');
+            await expect(restore.restoreAfterUpdate()).resolves.toEqual({
+                restored: 2,
+                skipped: 0,
+            });
+            expect(resumed).toEqual([
+                { sessionId: 's1', terminalIds: ['t-s1'], continueAfter: undefined },
+                { sessionId: 's2', terminalIds: [], continueAfter: 'update' },
+            ]);
+        });
+
+        it('claims the record at once, so the launch notice never offers it', () => {
+            const { restore, resumed } = createHarness({ live: { s1: ['t-s1'] } });
+            restore.record('update');
+            const restoring = restore.restoreAfterUpdate();
+            expect(restoring).toBeDefined();
+            expect(restore.pending().count).toBe(0);
+            // The relaunches wait for the rest of Server Core's start.
+            expect(resumed).toHaveLength(0);
+            return restoring;
+        });
+
+        it('restores only once', async () => {
+            const { restore, resumed } = createHarness({ live: { s1: ['t-s1'] } });
+            restore.record('update');
+            await restore.restoreAfterUpdate();
+            expect(restore.restoreAfterUpdate()).toBeUndefined();
+            await expect(restore.restore()).resolves.toEqual({ restored: 0, skipped: 0 });
+            expect(resumed).toHaveLength(1);
+        });
+
+        it('leaves a plain quit to the launch notice', () => {
+            const { restore } = createHarness({ live: { s1: ['t-s1'] } });
+            restore.record('quit');
+            expect(restore.restoreAfterUpdate()).toBeUndefined();
+            expect(restore.pending().count).toBe(1);
+        });
+
+        it('leaves an update whose relaunch came too late to the launch notice', async () => {
+            const { clock, restore, resumed } = createHarness({
+                live: { s1: ['t-s1'] },
+                working: ['s1'],
+            });
+            restore.record('update');
+            clock.now += QUIT_RESTORE_AUTO_MAX_AGE_MS + 1;
+            expect(restore.restoreAfterUpdate()).toBeUndefined();
+            expect(restore.pending().count).toBe(1);
+            // Restored by hand later, the Agent still learns the update stopped it.
+            await restore.restore();
+            expect(resumed).toEqual([
+                { sessionId: 's1', terminalIds: ['t-s1'], continueAfter: 'update' },
+            ]);
+        });
+
+        it('hands a Session whose relaunch failed back to the launch notice', async () => {
+            const { restore, resumed } = createHarness({
+                live: { s1: ['t-s1'], s2: ['t-s2'] },
+                failing: ['s2'],
+            });
+            restore.record('update');
+            await expect(restore.restoreAfterUpdate()).resolves.toEqual({
+                restored: 1,
+                skipped: 1,
+            });
+            expect(resumed.map(({ sessionId }) => sessionId)).toEqual(['s1']);
+            expect(restore.pending().count).toBe(1);
+        });
+
+        it("never fails Server Core's start when the record cannot be claimed", () => {
+            const { restore, stored, write } = createHarness({ unwritable: true });
+            stored.set('quitStoppedSessions', {
+                stoppedAt: 1_000,
+                restartedForUpdate: true,
+                sessions: [{ sessionId: 's1', terminalIds: ['t-s1'], shouldContinue: false }],
+            });
+            expect(restore.restoreAfterUpdate()).toBeUndefined();
+            expect(write).toHaveBeenCalledWith(
+                'warn',
+                'session.quit_stopped_auto_restore_failed',
+                expect.anything(),
+            );
+            // The record survives for the launch notice.
+            expect(restore.pending().count).toBe(1);
+        });
     });
 
     describe('pending', () => {

@@ -17,6 +17,12 @@ export interface StoppingServerClient {
 }
 
 /**
+ * Why Server Core stops, sent as `terminal.terminateAll`'s `reason`: `update` (Restart to Update) lets the next start
+ * restore the stopped work on its own instead of offering it (docs/session-quit-restore.md).
+ */
+export type ServerStopReason = 'serverStop' | 'update';
+
+/**
  * Ends every live Terminal, then stops Server Core and waits for its process. Both steps always run: a failed
  * termination must not keep Server alive, and each failure is reported (both together as an `AggregateError`).
  */
@@ -24,17 +30,14 @@ export async function stopAttachedServer(
     client: StoppingServerClient,
     supervisor: DesktopServerSupervisor,
     pid: number | undefined,
+    reason: ServerStopReason = 'serverStop',
 ): Promise<void> {
     let didTerminationFail = false;
     let terminationFailure: unknown;
     let didHostStopFail = false;
     let hostStopFailure: unknown;
     try {
-        await client.requestServerOperation(
-            'terminal.terminateAll',
-            { reason: 'serverStop' },
-            undefined,
-        );
+        await client.requestServerOperation('terminal.terminateAll', { reason }, undefined);
     } catch (error) {
         didTerminationFail = true;
         terminationFailure = error;

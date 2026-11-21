@@ -566,7 +566,8 @@ export async function createDomainServices(
     };
     startDomainBackgroundWork(agentCommands, watchHub, terminalSupervision, sessionMaintenance);
     // No presence exists until Desktop Main reports its windows, so nothing is watched, polled, or restored here:
-    // `observeVisibleSessions` does that for the Sessions the first reports show.
+    // `observeVisibleSessions` does that for the Sessions the first reports show. The one exception is what Restart to
+    // Update stopped moments ago, which `QuitRestore.restoreAfterUpdate` relaunches whether or not it is visible.
     return {
         handlers,
         close,

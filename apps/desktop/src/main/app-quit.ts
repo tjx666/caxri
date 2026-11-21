@@ -7,6 +7,7 @@ import type { BrowserWindow, Dialog } from 'electron';
 import type { RunningWork } from './confirmations';
 import { runningWorkPhrase, runningWorkTotal } from './confirmations';
 import type { DesktopServerConnection } from './connection/server-connection';
+import type { ServerStopReason } from './connection/server-stop';
 import { translateMain as t } from './locale';
 
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
@@ -101,8 +102,9 @@ export interface AppQuitOptions {
     readStatus: () => Promise<AppQuitStatus>;
     /**
      * Stops Server Core and owns disposal of the Desktop attachment so a closing transport cannot start recovery.
+     * `update` (Restart to Update) lets the next start restore the stopped work on its own.
      */
-    stopServer: () => Promise<void>;
+    stopServer: (reason: ServerStopReason) => Promise<void>;
 }
 
 export interface AppQuitStatus {
@@ -495,7 +497,9 @@ export async function resolveAppQuit(options: AppQuitOptions): Promise<AppQuitOu
     await attempt(options, 'persist', options.persistWindowState);
 
     if (decision === 'stop') {
-        const stopFailure = await attempt(options, 'stop', options.stopServer);
+        const stopFailure = await attempt(options, 'stop', () =>
+            options.stopServer(isUpdateRestart(options.quitIntent()) ? 'update' : 'serverStop'),
+        );
         if (stopFailure) await attempt(options, 'notification', options.notifyStopFailure);
         await attempt(options, 'disconnect', options.closeDesktop);
         // After a failed stop the installer still runs: the next launch replaces a Server Core left on the old build.

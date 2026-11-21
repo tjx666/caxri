@@ -29,6 +29,7 @@ import { connectDesktopAttachment, waitForServerExit } from './server-attachment
 import { buildServerLaunchEnvironment } from './server-launch-environment';
 import type { ServerBuildIdentity } from './server-staleness';
 import { vetServerBuild } from './server-staleness';
+import type { ServerStopReason } from './server-stop';
 import { stopAttachedServer } from './server-stop';
 
 interface UntypedServerClient {
@@ -555,7 +556,7 @@ export class DesktopServerConnection extends EventTarget {
      * locks and cannot be auto-restored as interrupted work by a later Caxri launch. Disposal is fenced before either
      * request because the expected transport close from `host.stop` must never start the recovery loop.
      */
-    async stopServer(): Promise<void> {
+    async stopServer(reason?: ServerStopReason): Promise<void> {
         const attached = this.client;
         if (!attached) throw this.disconnectedRequestError();
         const pid = this.serverPid;
@@ -563,7 +564,7 @@ export class DesktopServerConnection extends EventTarget {
         this.disposeLifecycle();
         this.client = undefined;
         try {
-            await stopAttachedServer(client, this.serverSupervisor, pid);
+            await stopAttachedServer(client, this.serverSupervisor, pid, reason);
         } finally {
             attached.close({ cancelPendingRequests: true });
             this.serverPid = undefined;

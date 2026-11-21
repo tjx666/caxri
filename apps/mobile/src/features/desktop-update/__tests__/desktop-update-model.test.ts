@@ -119,7 +119,7 @@ describe('desktop update model', () => {
 
         expect(detail.split('\n')).toEqual([
             'Caxri on your computer restarts into version 0.0.4.',
-            'This stops 1 Terminal and 2 Chats.',
+            'This stops 1 Terminal and 2 Chats. It continues after the update.',
             'Agents still working: a, b, c, d, e, 2 more.',
             '3 unsent review comments will be lost.',
         ]);

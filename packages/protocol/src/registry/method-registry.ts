@@ -563,7 +563,7 @@ export const internalMethods = {
     ...externalDocumentServerMethods,
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },
     /**
-     * `reason: 'serverStop'` also records what it stopped for `session.restoreQuitStopped`.
+     * `reason: 'serverStop'` or `'update'` also records what it stopped for `session.restoreQuitStopped`.
      */
     'terminal.terminateAll': {
         ...serverControl,

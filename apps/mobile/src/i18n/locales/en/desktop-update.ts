@@ -20,7 +20,7 @@ export const desktopUpdate = {
     'desktopUpdate.impact.reviewCommentsOne': '1 unsent review comment will be lost.',
     'desktopUpdate.impact.reviewCommentsOther': '{{count}} unsent review comments will be lost.',
     'desktopUpdate.impact.separator': ', ',
-    'desktopUpdate.impact.stops': 'This stops {{work}}.',
+    'desktopUpdate.impact.stops': 'This stops {{work}}. It continues after the update.',
     'desktopUpdate.impact.terminalsOne': '1 Terminal',
     'desktopUpdate.impact.terminalsOther': '{{count}} Terminals',
     'desktopUpdate.impact.working': 'Agents still working: {{titles}}.',

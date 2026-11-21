@@ -21,16 +21,20 @@ searching `resume`, `reopen`, or `quit`), which brings them back in one step too
 out Sessions deleted or archived since the quit, since a restore would only skip them. A quit older than
 three days (`QUIT_RESTORE_NOTICE_MAX_AGE_MS`) gets no notice; the command stays available.
 
+Restart to Update (on the computer or from a paired phone) needs none of this: the next Server Core
+start restores the stopped work on its own (see [After an update](#after-an-update)).
+
 ## What is recorded
 
-Every `terminal.terminateAll` that runs before Server Core stops carries `reason: 'serverStop'`:
-**Quit and Stop Tasks**, Restart to Update, and a Host Environment's Stop Server. Right before
-stopping anything, Server Core samples each Session that still has a live PTY or a live Chat and
-stores, in the `quitStoppedSessions` app state row:
+Every `terminal.terminateAll` that runs before Server Core stops carries a recording reason:
+`serverStop` for **Quit and Stop Tasks** and a Host Environment's Stop Server, `update` for
+Restart to Update. Right before stopping anything, Server Core samples each Session that still has
+a live PTY or a live Chat and stores, in the `quitStoppedSessions` app state row:
 
 ```json
 {
   "stoppedAt": 1767225600000,
+  "restartedForUpdate": true,
   "sessions": [
     { "sessionId": "s-1", "terminalIds": ["t-1", "t-2"], "shouldContinue": true },
     { "sessionId": "s-2", "terminalIds": [], "shouldContinue": false }
@@ -38,6 +42,7 @@ stores, in the `quitStoppedSessions` app state row:
 }
 ```
 
+- `restartedForUpdate` is present only when Restart to Update wrote the record.
 - `terminalIds` are the PTYs the stop is about to end; a Chat-only Session has none.
 - `shouldContinue` uses the same "still working" test as
   [Airplane Mode](airplane-mode.md#entering): a running or waiting turn, Claude background work,
@@ -58,18 +63,34 @@ window's selection, through the same path Airplane Mode resumes with:
    final; every other `stopped` Terminal stays down.
 2. Chats start again on their bound conversation; an idle Chat simply starts on its next read.
 3. A Session with `shouldContinue` has its primary Agent told to continue, with a prompt that says
-   its last turn and background work were stopped by the quit.
+   its last turn and background work were stopped by the quit, or by the update for a
+   `restartedForUpdate` record.
 
 A Session deleted or archived since the quit, or one whose relaunch fails, is skipped and keeps
 its stopped Terminals for a manual restart. The toast reports how many Sessions were restored and
 how many were skipped; with no record it says no Sessions were stopped at the last quit.
 
+## After an update
+
+The user asked for an immediate restart, so running work should carry on in the new version
+without another click. When Server Core starts and finds a `restartedForUpdate` record written
+within the last 30 minutes (`QUIT_RESTORE_AUTO_MAX_AGE_MS`), it runs the same restore by itself
+(`QuitRestore.restoreAfterUpdate`). It claims the record before any Client can attach, so the
+launch notice never offers it, and starts relaunching once the rest of Server Core's start has run.
+The interrupted turn itself is not saved: a working Agent picks up from its conversation and reruns
+the command or subagent the restart killed.
+
+An older update record means the relaunch did not happen right away (a failed install, a Mac that
+shut down before reopening). Telling Agents to continue that late could restart work the user has
+moved on from, so it falls back to the launch notice and the command above.
+
 ## Diagnostics
 
-`session.quit_stopped_recorded` logs `sessionCount` and `workingCount` at every server stop.
+`session.quit_stopped_recorded` logs `cause` (`quit` or `update`), `sessionCount`, and
+`workingCount` at every server stop.
 `session.quit_stopped_offered` logs the launch notice's read: `count` (what a restore would
 relaunch), `recordedCount`, and `recordAgeMs`; it never consumes the record.
-`session.quit_stopped_restored` logs `restored`, `continued`, `skipped`, `durationMs`, and
-`recordAgeMs` (time since the quit). A record that cannot be written logs
+`session.quit_stopped_restored` logs `cause` (`update` for the automatic restore after an
+update), `restored`, `continued`, `skipped`, `durationMs`, and `recordAgeMs` (time since the quit). A record that cannot be written logs
 `session.quit_stopped_record_failed` with its `errorCode`; the stop still proceeds. None carries a
 title or Session content.
