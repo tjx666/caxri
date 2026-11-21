@@ -35,7 +35,7 @@ import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import { displayLocaleReader } from '../display-locale';
 import type { DomainDependencies } from '../domain-services';
-import { SessionAutoNamingService, SessionRenameService } from '../session';
+import { ManualTitleSync, SessionAutoNamingService, SessionRenameService } from '../session';
 import { AgentUsageGuards } from '../usage';
 import type { WatchHub } from '../watch';
 import type { WorkbenchRootService } from '../workbench';
@@ -118,13 +118,14 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             createLocalAgentAdapters(agentEnvironment, agentLaunchSettings),
         usageGuards,
     );
-    const namingState: { service?: SessionAutoNamingService } = {};
+    const namingState: { service?: SessionAutoNamingService; manualTitles?: ManualTitleSync } = {};
     const coordinator = new AgentCoordinator(database, agents, send, logger, {
         /**
          * A parent Stop can be deferred until background subagents finish; raw hook acceptance is not completion.
          */
         onLifecycleApplied: (signal) => {
             namingState.service?.observe(signal);
+            namingState.manualTitles?.observe(signal);
             options.onLifecycleApplied?.(signal);
         },
         onSessionActivityChanged: options.onSessionActivityChanged,
@@ -133,30 +134,32 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         unknownRecoveryMs: dependencies.agentUnknownRecoveryMs,
     });
     const sessionRenames = new SessionRenameService(database, agents, coordinator, send, logger);
+    const isCurrentNamingLaunch = (terminalId: string, launchId: string): boolean => {
+        const terminal = database.getTerminal(terminalId);
+        const provider = terminal?.provider;
+        /**
+         * A Chat's lifecycle comes from the provider protocol, not hooks, so the hooks switch does not gate it.
+         */
+        return Boolean(
+            terminal &&
+            provider &&
+            (isChatTerminal(terminal) ||
+                configuration.getSettings().value['agents.providers'][provider].hooks.enabled) &&
+            coordinator.isCurrentTerminalLaunch(terminalId, launchId),
+        );
+    };
     const automaticNaming = new SessionAutoNamingService(
         database,
         agents,
         sessionRenames,
         agentEnvironment,
-        (terminalId, launchId) => {
-            const terminal = database.getTerminal(terminalId);
-            const provider = terminal?.provider;
-            /**
-             * A Chat's lifecycle comes from the provider protocol, not hooks, so the hooks switch does not gate it.
-             */
-            return Boolean(
-                terminal &&
-                provider &&
-                (isChatTerminal(terminal) ||
-                    configuration.getSettings().value['agents.providers'][provider].hooks
-                        .enabled) &&
-                coordinator.isCurrentTerminalLaunch(terminalId, launchId),
-            );
-        },
+        isCurrentNamingLaunch,
         logger,
         (notice) => send({ event: 'agent.automaticNamingUnavailable', payload: notice }),
     );
+    const manualTitles = new ManualTitleSync(database, sessionRenames, isCurrentNamingLaunch);
     namingState.service = automaticNaming;
+    namingState.manualTitles = manualTitles;
     /**
      * Sole writer of the "Always allow in this Session" grant (issue caxri#1295); every caller (mobile's
      * `answerInternal`, Desktop's `session.revokePermissionAutoAllow`, and the lifecycle hooks below) goes through this
@@ -357,6 +360,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             unsubscribeSettings();
             usageGuards.close();
             await automaticNaming.close();
+            await manualTitles.close();
             await settingsReconcile;
             await agentHooks.close();
             await sessionSearchIndex.close();

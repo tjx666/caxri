@@ -3,7 +3,7 @@ import { agentProviderCatalog, CaxriError, isCaxriError } from '@caxri/protocol'
 import type { StructuredLogger } from '@caxri/system';
 import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 
-import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from '../agents';
+import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from '../../agents';
 import {
     agentProviderStateRoot,
     hasOpeningRequestMaterial,
@@ -13,9 +13,9 @@ import {
     lowCostSandboxFailureReason,
     readAgentTitleMessages,
     sampleAgentTitle,
-} from '../agents';
-import type { CaxriDatabase } from '../db';
-import { caxriBotIdentity } from '../db';
+} from '../../agents';
+import type { CaxriDatabase } from '../../db';
+import { caxriBotIdentity } from '../../db';
 import type { SessionRenameService } from './rename';
 
 /**
