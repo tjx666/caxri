@@ -550,7 +550,15 @@ export function agentChatMessagePreview(
         case 'message': {
             if (entry.message.type !== 'userMessage') return undefined;
             const { text } = entry.message;
-            return parseRelayedSessionMessage(text)?.text ?? text;
+            const words = parseRelayedSessionMessage(text)?.text ?? text;
+            if (words.trim() || !entry.cited) return words;
+            // A message that only cites files, folders, or skills names them, as Desktop's rail does.
+            return [
+                ...entry.cited.skills.map(({ name }) => name),
+                ...entry.cited.references.map(
+                    ({ path }) => path.replace(/\/+$/, '').split('/').pop() ?? path,
+                ),
+            ].join(', ');
         }
         case 'delegated': {
             return entry.body.kind === 'prompt' ? entry.body.prompt : t('chat.delegated.task');

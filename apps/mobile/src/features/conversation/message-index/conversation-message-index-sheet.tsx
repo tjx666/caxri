@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { BottomSheet, SheetTitle } from '../../../components/bottom-sheet';
 import { useTranslation } from '../../../i18n';
@@ -11,20 +11,16 @@ import type { MobileTheme } from '../../../theme/tokens';
 import type { ConversationMessageMark } from './conversation-message-index';
 
 /**
- * Every row is two clamped lines tall, so the list opens scrolled to the current message without measuring rows.
+ * Every row is two clamped lines tall, so the list opens scrolled to the current message without measuring rows. Text
+ * grows with the system font size, so the row height does too, or a large font would clip the second line.
  */
-const ROW_HEIGHT = mobileType.body.lineHeight * 2 + mobileSpace.sm * 2;
+const rowHeight = (fontScale: number): number =>
+    Math.ceil(mobileType.body.lineHeight * fontScale) * 2 + mobileSpace.sm * 2;
 
 /**
  * Rows kept above the current one when the sheet opens, so the messages just before it (the usual target) are in view.
  */
 const ROWS_ABOVE_CURRENT = 2;
-
-const rowLayout = (_: ArrayLike<ConversationMessageMark> | null | undefined, index: number) => ({
-    index,
-    length: ROW_HEIGHT,
-    offset: ROW_HEIGHT * index,
-});
 
 const markKey = (mark: ConversationMessageMark): string => mark.id;
 
@@ -52,6 +48,15 @@ export const ConversationMessageIndexSheet = ({
     theme: MobileTheme;
 }) => {
     const { t } = useTranslation();
+    const height = rowHeight(useWindowDimensions().fontScale);
+    const rowLayout = useCallback(
+        (_: ArrayLike<ConversationMessageMark> | null | undefined, index: number) => ({
+            index,
+            length: height,
+            offset: height * index,
+        }),
+        [height],
+    );
     const renderRow = useCallback(
         (dismiss: () => void) =>
             ({ index, item }: ListRenderItemInfo<ConversationMessageMark>) => {
@@ -69,6 +74,7 @@ export const ConversationMessageIndexSheet = ({
                         style={({ pressed }) => [
                             styles.row,
                             {
+                                height,
                                 backgroundColor: isActive
                                     ? theme.selection
                                     : pressed
@@ -91,7 +97,7 @@ export const ConversationMessageIndexSheet = ({
                     </Pressable>
                 );
             },
-        [activeIndex, onSelect, t, theme],
+        [activeIndex, height, onSelect, t, theme],
     );
     return (
         <BottomSheet
@@ -135,7 +141,6 @@ const styles = StyleSheet.create({
     row: {
         borderLeftWidth: 3,
         borderRadius: mobileRadius.sm,
-        height: ROW_HEIGHT,
         justifyContent: 'center',
         paddingHorizontal: mobileSpace.md,
         paddingVertical: mobileSpace.sm,

@@ -25,6 +25,22 @@ describe('agentChatMessagePreview', () => {
         expect(agentChatMessagePreview(relayed, t)).toBe('Ship it');
     });
 
+    it('names the skills and files a message cites when it has no words', () => {
+        const cited: AgentChatTimelineEntry = {
+            ...userMessage(''),
+            cited: {
+                references: [
+                    { isDirectory: false, path: '/project/src/app.ts' },
+                    { isDirectory: true, path: '/project/docs/' },
+                ],
+                skills: [{ name: 'debug' }],
+            },
+        } as AgentChatTimelineEntry;
+        expect(agentChatMessagePreview(cited, t)).toBe('debug, app.ts, docs');
+        const worded = { ...cited, message: { id: 'u1', type: 'userMessage', text: 'Look' } };
+        expect(agentChatMessagePreview(worded as AgentChatTimelineEntry, t)).toBe('Look');
+    });
+
     it('previews a delegated task by its prompt, or names it when the prompt is gone', () => {
         const task = {
             kind: 'delegated',
