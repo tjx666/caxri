@@ -13,16 +13,16 @@ import {
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
-import { inBetweenFrames, readRecordingBand } from './mobile-motion-analysis';
+import { pictureChanges, readRecordingBand } from './mobile-motion-analysis';
 import { dragUntil, pagingFixture } from './mobile-session-paging-scenario';
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Most in-between frames a list replaced in one step may draw: FlashList's measuring pass can add one. The 180ms row
- * fades and slides draw three or more (see `MOB-SESSION-LIST-MOTION-01`).
+ * Most picture changes a list replaced without motion may show: the switch itself, the new Project's read answering,
+ * and FlashList's measuring pass. A 180ms fade or slide changes the picture on nearly every frame it runs.
  */
-const MAX_STILL_FRAMES = 2;
+const MAX_STILL_CHANGES = 3;
 /**
  * How long each switch is watched: the tap, the new Project's read answering, and a settled tail.
  */
@@ -48,7 +48,8 @@ const isSelected = (nodes: MobileSemanticNode[], checkId: string): boolean =>
  * fix the rows faded and slid as if Sessions arrived, and again when the new Project's read answered.
  *
  * From All, the phone switches to the recent Project, then to the backlog one. Each switch is filmed on its own and
- * judged by the frames drawn between the first and last picture of the top of the list.
+ * judged by how many times the top of the list changed its picture: replacing it changes it once or twice, a fade or
+ * slide on nearly every frame.
  */
 export async function executeMobileProjectSwitchMotionScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -70,18 +71,19 @@ export async function executeMobileProjectSwitchMotionScenario(
             bottom: row.top + rowHeight * JUDGED_ROWS,
             left: row.left,
             right: row.left + Math.round((row.right - row.left) * ROW_JUDGED_SHARE),
-            top: row.top - rowHeight,
+            // From the first row down, below the Project chips, whose highlight glides on every switch.
+            top: row.top,
         };
         await capture(environment, 'all-projects', artifacts);
 
         /**
-         * Films a chip tap until `isShown` holds and the watch window ends, then counts the in-between frames.
+         * Films a chip tap until `isShown` holds and the watch window ends, then counts the band's picture changes.
          */
         const filmSwitch = async (
             chip: string,
             stripDirection: 'left' | 'right',
             isShown: (nodes: MobileSemanticNode[]) => boolean,
-        ): Promise<ReturnType<typeof inBetweenFrames>> => {
+        ): Promise<ReturnType<typeof pictureChanges> & { shownAfterMs: number }> => {
             // Bring the chip on screen before filming, so the strip's scroll never lands in the recording.
             await dragUntil(serial, chip, stripDirection);
             recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
@@ -92,16 +94,16 @@ export async function executeMobileProjectSwitchMotionScenario(
                 () => mobileSemantics(serial),
                 (nodes) => isSelected(nodes, chip) && isShown(nodes),
             );
-            await pause(Math.max(0, WATCH_MS - (Date.now() - tappedAt)));
+            const shownAfterMs = Date.now() - tappedAt;
+            await pause(Math.max(0, WATCH_MS - shownAfterMs));
             await recording.stop();
             recording = undefined;
             const analysis = await mkdtemp(join(tmpdir(), 'caxri-project-switch-motion-'));
             try {
                 const video = join(analysis, 'segment.mp4');
                 await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
-                return inBetweenFrames(
-                    (await readRecordingBand(video, band, ANALYSIS_SCALE)).frames,
-                );
+                const { frames } = await readRecordingBand(video, band, ANALYSIS_SCALE);
+                return { ...pictureChanges(frames), shownAfterMs };
             } finally {
                 await rm(analysis, { force: true, recursive: true });
             }
@@ -121,17 +123,22 @@ export async function executeMobileProjectSwitchMotionScenario(
         await capture(environment, 'backlog-chosen', artifacts);
 
         const results = { toBacklog, toRecent };
-        const moving = Object.entries(results).filter(([, { count }]) => count > MAX_STILL_FRAMES);
-        if (moving.length > 0)
+        const unchanged = Object.entries(results).filter(([, { count }]) => count === 0);
+        if (unchanged.length > 0)
             throw new Error(
-                `The list animated on a Project switch: ${JSON.stringify(Object.fromEntries(moving))}`,
+                `The filmed band never changed, so it cannot judge the switch: ${JSON.stringify(results)}`,
             );
+        const moving = Object.entries(results).filter(([, { count }]) => count > MAX_STILL_CHANGES);
+        if (moving.length > 0)
+            throw new Error(`The list animated on a Project switch: ${JSON.stringify(results)}`);
         await finish(environment, artifacts, {
             status: 'passed',
-            toBacklogInBetweenFrames: toBacklog.count,
-            toBacklogMs: Math.round(toBacklog.spanMs),
-            toRecentInBetweenFrames: toRecent.count,
-            toRecentMs: Math.round(toRecent.spanMs),
+            toBacklogChanges: toBacklog.count,
+            toBacklogChangeSpanMs: Math.round(toBacklog.spanMs),
+            toBacklogShownAfterMs: toBacklog.shownAfterMs,
+            toRecentChanges: toRecent.count,
+            toRecentChangeSpanMs: Math.round(toRecent.spanMs),
+            toRecentShownAfterMs: toRecent.shownAfterMs,
         });
     } finally {
         await recording?.stop();
