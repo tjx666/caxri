@@ -76,7 +76,7 @@ function AgentChatRecoveryBanner({
     return (
         <div
             className={cn(
-                'mx-3 flex items-start gap-2 rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5',
+                'mx-4 flex items-start gap-2 rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5',
                 isFailure ? 'border-danger' : 'border-border',
             )}
             data-agent-chat-recovery={notice.kind}

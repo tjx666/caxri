@@ -354,6 +354,10 @@ Seeded on 2026-10-13 from an evidence sweep of docs, code comments, and commit h
 
 - **Remove worktree on archive**: Archiving deletes the managed worktree, including `node_modules` and build output, after committing non-ignored uncommitted changes to its branch; the branch is kept and only worktrees the product created qualify. Caxri adds the merged pull request condition and a confirmation otherwise. Evidence: `.agents/skills/project-architecture/references/git.md`; `apps/server/src/domains/workbench/archive-worktree.ts`.
 
+## Maka (closed product reference)
+
+- **PrimarySidebar footer and composer tray**: Settings shares the sidebar's bottom row with a glyph-only Archived entry, and the strip above the composer reads as part of the card (no seam where they meet, a shared frame color, concave fillets at its feet). Evidence: `DESIGN.md` (PrimarySidebar footer, composer strip); `apps/desktop/src/renderer/src/features/primary-sidebar/primary-sidebar-footer.tsx`; `apps/desktop/src/renderer/src/features/agent-chat/composer/agent-chat-composer-strip.tsx`.
+
 ## Linear (closed product reference)
 
 - **Chat code block folding**: A long fenced block folds to its first lines under a fade, with a centered `Expand (N lines)` pill and a `Collapse` pill below the expanded block. Evidence: `apps/desktop/src/renderer/src/components/markdown/code-collapse.ts`; `apps/desktop/src/renderer/src/components/markdown/code-collapse-toggle.tsx`; `DESIGN.md` (transcript blocks).
