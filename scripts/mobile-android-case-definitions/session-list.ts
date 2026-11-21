@@ -41,4 +41,12 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'session-list-motion',
     },
+    'MOB-SESSION-LIST-PROJECT-SWITCH-01': {
+        appLocale: 'zh-CN',
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        motion: 'live',
+        recordingOwner: 'scenario',
+        scenario: 'session-list-project-switch-motion',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;

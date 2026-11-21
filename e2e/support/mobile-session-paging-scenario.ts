@@ -23,7 +23,7 @@ type Fixture = Awaited<ReturnType<typeof createMobileAcceptanceFixture>>;
  * Launches the fixture over a profile seeded by `mobile-session-paging-seed`, then pairs the phone with the seeded
  * Projects once the newest backlog row shows.
  */
-async function pagingFixture(
+export async function pagingFixture(
     serial: string,
 ): Promise<{ fixture: Fixture; seed: MobileSessionPagingSeed }> {
     let seed: MobileSessionPagingSeed | undefined;
@@ -69,7 +69,7 @@ const isSelected = (nodes: MobileSemanticNode[], checkId: string): boolean =>
  * `checkId` is on screen. Android semantics list only on-screen nodes, so a row or chip past the edge is absent until
  * it scrolls in.
  */
-async function dragUntil(
+export async function dragUntil(
     serial: string,
     checkId: string,
     direction: 'left' | 'right' | 'up',
