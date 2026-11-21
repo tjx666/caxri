@@ -14,8 +14,22 @@ export const sessionListRowOrder = (rows: ReadonlyArray<{ id: string }>): string
     rows.map(({ id }) => id).join('\n');
 
 /**
- * Whether a change in the list's rows should animate: a Session appearing, leaving, or moving between groups. The first
- * rows the list shows apply at once, and reduced motion never animates.
+ * Which list the rows belong to: the chosen Project filter, and whether the Server has answered a read for it yet.
+ * Until it has, the rows are the previous filter's rows narrowed to this one, so the read's answer replaces a
+ * placeholder rather than changing a list the user was already reading.
+ */
+export const sessionListMotionScope = ({
+    activeProjectId,
+    readProjectId,
+}: {
+    activeProjectId: string | null;
+    readProjectId: string | null;
+}): string => `${activeProjectId ?? ''}\n${readProjectId === activeProjectId ? 'read' : 'pending'}`;
+
+/**
+ * Whether a change in the list's rows within one scope should animate: a Session appearing, leaving, or moving between
+ * groups. The first rows the list shows apply at once, and reduced motion never animates. Rows for another scope
+ * (choosing a Project, or its first read answering) replace the list without motion and never reach this check.
  */
 export const shouldAnimateSessionListChange = ({
     isReducedMotion,
