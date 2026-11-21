@@ -35,6 +35,15 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'conversation-open-return',
     },
+    /**
+     * Returning to an earlier user message in a long Chat through the Messages sheet.
+     */
+    'MOB-CONV-MESSAGES-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-messages',
+    },
     'MOB-TIMELINE-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: [],

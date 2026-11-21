@@ -146,6 +146,10 @@ export const conversationStyles = StyleSheet.create({
         right: mobileSpace.lg,
         width: JUMP_SIZE,
     },
+    /**
+     * The Messages button stacks right above Jump to latest, so both ways out of an earlier spot share one corner.
+     */
+    jumpMessages: { bottom: JUMP_CLEARANCE + mobileSpace.sm },
     history: { alignItems: 'center', gap: mobileSpace.sm, paddingBottom: mobileSpace.sm },
     historyText: { ...mobileType.caption, textAlign: 'center' },
     /**

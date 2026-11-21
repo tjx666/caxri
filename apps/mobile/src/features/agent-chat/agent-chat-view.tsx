@@ -46,6 +46,7 @@ import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { createAgentChatEntryStabilizer } from './agent-chat-stable-entries';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
 import {
+    agentChatMessagePreview,
     buildAgentChatTimeline,
     isAgentChatTurnStart,
     withAgentChatAwaitingReply,
@@ -208,6 +209,10 @@ const AgentChatBody = ({
         ),
         [dismissRecap, provider, theme, toggleExpansion],
     );
+    const messagePreview = useCallback(
+        (entry: TimelineEntry) => agentChatMessagePreview(entry, t),
+        [t],
+    );
     const renderAttachments = useAgentChatMessageAttachments(snapshot, theme);
     const serverList = snapshot?.mcpServers;
     const mcpServers = useMemo(
@@ -236,6 +241,7 @@ const AgentChatBody = ({
                                         followKey={pending.sendCount}
                                         isConnected={isConnected}
                                         isTurnStart={isAgentChatTurnStart}
+                                        messagePreview={messagePreview}
                                         onFollowingChange={setFollowing}
                                         onRetry={chat.refresh}
                                         renderEntry={renderEntry}

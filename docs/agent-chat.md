@@ -1324,6 +1324,11 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   nothing more loads and the history is still cut (the archive or transcript ends). A thumbnail of
   a message outside the projection falls back to its original from the provider's record, since
   Core keeps no thumbnail lookup for archived items.
+- Returning to an earlier message. The phone's form of the [message rail](#pane) is
+  the Messages sheet, opened from a button stacked above Jump to latest; see
+  [Mobile Conversation](mobile/conversation.md#returning-to-an-earlier-message). It lists the
+  same messages the rail does: a delegated task by its prompt, a relayed message by the text it
+  carries, and no delivered settlement notice.
 - The `{kind:'agentChat',terminalId}` subscription forwards each `agentChat.patch` after the
   subscribe ACK, shortened the same way. A patch that still does not fit one frame becomes a
   content-free `agentChat.changed`, and the phone re-reads. The phone folds patches with the

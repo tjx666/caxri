@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import type { ReactElement } from 'react';
+import { useMemo, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Text, View } from 'react-native';
 
@@ -6,12 +7,14 @@ import { Button } from '../../components/button';
 import { useTranslation } from '../../i18n';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
+import type { ConversationPagedTimeline } from './use-conversation-timeline';
 
 /**
  * The header above the oldest loaded message: the load-earlier button, its offline, expired, truncated, and error
  * notes, and the start-of-conversation marker once no older page remains.
  */
-export const ConversationHistory = ({
+// eslint-disable-next-line react-refresh/only-export-components -- Reached only through `useConversationHistoryHeader`, which memoizes it.
+const ConversationHistory = ({
     error,
     historyExpired,
     isLoadingOlder,
@@ -112,5 +115,49 @@ export const ConversationHistory = ({
                 </Text>
             ) : null}
         </View>
+    );
+};
+
+/**
+ * The paged timeline's history header, kept the same element while its inputs hold so FlashList does not redraw the
+ * header on every streamed patch. The Messages sheet repeats it at its top.
+ */
+
+export const useConversationHistoryHeader = (
+    timeline: ConversationPagedTimeline,
+    onLoadOlder: () => void,
+    theme: MobileTheme,
+): ReactElement => {
+    const {
+        error,
+        historyExpired,
+        isLoadingOlder,
+        needsConnectionForOlder,
+        olderCursor,
+        truncated,
+    } = timeline;
+    return useMemo(
+        () => (
+            <ConversationHistory
+                error={error}
+                historyExpired={historyExpired}
+                isLoadingOlder={isLoadingOlder}
+                needsConnection={needsConnectionForOlder === true}
+                onLoadOlder={onLoadOlder}
+                olderCursor={olderCursor}
+                theme={theme}
+                truncated={truncated}
+            />
+        ),
+        [
+            error,
+            historyExpired,
+            isLoadingOlder,
+            needsConnectionForOlder,
+            olderCursor,
+            onLoadOlder,
+            theme,
+            truncated,
+        ],
     );
 };

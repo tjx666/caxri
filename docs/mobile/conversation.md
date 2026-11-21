@@ -244,6 +244,24 @@ bytes are not included in invalidation events, diagnostic logs, or durable recov
 projection bounds content for transport and display; it is not a redaction or secret-filtering
 feature.
 
+### Returning to an earlier message
+
+A long Conversation buries the user's own messages under replies and tool rows, and flinging back
+through them overshoots. Whenever Jump to latest shows and the phone holds at least two user
+messages, a second round button (a message glyph, `Your messages`) stacks right above it and opens
+the Messages sheet: every user message the phone holds, oldest first, each as its first words on
+up to two lines, with the message whose turn the reader is in selected (a `selection` background
+and a `primary` leading edge) and kept in view as the sheet opens. A message the projection
+shortened shows its kept tail behind `…`, and one with only images reads `Attachments`. Tapping a
+row closes the sheet and rests that message at the top of the viewport, as a sent message rests;
+the list stops following first, so new output never pulls the reader away mid-jump, and Jump to
+latest returns. The sheet's top holds the Conversation's own load-earlier row, so a message from
+before the loaded pages is one tap away, and a loaded page keeps the selected message selected.
+This is the phone's form of Desktop's message rail (a rail of ticks is too small to tap and
+competes with the scroll gesture); a terminal Agent's Conversation and an Agent Chat share it
+(`message-index/` beside `conversation-view.tsx`). The button stays away
+while the reader follows the end, so it never covers a streaming reply.
+
 ## Implementation references
 
 - [Timeline contract](../../packages/protocol/src/mobile/mobile-contract.ts)

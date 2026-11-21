@@ -27,6 +27,7 @@ import {
     isAgentChatSubagentItem,
     isAgentChatWorkItem,
     parseAgentChatPathReferences,
+    parseRelayedSessionMessage,
 } from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
@@ -534,4 +535,31 @@ export function isAgentChatTurnStart(entry: AgentChatTimelineEntry): boolean {
         entry.kind === 'delegationNotice' ||
         (entry.kind === 'message' && entry.message.type === 'userMessage')
     );
+}
+
+/**
+ * The words the Messages sheet lists for a row the user sent (`ConversationList`'s `messagePreview`), as Desktop's
+ * message rail previews it (`agentChatRailMarks`): a delegated task shows the task its caller wrote, a relayed message
+ * the text it carries rather than its protocol line, and a delivered settlement notice is not listed at all.
+ */
+export function agentChatMessagePreview(
+    entry: AgentChatTimelineEntry,
+    t: Translate = translate,
+): string | undefined {
+    switch (entry.kind) {
+        case 'message': {
+            if (entry.message.type !== 'userMessage') return undefined;
+            const { text } = entry.message;
+            return parseRelayedSessionMessage(text)?.text ?? text;
+        }
+        case 'delegated': {
+            return entry.body.kind === 'prompt' ? entry.body.prompt : t('chat.delegated.task');
+        }
+        case 'pending': {
+            return entry.text;
+        }
+        default: {
+            return undefined;
+        }
+    }
 }

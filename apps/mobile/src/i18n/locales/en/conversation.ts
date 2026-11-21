@@ -58,6 +58,12 @@ export const conversation = {
     'conversation.message.selectText': 'Select Text',
     'conversation.message.selectTitle': 'Select text to copy',
     'conversation.message.tooLong': 'This message is too long to copy on a phone.',
+    'conversation.messages.attachmentsOnly': 'Attachments',
+    'conversation.messages.close': 'Close your messages',
+    'conversation.messages.count': '{{count}} messages',
+    'conversation.messages.goTo': 'Go to message: {{preview}}',
+    'conversation.messages.open': 'Your messages',
+    'conversation.messages.title': 'Your messages',
     'conversation.reconnectToUpdate': 'Reconnect to update Conversation.',
     'conversation.staleNotice':
         'This Conversation could not be updated. Showing the last loaded messages.',
