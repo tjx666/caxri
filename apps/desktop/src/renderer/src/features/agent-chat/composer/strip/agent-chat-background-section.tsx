@@ -31,7 +31,7 @@ const NO_DELEGATIONS: readonly AgentDelegationSession[] = [];
 
 /**
  * The list itself: one row per item in `agentChatBackgroundItems` order, folded to the rows that need the user plus up
- * to `AGENT_CHAT_BACKGROUND_FOLDED_ROWS`, with a `⋯ N more` line for the rest. No header: the rows say what runs, and a
+ * to `AGENT_CHAT_BACKGROUND_FOLDED_ROWS`, with a `N more` line for the rest. No header: the rows say what runs, and a
  * polite live region announces what the delegated rows need (the strip announces the task counts). Leaves the strip
  * once nothing runs and nothing needs the user.
  */
@@ -82,10 +82,7 @@ function BackgroundList({
             <span aria-live="polite" className="sr-only" role="status">
                 {announcement.join(', ')}
             </span>
-            <ul
-                className="m-0 flex max-h-48 list-none flex-col overflow-y-auto overscroll-contain p-0"
-                id={listId}
-            >
+            <ul className="m-0 flex list-none flex-col p-0" id={listId}>
                 {rows.map((item) =>
                     item.kind === 'delegated' ? (
                         renderDelegated(

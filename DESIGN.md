@@ -1569,23 +1569,30 @@ ends of a hand-off read as one move; an ordinary delegated task keeps the muted 
 `Delegated by <title> · <parent Project>`.
 
 **Delegated work in Agent Chat** (issue #3572) has four surfaces, none in Caxri Bot or Benchmark
-windows. The **Delegated Sessions strip section** sits in the composer strip after the plan and
-above Background work, since a delegated Session is the larger unit the user follows, with the same 32px foldable header: a `Forward` glyph, `Delegated
-Sessions`, then `3 delegated` with `1 needs input` and `1 failed` (the latter in `--danger`) only
-when there are some, then `$1.20 delegated`: the estimated spend of everything below the Chat, in
-`--muted` `tabular-nums` text with a plain Tooltip stating that it is estimated at API list prices
-and the Chat's own spend beside it (left out when unknown, never `$0`). `~` before the amount means
-a task below it still runs, so the figure may grow; `+` after it means a floor (a model without a
-price); both show together as `~$1.20+`; a floor of nothing is hidden. The header cost stays out of
-the live region. Rows sort needs-input, then failed, then the rest; each is a 12px row with the
-Agent icon, the title, the child's Project in `--muted`, a muted `via <direct child title>` part on a deeper Session (a grandchild or below that needs the user or failed; the header counts it, and `and more` follows the counts when the Server could not list every one), a second line (the live step with the
-activity shimmer, the result summary with an `Excerpt` chip when it is the first paragraph rather
-than the Agent's `Summary:` line, or the status copy), the child's estimated cost (with the same
-`~` and `+` markers, shown only once it has usage and summing the Sessions of a collapsed retry
-chain), the elapsed time, and the status glyph
-(running arc, `CircleX`, needs-input mark, or an empty slot when settled). A completed row adds a
-line with the pull request indicator, an `--accent` `Open pull request #N` link, and `<n> PR files`
-when GitHub reported the count. The whole row opens the child. A **timeline record** replaces the
+windows. The **Background work list** sits in the composer strip and holds
+delegated Sessions and background tasks (workflows, subagents, shells) in one headerless list: no
+title, counts, or cost total, only rows. The `section` is named `Background work`, and a polite live
+region announces what the delegated rows need (`needs input`, `failed`, waiting, asking). Rows that
+need the user (a question or approval, a failure, an interruption) sort first across every kind;
+the rest group as delegated, workflow, subagent, then shell, each part keeping its source order.
+Folded, the list shows 3 rows and a quiet last line, an `N more` toggle in `--muted`
+text with a `ChevronDown` (`ChevronUp` and `Show less` once open) and the list-hover fill; a row that needs the user is never folded away, so the list
+may show more than 3. Unfolding only inserts rows between the visible ones. When two or more running
+tasks can be stopped, `Stop all` sits at the right end of that line, hidden until the pointer or
+focus is in the list, and stops only background tasks, never a delegated Session. Settled work leaves
+the list: a completed, stopped, or taken-over delegated Session and an ended task drop out, since the
+Agent reports results in the conversation and the sidebar lists the child Sessions; a failure or
+interruption stays until the user dismisses it, and a Session waiting on an answer cannot be
+dismissed. A delegated row is one 12px line: the Agent icon, the title, the child's Project in
+`--muted`, the preset chip, an attempt label on a retry, a muted `via <direct child title>` part on a
+deeper Session, the state in words unless it simply runs (`--warning` for needs input, `--danger` for
+a failure or interruption; it keeps its width and truncates before the Project, preset, or `via`
+part do), the child's estimated cost (`~` while a task below it runs, `+` for a floor, hidden when
+unknown), and the elapsed time. The trailing 24px slot shows the status glyph (running arc,
+`CircleX`, needs-input mark, or empty once settled) and swaps it for the row's one action on hover or
+focus: Stop on a running task, Dismiss on a failure or interruption (its tooltip says the Session
+stays in the sidebar for a delegated row, and in the conversation for a task). A failed task's Retry
+controls sit under its row. The whole row opens the child. A **timeline record** replaces the
 command row of a command that delegated: `Delegated to <title> · <Project>` with a muted `Forward` glyph
 (not the Agent icon) and the status glyph of that task, one row per task, kept in view when the turn folds. In the child, the **origin
 row** tops the composer strip as a non-collapsible 12px `--muted` row: `Delegated from <title>`, the

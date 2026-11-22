@@ -115,6 +115,7 @@ export const agentChatChanges: TranslatedNamespace<typeof source> = {
     'agentChat.tasks.showLess': '收起',
     'agentChat.tasks.dismissTask': '移除 {{title}}',
     'agentChat.tasks.dismissDetail': '从列表移除；对话里仍保留记录',
+    'agentChat.tasks.dismissDelegatedDetail': '从列表移除；该会话仍保留在侧边栏',
     'agentChat.tasks.earlierHidden': '较早的消息未显示：对话只保留较长子 Agent 对话的最近部分。',
     'agentChat.tasks.emptyRunning': '子 Agent 尚未报告任何内容。',
     'agentChat.tasks.empty': '子 Agent 没有报告任何内容。',
