@@ -41,6 +41,7 @@ export type SessionListRow =
     | {
           id: string;
           group: MobileSessionListGroup;
+          label: string;
           nextRevealCount: number;
           windowCount: number;
           type: 'reveal';
@@ -77,6 +78,7 @@ export function sessionListRows(
             rows.push({
                 id: `reveal:${header.group}`,
                 group: header.group,
+                label: header.label,
                 nextRevealCount,
                 windowCount,
                 type: 'reveal',

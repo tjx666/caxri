@@ -282,6 +282,7 @@ export const SessionHome = ({
                 <SessionGroupReveal
                     count={item.nextRevealCount}
                     group={item.group}
+                    label={item.label}
                     onReveal={revealListGroup}
                     theme={theme}
                     windowCount={item.windowCount}

@@ -247,6 +247,7 @@ export const sessions = {
     'sessions.list.expandHint': 'Shows the Sessions in this group.',
     'sessions.list.groupLabel': '{{label}}, {{count}}',
     'sessions.list.showMore': 'Show {{count}} more',
+    'sessions.list.showMoreIn': 'Show {{count}} more in {{label}}',
     'sessions.list.idle': 'Idle',
     'sessions.list.loadFailed': 'Unable to load Sessions.',
     'sessions.list.pinned': 'Pinned',

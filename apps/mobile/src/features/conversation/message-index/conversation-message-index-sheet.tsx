@@ -110,7 +110,12 @@ export const ConversationMessageIndexSheet = ({
             {(dismiss) => (
                 <View style={styles.content}>
                     <SheetTitle
-                        detail={t('conversation.messages.count', { count: marks.length })}
+                        detail={t(
+                            marks.length === 1
+                                ? 'conversation.messages.countOne'
+                                : 'conversation.messages.countOther',
+                            { count: marks.length },
+                        )}
                         theme={theme}
                         title={t('conversation.messages.title')}
                     />

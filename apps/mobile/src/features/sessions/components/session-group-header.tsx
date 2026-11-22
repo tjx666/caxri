@@ -98,12 +98,14 @@ export const SessionGroupHeader = ({
 export const SessionGroupReveal = ({
     count,
     group,
+    label,
     onReveal,
     theme,
     windowCount,
 }: {
     count: number;
     group: MobileSessionListGroup;
+    label: string;
     onReveal: (group: MobileSessionListGroup, windowCount: number) => void;
     theme: MobileTheme;
     windowCount: number;
@@ -113,6 +115,7 @@ export const SessionGroupReveal = ({
     return (
         <Pressable
             {...press}
+            accessibilityLabel={t('sessions.list.showMoreIn', { count, label })}
             accessibilityRole="button"
             style={styles.reveal}
             testID={`session-group-reveal-${group}`}
