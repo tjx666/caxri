@@ -25,7 +25,13 @@ export const digest = (text: string) => createHash('sha256').update(text).digest
 export async function delegatedFixture(overrides: Partial<AgentDelegationServiceOptions> = {}) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-delegated-sessions-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
+    /**
+     * Work a test started that still writes into `directory`, awaited before it is removed. A real `StructuredLogger`
+     * recreates its vanished log folder on a late drain, which failed the removal with `ENOTEMPTY` (#4115).
+     */
+    const beforeCleanup: Array<() => Promise<void>> = [];
     onTestFinished(async () => {
+        await Promise.allSettled(beforeCleanup.map((settle) => settle()));
         database.close();
         await removeTestDirectory(directory);
     });
@@ -176,6 +182,12 @@ export async function delegatedFixture(overrides: Partial<AgentDelegationService
         ).statuses;
     return {
         authority,
+        /**
+         * Awaits `settle` before the fixture closes its database and removes its directory.
+         */
+        beforeCleanup: (settle: () => Promise<void>) => {
+            beforeCleanup.push(settle);
+        },
         callerSessionId: caller.session.id,
         sessions,
         database,

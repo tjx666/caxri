@@ -81,6 +81,10 @@ export class ChatUsageLimitWaits {
     private readonly records: Map<string, StoredWait>;
     private readonly firing = new Set<string>();
     /**
+     * Chats whose limits a reset credit reset while their wait was firing, so the limit read it was making is stale.
+     */
+    private readonly resetDuringRead = new Set<string>();
+    /**
      * The failed turn each Chat last armed a wait for in this process, so re-upserting that turn's notice after its
      * wait ended (to drop the stamp) does not arm it again.
      */
@@ -230,10 +234,13 @@ export class ChatUsageLimitWaits {
         try {
             await this.deliver(terminalId, async (session) => {
                 if (this.records.get(terminalId) !== record) return 'stop';
+                this.resetDuringRead.delete(terminalId);
                 const until = await this.stillLimitedUntil(session, record);
                 // A Cancel or a message during the limit read ends the wait; nothing is sent then.
                 if (this.records.get(terminalId) !== record) return 'stop';
-                if (until === undefined) return 'continue';
+                // A reset credit spent during the read (`limitsReset`) makes its answer stale: the limit is gone.
+                if (until === undefined || this.resetDuringRead.delete(terminalId))
+                    return 'continue';
                 outcome = 'rescheduled';
                 record.attempt += 1;
                 record.resetsAt = until;
@@ -311,6 +318,7 @@ export class ChatUsageLimitWaits {
                 await this.fire(record);
             } finally {
                 this.firing.delete(terminalId);
+                this.resetDuringRead.delete(terminalId);
             }
         }
     }
@@ -548,6 +556,7 @@ export class ChatUsageLimitWaits {
         const record = this.records.get(terminalId);
         if (record?.source !== 'usageLimit' || record.autoContinue.status !== 'waiting') return;
         record.resetsAt = this.now();
+        if (this.firing.has(terminalId)) this.resetDuringRead.add(terminalId);
         this.update(record, { status: 'waiting', at: record.resetsAt });
         // A sweep already running may have passed this Chat, so a fresh one follows it.
         void (this.sweeping ?? Promise.resolve())

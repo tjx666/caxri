@@ -51,6 +51,7 @@ async function coordinatedFixture(pathResolver?: Parameters<typeof approvalFixtu
         ]),
     ) as Record<AgentProvider, AgentAdapter>;
     const logger = new StructuredLogger(`${f.directory}/logs`);
+    f.beforeCleanup(() => logger.flush());
     const coordinator = new AgentCoordinator(
         f.database,
         new AgentService(undefined, adapters),
