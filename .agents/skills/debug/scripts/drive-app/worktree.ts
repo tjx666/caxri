@@ -2,8 +2,8 @@ import { realpath } from 'node:fs/promises';
 
 import type { Page } from '@playwright/test';
 
-import { CommandError } from '../../switch-worktree/scripts/process';
-import { request } from './drive-app-settings';
+import { CommandError } from '../../../switch-worktree/scripts/process';
+import { request } from './settings';
 
 /**
  * One row of `session.workbenchRoots`, reduced to what `enter-worktree` reads.

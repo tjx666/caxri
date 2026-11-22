@@ -5,6 +5,8 @@ import type {
     AgentChatPatchOperation,
 } from '@caxri/protocol';
 
+import type { AppStateValue } from '../../db';
+
 /**
  * Stamps each usage-limit notice with where another Agent continued its turn, from the continuation's own delegation
  * record, so a history replay keeps the link, and with the Chat's own automatic continuation of it
@@ -61,6 +63,48 @@ export interface ProjectionUsageLimitWaits {
 export type UsageLimitNotice = Extract<AgentChatItem, { type: 'notice' }> & {
     usageLimit: NonNullable<Extract<AgentChatItem, { type: 'notice' }>['usageLimit']>;
 };
+
+/**
+ * The usage-limit notice a stored wait stands for, rebuilt from its record when the provider's history does not keep
+ * it.
+ */
+export function storedWaitNotice(
+    record: AppStateValue<'agentChatUsageLimitWaits'>[number],
+): UsageLimitNotice {
+    return {
+        id: `${record.turnId}:error`,
+        turnId: record.turnId,
+        type: 'notice',
+        kind: 'error',
+        ...(record.message && { message: record.message }),
+        usageLimit: {
+            window: record.window,
+            ...(record.resetsAt !== undefined && { resetsAt: record.resetsAt }),
+            ...(record.source === 'usageGuard' && { trigger: 'usageGuard' as const }),
+        },
+        createdAt: record.failedAt,
+    };
+}
+
+/**
+ * Marks every usage-limit notice of a Chat before the one for `turnId` superseded (see
+ * `AgentChatUsageLimit.superseded`), so only the latest one keeps its state and actions. Without this an earlier notice
+ * kept saying it was about to continue, with live Continue now and Cancel buttons, long after its wait moved on or the
+ * user's next message ended it. A notice whose Chat continued keeps saying so.
+ */
+export function supersedeEarlierNotices(
+    items: readonly AgentChatItem[],
+    turnId: string,
+): AgentChatPatchOperation[] {
+    return items.flatMap((item) => {
+        if (item.type !== 'notice' || !item.usageLimit || item.turnId === turnId) return [];
+        if (item.usageLimit.superseded || item.usageLimit.autoContinue?.status === 'continued')
+            return [];
+        const usageLimit = { ...item.usageLimit, superseded: true as const };
+        delete usageLimit.autoContinue;
+        return [{ op: 'upsertItem' as const, item: { ...item, usageLimit } }];
+    });
+}
 
 /**
  * Reports each turn a live batch shows interrupted by the weekly usage guard to the Chat's automatic continuation.

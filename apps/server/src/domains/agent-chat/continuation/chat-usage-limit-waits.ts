@@ -19,6 +19,7 @@ import type { AppStateValue, CaxriDatabase } from '../../db';
 import type { WatchHandle, WatchHub } from '../../watch';
 import type { ChatStateDelivery, ChatStates } from '../chat-states';
 import type { UsageLimitNotice } from './usage-continuation-stamp';
+import { storedWaitNotice, supersedeEarlierNotices } from './usage-continuation-stamp';
 import {
     MISSED_AFTER_MS,
     SWEEP_INTERVAL_MS,
@@ -144,25 +145,6 @@ export class ChatUsageLimitWaits {
             (item) => item.id === `${turnId}:error`,
         );
         if (notice) this.chat!.states.apply(terminalId, [{ op: 'upsertItem', item: notice }]);
-    }
-
-    /**
-     * Marks every earlier usage-limit notice of the Chat superseded once a later turn failed on its limit too (see
-     * `AgentChatUsageLimit.superseded`): only the latest one keeps its state and actions. Without this an earlier
-     * notice kept saying it was about to continue, with live Continue now and Cancel buttons, long after its wait moved
-     * on or the user's next message ended it. A notice whose Chat continued keeps saying so.
-     */
-    private supersedeBefore(terminalId: string, turnId: string): void {
-        const items = this.chat?.states.get(terminalId)?.projection.snapshot.items ?? [];
-        const ops = items.flatMap((item) => {
-            if (item.type !== 'notice' || !item.usageLimit || item.turnId === turnId) return [];
-            if (item.usageLimit.superseded || item.usageLimit.autoContinue?.status === 'continued')
-                return [];
-            const usageLimit = { ...item.usageLimit, superseded: true as const };
-            delete usageLimit.autoContinue;
-            return [{ op: 'upsertItem' as const, item: { ...item, usageLimit } }];
-        });
-        if (ops.length > 0) this.chat!.states.apply(terminalId, ops);
     }
 
     private update(record: StoredWait, autoContinue: AgentChatAutoContinue): void {
@@ -333,22 +315,6 @@ export class ChatUsageLimitWaits {
         }
     }
 
-    private noticeOf(record: StoredWait): UsageLimitNotice {
-        return {
-            id: `${record.turnId}:error`,
-            turnId: record.turnId,
-            type: 'notice',
-            kind: 'error',
-            ...(record.message && { message: record.message }),
-            usageLimit: {
-                window: record.window,
-                ...(record.resetsAt !== undefined && { resetsAt: record.resetsAt }),
-                ...(record.source === 'usageGuard' && { trigger: 'usageGuard' as const }),
-            },
-            createdAt: record.failedAt,
-        };
-    }
-
     attach(chat: UsageLimitWaitChatHost): void {
         this.chat = chat;
     }
@@ -380,7 +346,7 @@ export class ChatUsageLimitWaits {
         // While the guard holds, the Composer's guard card carries the wait; the notice appears once it lifts.
         if (record.source === 'usageGuard' && this.options.isUsageGuarded(terminalId))
             return undefined;
-        return this.noticeOf(record);
+        return storedWaitNotice(record);
     }
 
     /**
@@ -450,7 +416,7 @@ export class ChatUsageLimitWaits {
         }
         if (record.autoContinue.status === 'waiting')
             this.chat?.states.apply(terminalId, [
-                { op: 'upsertItem', item: this.noticeOf(record) },
+                { op: 'upsertItem', item: storedWaitNotice(record) },
             ]);
     }
 
@@ -500,7 +466,11 @@ export class ChatUsageLimitWaits {
         };
         this.records.set(terminalId, record);
         this.save(terminalId);
-        if (previous?.turnId !== notice.turnId) this.supersedeBefore(terminalId, notice.turnId);
+        // A later turn failed on its limit too, so the Chat's earlier usage-limit notices retire.
+        const items = this.chat?.states.get(terminalId)?.projection.snapshot.items ?? [];
+        const retired =
+            previous?.turnId === notice.turnId ? [] : supersedeEarlierNotices(items, notice.turnId);
+        if (retired.length > 0) this.chat!.states.apply(terminalId, retired);
         const { autoContinue } = record;
         if (autoContinue.status === 'skipped')
             this.log(record, 'skipped', { reason: autoContinue.reason });
@@ -567,6 +537,24 @@ export class ChatUsageLimitWaits {
             throw error;
         }
         this.log(record, 'continued', { manual: true });
+    }
+
+    /**
+     * A banked reset the user just spent in this Chat reset its plan windows early, so the wait that was holding its
+     * failed turn until the reset comes due now. The sweep still reads the limits before it continues, so a window the
+     * reset left used up reschedules instead of failing another turn. A wait for the weekly guard is left alone.
+     */
+    limitsReset(terminalId: string): void {
+        const record = this.records.get(terminalId);
+        if (record?.source !== 'usageLimit' || record.autoContinue.status !== 'waiting') return;
+        record.resetsAt = this.now();
+        this.update(record, { status: 'waiting', at: record.resetsAt });
+        // A sweep already running may have passed this Chat, so a fresh one follows it.
+        void (this.sweeping ?? Promise.resolve())
+            .then(() => this.sweep())
+            .catch((error: unknown) =>
+                this.log(record, 'failed', { code: toWireError(error).code }),
+            );
     }
 
     start(watchHub: Pick<WatchHub, 'registerPoller'>, intervalMs = SWEEP_INTERVAL_MS): void {

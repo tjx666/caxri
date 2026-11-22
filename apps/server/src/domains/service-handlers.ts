@@ -489,8 +489,16 @@ export function createServiceHandlers(services: {
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'usage.limits': () => usage.readLimits(),
         'usage.dismissNotice': ({ provider, notice }) => usage.dismissNotice(provider, notice),
-        'usage.redeemResetCredit': ({ terminalId, attemptId }) =>
-            usage.redeemResetCredit(terminalId, attemptId),
+        /**
+         * A spent credit reset the plan windows, so a Chat waiting out the used-up limit continues now instead of at
+         * the old reset time.
+         */
+        'usage.redeemResetCredit': async ({ terminalId, attemptId }) => {
+            const result = await usage.redeemResetCredit(terminalId, attemptId);
+            if (result.outcome === 'reset' || result.outcome === 'alreadyRedeemed')
+                services.agentChat.states.usageLimitWaits?.limitsReset(terminalId);
+            return result;
+        },
         'usage.report': (parameters) => usage.report(parameters),
         'usage.sessionCost': ({ sessionId }) => usage.sessionCost(sessionId),
         'usage.delegationSummary': ({ sessionId }) => usage.delegationSummary(sessionId),

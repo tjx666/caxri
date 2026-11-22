@@ -283,7 +283,7 @@ function handle(message: RpcMessage) {
     if (didHandleSideRequest(io, id, method, parameters)) return;
     if (didHandleMcpStatusRequest(io, id, method, parameters)) return;
     if (didHandleSkillsListRequest(io, id, method, parameters)) return;
-    if (didHandleAccountRequest(io, id, method)) return;
+    if (didHandleAccountRequest(io, id, method, parameters)) return;
     switch (method) {
         case 'initialize': {
             send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });

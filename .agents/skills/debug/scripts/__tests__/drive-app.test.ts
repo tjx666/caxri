@@ -4,13 +4,14 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { chatChoiceName, parseDriveCommand, splitHeldChord } from '../drive-app';
-import { idleComparableText } from '../drive-app-idle';
+import { chatChoiceName, parseDriveCommand } from '../drive-app';
+import { idleComparableText } from '../drive-app/idle';
+import { splitHeldChord } from '../drive-app/keys';
 import {
     settingsSourceWithLanguage,
     settingsSourceWithTrustedFolders,
-} from '../drive-app-settings';
-import { matchWorkbenchRoot } from '../drive-app-worktree';
+} from '../drive-app/settings';
+import { matchWorkbenchRoot } from '../drive-app/worktree';
 
 describe('drive-app', () => {
     it('reads a step, its argument, and a trailing screenshot path', () => {
@@ -34,6 +35,11 @@ describe('drive-app', () => {
         expect(parseDriveCommand(['ready'], {}).step).toBe('ready');
         expect(parseDriveCommand(['ready', '90'], {}).argument).toBe('90');
         expect(() => parseDriveCommand(['ready', 'soon'], {})).toThrow(/seconds/u);
+        expect(parseDriveCommand(['refetch', 'terminal.agentUsage'], {}).argument).toBe(
+            'terminal.agentUsage',
+        );
+        expect(() => parseDriveCommand(['refetch'], {})).toThrow(/needs an argument/u);
+        expect(() => parseDriveCommand(['refetch', 'usage'], {})).toThrow(/Caxri method/u);
         expect(parseDriveCommand(['select-session', '810bc7fd'], {}).argument).toBe('810bc7fd');
         expect(() => parseDriveCommand(['select-session'], {})).toThrow(/needs an argument/u);
     });

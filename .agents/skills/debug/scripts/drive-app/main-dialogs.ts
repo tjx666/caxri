@@ -3,7 +3,7 @@
  * inspector; `includeCommandLineAPI` exposes `require` there, as `e2e/support/packaged-project-dialog.ts` gets `dialog`
  * through Playwright's Electron handle. Each stub replaces the dialog method until the dev instance exits.
  */
-import { connectToNodeInspector } from './cdp-client';
+import { connectToNodeInspector } from '../cdp-client';
 
 async function evaluateInMain(inspectorPort: number, expression: string): Promise<void> {
     const connection = await connectToNodeInspector(inspectorPort);
