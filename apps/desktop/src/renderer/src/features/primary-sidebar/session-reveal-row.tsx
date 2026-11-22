@@ -80,7 +80,9 @@ export function SessionRevealRow({
                  * A nested reveal row already sits inside the child list's indent and keeps the child rows' 24px rhythm
                  * with no top margin, so the branch guide (`SessionChildGuide`) can count it as one row.
                  */
-                level === 3 ? 'max-w-full px-1.5' : 'mt-0.5 ml-5.5 max-w-[calc(100%-22px)] px-2',
+                level === 3
+                    ? 'max-w-full gap-1.5 px-1.5'
+                    : 'mt-0.5 ml-5.5 max-w-[calc(100%-22px)] px-2',
             )}
             role="treeitem"
             aria-label={ariaLabel}
@@ -90,6 +92,8 @@ export function SessionRevealRow({
             tabIndex={roving ? 0 : -1}
             onClick={onReveal}
         >
+            {/* A nested row's glyph slot (12px mark, 6px gap), so the label sits on the child titles' left edge, as the subagent toggle does. */}
+            {level === 3 && <span aria-hidden="true" className="size-3 shrink-0" />}
             <span className="truncate">
                 {isFewer
                     ? t('primarySidebar.reveal.showFewer')

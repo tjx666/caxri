@@ -1,6 +1,7 @@
 import type { TerminalRecord } from '@caxri/protocol';
 import { activeTab, agentChatItemStatusLabel, agentChatTaskGlyphStatus } from '@caxri/protocol';
 
+import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -87,7 +88,7 @@ export function SessionSubagentRows({
         return activeSubagentTaskId(layout && activeTab(layout)?.resource, terminal?.id);
     });
     const subagents = sessionSubagentSummaries(terminal, showSubagents);
-    if (isCollapsed || !terminal || subagents.length === 0) return null;
+    if (!terminal || subagents.length === 0) return null;
     const terminalId = terminal.id;
     const subagentWindowResult = subagentWindow(subagents, isExpanded);
     const { visible, toggleIndex, hiddenCount } = subagentWindowResult;
@@ -156,19 +157,22 @@ export function SessionSubagentRows({
     if (toggleIndex !== undefined) rows.splice(toggleIndex, 0, toggleRow);
     const guide = subagentGuideRows(subagentWindowResult, activeTaskId);
     return (
-        <div
-            className="subagent-list relative"
-            role="group"
-            aria-label={t('primarySidebar.subagents.ariaLabel')}
-        >
-            <SessionChildGuide
-                className="subagent-guide"
-                continuesBelow={nestedSessionCount > 0}
-                rows={guide.rows}
-                selectedBelow={selectedBelow}
-                selectedIndex={guide.selectedIndex}
-            />
-            {rows}
-        </div>
+        // Folding is the user's own toggle, so the list collapses over `--motion-collapse` instead of popping out.
+        <DisclosureMotion animate expanded={!isCollapsed} kind="session-children">
+            <div
+                className="subagent-list relative"
+                role="group"
+                aria-label={t('primarySidebar.subagents.ariaLabel')}
+            >
+                <SessionChildGuide
+                    className="subagent-guide"
+                    continuesBelow={nestedSessionCount > 0}
+                    rows={guide.rows}
+                    selectedBelow={selectedBelow}
+                    selectedIndex={guide.selectedIndex}
+                />
+                {rows}
+            </div>
+        </DisclosureMotion>
     );
 }

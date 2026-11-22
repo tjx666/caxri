@@ -52,7 +52,7 @@ export function SessionChildrenDisclosure({
                 aria-label={label}
                 className={cn(
                     // Centered on the 14px icon at the row's 8px inset: x 4 to 26, the full 28px row height.
-                    'session-children-disclosure absolute top-0 left-1 z-10 grid h-7 w-5.5 cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted opacity-0 transition-opacity duration-150 group-hover/session-row:opacity-100 hover:text-foreground focus-visible:opacity-100',
+                    'session-children-disclosure absolute top-0 left-1 z-10 grid h-7 w-5.5 cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted opacity-0 transition-opacity group-hover/session-row:opacity-100 hover:text-foreground focus-visible:opacity-100',
                 )}
                 data-session-children={isCollapsed ? 'collapsed' : 'expanded'}
                 tabIndex={-1}
@@ -65,7 +65,7 @@ export function SessionChildrenDisclosure({
             >
                 <ChevronRight
                     aria-hidden="true"
-                    className={cn('transition-transform duration-150', !isCollapsed && 'rotate-90')}
+                    className={cn('transition-transform', !isCollapsed && 'rotate-90')}
                     size={14}
                 />
             </button>
@@ -119,7 +119,7 @@ export function SessionRowAgentIcon({
     return (
         <span
             className={cn(
-                'session-agent-icon flex flex-none transition-opacity duration-150',
+                'session-agent-icon flex flex-none transition-opacity',
                 isYieldsToDisclosure && 'group-hover/session-row:opacity-0',
             )}
         >
