@@ -245,6 +245,39 @@ describe('ChatUsageLimitWaits', () => {
         expect(subject.stateOf('terminal-1', 'turn-1')).toBeUndefined();
     });
 
+    it('continues at once when a spent reset credit resets the limit it was waiting out', async () => {
+        const { subject } = waits();
+        const continueAfterUsageLimit = vi.fn(() => Promise.resolve());
+        const session = {
+            continueAfterUsageLimit,
+            readPlanLimits: () => Promise.resolve({ windows: [] }),
+        };
+        const state = {
+            followUps: { mustWait: () => false },
+            projection: { snapshot: { requests: [], items: [], queue: [] } },
+        };
+        subject.attach({
+            states: { get: () => {} } as never,
+            deliver: (_terminalId, deliver) => deliver(session as never, state as never),
+        });
+        subject.observeFailure('terminal-1', 'codex', notice('turn-1', NOW + 2 * HOUR_MS));
+        await subject.sweep();
+        expect(continueAfterUsageLimit).not.toHaveBeenCalled();
+
+        subject.limitsReset('terminal-1');
+        await subject.sweep();
+        expect(continueAfterUsageLimit).toHaveBeenCalledOnce();
+        expect(subject.stateOf('terminal-1', 'turn-1')).toEqual({ status: 'continued', at: NOW });
+    });
+
+    it('leaves a weekly-guard wait and a Chat with no wait alone when a reset credit is spent', () => {
+        const { subject } = waits();
+        subject.limitsReset('terminal-1');
+        subject.observeGuardStop('terminal-1', 'codex', 'turn-1', NOW + 2 * HOUR_MS);
+        subject.limitsReset('terminal-1');
+        expect(subject.waitingAt('terminal-1')).toBe(NOW + 2 * HOUR_MS + 120_000);
+    });
+
     it('does not arm again for a notice whose wait was cancelled, nor while the setting is off', () => {
         const { subject } = waits();
         subject.observeFailure('terminal-1', 'claude', notice('turn-1', NOW + HOUR_MS));

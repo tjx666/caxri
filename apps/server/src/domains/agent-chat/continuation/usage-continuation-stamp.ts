@@ -63,6 +63,26 @@ export type UsageLimitNotice = Extract<AgentChatItem, { type: 'notice' }> & {
 };
 
 /**
+ * Marks every usage-limit notice of a Chat before the one for `turnId` superseded (see
+ * `AgentChatUsageLimit.superseded`), so only the latest one keeps its state and actions. Without this an earlier notice
+ * kept saying it was about to continue, with live Continue now and Cancel buttons, long after its wait moved on or the
+ * user's next message ended it. A notice whose Chat continued keeps saying so.
+ */
+export function supersedeEarlierNotices(
+    items: readonly AgentChatItem[],
+    turnId: string,
+): AgentChatPatchOperation[] {
+    return items.flatMap((item) => {
+        if (item.type !== 'notice' || !item.usageLimit || item.turnId === turnId) return [];
+        if (item.usageLimit.superseded || item.usageLimit.autoContinue?.status === 'continued')
+            return [];
+        const usageLimit = { ...item.usageLimit, superseded: true as const };
+        delete usageLimit.autoContinue;
+        return [{ op: 'upsertItem' as const, item: { ...item, usageLimit } }];
+    });
+}
+
+/**
  * Reports each turn a live batch shows interrupted by the weekly usage guard to the Chat's automatic continuation.
  */
 export function observeGuardStops(

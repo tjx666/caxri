@@ -11,9 +11,34 @@ interface RateLimits {
 }
 
 /**
- * What `account/rateLimits/read` answers: the windows the last used-up turn reported, until one did.
+ * What `account/rateLimits/read` answers: the windows the last used-up turn reported, until one did, and the banked
+ * resets this process has spent with the idempotency keys that spent them.
  */
-const reads: { readable?: RateLimits } = {};
+const reads: { readable?: RateLimits; spent: Set<string> } = { spent: new Set() };
+
+/**
+ * `account/rateLimitResetCredit/consume`: spends one banked reset and clears the used-up windows, as Codex's backend
+ * does. A key that already spent one answers `alreadyRedeemed` without spending again; no used-up window answers
+ * `nothingToReset`, and no card left `noCredit`.
+ */
+export function consumeResetCredit(key: string | undefined) {
+    if (key !== undefined && reads.spent.has(key)) return 'alreadyRedeemed';
+    if (bankedCredits() <= reads.spent.size) return 'noCredit';
+    const limits = reads.readable;
+    if (!limits || (limits.primary.usedPercent < 100 && limits.secondary.usedPercent < 100))
+        return 'nothingToReset';
+    reads.spent.add(key ?? `spent-${reads.spent.size}`);
+    reads.readable = {
+        ...limits,
+        primary: { ...limits.primary, usedPercent: 0 },
+        secondary: { ...limits.secondary, usedPercent: 0 },
+    };
+    return 'reset';
+}
+
+function bankedCredits(): number {
+    return readResetCreditsMode() === 'none' ? 0 : 2;
+}
 
 /**
  * A `usage exhausted` turn, as Codex fails one on a used-up plan: the general limit's 5-hour window reads 100% in
@@ -72,16 +97,15 @@ export function rateLimitsReadResult() {
         grantedAt: now - 86_400,
         expiresAt: now + Math.round(days * 86_400),
     });
+    // A spent card leaves the summary soonest-expiring first, as the backend spends it.
+    const credits =
+        mode === 'none'
+            ? []
+            : [credit('a', mode === 'expiring' ? 0.5 : 3), credit('b', 20)].slice(reads.spent.size);
     return {
         rateLimits,
         rateLimitsByLimitId: { codex: rateLimits },
-        rateLimitResetCredits:
-            mode === 'none'
-                ? { availableCount: 0, credits: [] }
-                : {
-                      availableCount: 2,
-                      credits: [credit('a', mode === 'expiring' ? 0.5 : 3), credit('b', 20)],
-                  },
+        rateLimitResetCredits: { availableCount: credits.length, credits },
         ordinaryUsageAllowed: true,
     };
 }
