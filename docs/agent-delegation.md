@@ -1074,7 +1074,12 @@ fails with `CAPACITY` only when nothing is prunable.
 
 `--follow-up` submits one fresh task in the existing Terminal and native conversation. It requires
 the exact launch and a directly applied parent Stop with no later lifecycle activity or human input,
-including an unsubmitted draft. Submission uses one bracketed paste and Enter. A bounded missing
+including an unsubmitted draft. When the parent's Agent was suspended while idle, so its Terminal
+holds no live launch but is still bound to the same native conversation, the follow-up is admitted
+as an exact `--resume` instead (`shouldResumeSuspendedFollowUp` in
+`apps/server/src/domains/agent-delegation/rejection.ts`; logged as mode `suspended_follow_up`): the
+receipt carries `resumeFrom`, and human input, a taken-over parent, or a replaced launch still
+refuse it. Submission uses one bracketed paste and Enter. A bounded missing
 submission confirmation fails without replaying the task. Each settled task admits only one child;
 use the same request ID to recover a disconnected request. A child the Terminal Host refused before
 taking any input never reached the Agent: it returns that claim, so a new follow-up or resume may

@@ -415,7 +415,8 @@ the only Agent with native real-time X search, each on a fixed default model and
   without it. `agent delegate ask-cancel <question-id>` withdraws a question you no longer need.
   Reuse a stable `--request-id` when recovering a disconnected create request.
   Use `agent delegate create --follow-up <id>` with a fresh prompt file for the next task in the
-  same idle Terminal. If the user took the Session over, `--follow-up` and any new `create` into it
+  same idle Terminal; if its Agent was suspended while idle, Caxri resumes that conversation for
+  you and the receipt carries `resumeFrom` instead of `followUpOf`. If the user took the Session over, `--follow-up` and any new `create` into it
   are refused (`human_intervened`, `session_taken_over`) and you must not retry; the user may hand
   it back, which wakes you with `[Caxri] The user handed Session <id> back to you`, and you then
   follow up once with `agent delegate create --follow-up <task>`. Use `agent delegate stop <id>` to interrupt your active task.
