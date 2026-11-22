@@ -21,12 +21,17 @@ export const agentActivity: TranslatedNamespace<typeof source> = {
     'agentActivity.markDone': '标为已处理',
     'agentActivity.markSessionDone': '将 {{title}} 标为已处理',
     'agentActivity.markAllDone.action': '全部标为已处理',
-    'agentActivity.markAllDone.title': '将所有会话标为已处理？',
+    'agentActivity.markAllDone.title': '全部标为已处理？',
     'agentActivity.markAllDone.messageOne':
-        '“需要处理”中的 {{count}} 个会话将移到“空闲”，对话和 Agent 不受影响。',
+        '“需要处理”中的 {{count}} 个会话将移到“空闲”，对话和 Agent 不受影响。若其 Agent 有新动态，会话仍留在“需要处理”。',
     'agentActivity.markAllDone.messageOther':
-        '“需要处理”中的 {{count}} 个会话将移到“空闲”，对话和 Agent 不受影响。',
-    'agentActivity.markAllDone.confirm': '标为已处理',
+        '“需要处理”中的 {{count}} 个会话将移到“空闲”，对话和 Agent 不受影响。有新动态的会话仍留在“需要处理”。',
+    'agentActivity.markAllDone.confirm': '标记 {{count}} 个为已处理',
+    'agentActivity.markAllDone.resolvedNone': '没有会话被标为已处理',
+    'agentActivity.markAllDone.resolvedOne': '已将 {{count}} 个会话标为已处理',
+    'agentActivity.markAllDone.resolvedOther': '已将 {{count}} 个会话标为已处理',
+    'agentActivity.markAllDone.stayedOne': '；{{count}} 个有新动态，仍留在“需要处理”',
+    'agentActivity.markAllDone.stayedOther': '；{{count}} 个有新动态，仍留在“需要处理”',
     'agentActivity.markAllDone.failed': '无法将这些会话标为已处理',
     'agentActivity.note.background': '等后台任务',
 };

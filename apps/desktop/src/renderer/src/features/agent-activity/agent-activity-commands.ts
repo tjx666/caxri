@@ -1,8 +1,9 @@
+import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { showConfirm } from '../../stores/confirmations';
 import { getBootstrap } from '../../stores/selectors';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import { didSelectSession, markSessionsDone } from '../session/session-commands';
 import {
@@ -29,6 +30,39 @@ function currentAgentActivityGroups() {
 }
 
 /**
+ * The success toast after "Mark All as Done". The count is what the Server actually resolved: a Session whose Agent
+ * started a newer turn since the queue was shown stays pending, and the user must hear that instead of seeing the row
+ * silently remain in Needs attention.
+ */
+export function markAllDoneSummary(
+    requested: number,
+    resolved: number,
+    translateMessage: (
+        key: TranslationKey,
+        parameters?: Readonly<Record<string, string | number>>,
+    ) => string,
+): string {
+    const stayed = Math.max(0, requested - resolved);
+    const head =
+        resolved === 0
+            ? translateMessage('agentActivity.markAllDone.resolvedNone')
+            : translateMessage(
+                  resolved === 1
+                      ? 'agentActivity.markAllDone.resolvedOne'
+                      : 'agentActivity.markAllDone.resolvedOther',
+                  { count: resolved },
+              );
+    if (stayed === 0) return head;
+    const tail = translateMessage(
+        stayed === 1
+            ? 'agentActivity.markAllDone.stayedOne'
+            : 'agentActivity.markAllDone.stayedOther',
+        { count: stayed },
+    );
+    return `${head}${tail}`;
+}
+
+/**
  * Marks every Session in Needs attention done after one confirmation, from the Needs attention heading or the Command
  * Palette. Each Session is resolved at the attention generation the queue showed, so one whose Agent started a newer
  * turn since stays pending. Like {@link focusNextAttentionSession}, it reads the store rather than the mounted view.
@@ -39,7 +73,7 @@ export async function markAllAttentionSessionsDone(): Promise<void> {
     const entries = agentAttentionMarkDoneEntries(current.groups);
     if (entries.length === 0) return;
     const isConfirmed = await showConfirm({
-        confirmLabel: translate('agentActivity.markAllDone.confirm'),
+        confirmLabel: translate('agentActivity.markAllDone.confirm', { count: entries.length }),
         message: translate(
             entries.length === 1
                 ? 'agentActivity.markAllDone.messageOne'
@@ -49,9 +83,11 @@ export async function markAllAttentionSessionsDone(): Promise<void> {
         title: translate('agentActivity.markAllDone.title'),
     });
     if (!isConfirmed) return;
-    await tryCommand(translate('agentActivity.markAllDone.failed'), () =>
+    const resolved = await tryCommand(translate('agentActivity.markAllDone.failed'), () =>
         markSessionsDone(entries),
     );
+    if (resolved === undefined) return;
+    pushToast('success', markAllDoneSummary(entries.length, resolved, translate));
 }
 
 /**
