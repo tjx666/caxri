@@ -78,10 +78,11 @@ export function SessionRevealRow({
                 'session-reveal flex h-6 w-fit cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 /*
                  * A nested reveal row already sits inside the child list's indent and keeps the child rows' 24px rhythm
-                 * with no top margin, so the branch guide (`SessionChildGuide`) can count it as one row.
+                 * with no top margin, so the branch guide (`SessionChildGuide`) can count it as one row. Its 24px left
+                 * padding covers a nested row's inset, 12px mark, and gap, so the label sits on the child titles' edge.
                  */
                 level === 3
-                    ? 'max-w-full gap-1.5 px-1.5'
+                    ? 'max-w-full pr-1.5 pl-6'
                     : 'mt-0.5 ml-5.5 max-w-[calc(100%-22px)] px-2',
             )}
             role="treeitem"
@@ -92,8 +93,6 @@ export function SessionRevealRow({
             tabIndex={roving ? 0 : -1}
             onClick={onReveal}
         >
-            {/* A nested row's glyph slot (12px mark, 6px gap), so the label sits on the child titles' left edge, as the subagent toggle does. */}
-            {level === 3 && <span aria-hidden="true" className="size-3 shrink-0" />}
             <span className="truncate">
                 {isFewer
                     ? t('primarySidebar.reveal.showFewer')
