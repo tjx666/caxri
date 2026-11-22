@@ -12,7 +12,7 @@ import { ClaudeGoals } from '../../goals/claude-goals';
 import { isClaudeCompactCommand } from './input';
 import { claudeContextWindow, finishedClaudeTurn } from './items';
 import { claudeRateLimitEvent } from './plan-limits';
-import { startClaudeCompacting } from './system-notices';
+import { isClaudeErrorReply, startClaudeCompacting } from './system-notices';
 
 /**
  * Whether background work that holds the turn is still running: a subagent or workflow (both listed as `agent`), or a
@@ -183,12 +183,11 @@ export class ClaudeTurns {
     }
 
     /**
-     * Whether an assistant message is Claude Code's synthetic reply to a used-up plan limit ("You've hit your session
-     * limit"). It fails the turn with the same text right after, and the turn's error notice carries it with the
-     * structured limit, so the reply is not shown a second time as if the model had said it.
+     * Whether an assistant message is Claude Code's reply to a failed request ({@link isClaudeErrorReply}). The error
+     * result that follows fails the turn with the same text, so the reply is not shown a second time.
      */
-    isUsageLimitReply(error: string | undefined): boolean {
-        return error === 'rate_limit' && this.usageLimits.current() !== undefined;
+    isErrorReply(message: Record<string, unknown>, error: unknown): boolean {
+        return isClaudeErrorReply(message, error);
     }
 
     get contextWindow(): number | undefined {

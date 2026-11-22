@@ -214,7 +214,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private onAssistant(message: unknown, error?: string): void {
         if (!isRecord(message)) return;
         this.turns.ensure();
-        if (this.turns.isUsageLimitReply(error)) return;
+        if (this.turns.isErrorReply(message, error)) return;
         this.tasks.onAssistant(message);
         const turnId = this.options.read().activeTurnId;
         const mapped = claudeAssistantItems(message, turnId, this.stream.ids);
