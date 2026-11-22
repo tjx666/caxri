@@ -41,6 +41,12 @@ export const usageLogEvents = {
      * from any Client, with `provider` and the weekly window's `usedPercent`.
      */
     creditsNoticeDismissed: 'usage.credits_notice_dismissed',
+    /**
+     * The user asked to spend a Codex banked reset (`usage.redeemResetCredit`): `provider`, the closed `outcome`
+     * (`reset`, `alreadyRedeemed`, `nothingToReset`, `noCredit`, `notEligible`, `unavailable`, `unconfirmed`), whether
+     * it was a retry of an unconfirmed attempt (`isRetry`), and `durationMs`. Never carries the credit or attempt id.
+     */
+    resetCreditRedeem: 'usage.reset_credit_redeem',
     pricing: 'usage.pricing',
     pullRequests: 'usage.pull_requests',
     scan: 'usage.scan',

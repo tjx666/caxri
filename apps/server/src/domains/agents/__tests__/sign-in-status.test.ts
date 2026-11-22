@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     createAgentSignInProbe,
+    parseAntigravityUsageStatus,
     parseClaudeAuthStatus,
     parseCodexLoginStatus,
 } from '../sign-in-status';
@@ -42,6 +43,30 @@ describe('sign-in status parsing', () => {
     });
 });
 
+describe('parseAntigravityUsageStatus', () => {
+    it('reads the /usage answer: success is signed in, an authentication error signed out', () => {
+        expect(
+            parseAntigravityUsageStatus({
+                exitCode: 0,
+                stdout: '{"status":"SUCCESS","command":{"data":{"groups":[]}}}',
+            }),
+        ).toBe('signedIn');
+        expect(
+            parseAntigravityUsageStatus({
+                exitCode: 1,
+                stdout: '{"status":"ERROR","error":"authentication failed or timed out"}',
+            }),
+        ).toBe('signedOut');
+        expect(
+            parseAntigravityUsageStatus({
+                exitCode: 1,
+                stdout: '{"status":"ERROR","error":"network"}',
+            }),
+        ).toBe('unknown');
+        expect(parseAntigravityUsageStatus({ exitCode: undefined, stdout: '' })).toBe('unknown');
+    });
+});
+
 describe('createAgentSignInProbe', () => {
     it('runs each provider status command once per cache window and skips providers without one', async () => {
         let time = 0;
@@ -59,8 +84,8 @@ describe('createAgentSignInProbe', () => {
         await expect(probe.read('codex', '/bin/codex')).resolves.toBe('signedIn');
         await expect(probe.read('grok', '/bin/grok')).resolves.toBe('unknown');
         expect(run.mock.calls).toEqual([
-            ['/bin/claude', ['auth', 'status', '--json']],
-            ['/bin/codex', ['login', 'status']],
+            ['/bin/claude', ['auth', 'status', '--json'], 8_000],
+            ['/bin/codex', ['login', 'status'], 8_000],
         ]);
 
         time = 30_000;

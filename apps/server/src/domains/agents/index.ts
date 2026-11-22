@@ -64,6 +64,12 @@ export {
     antigravityConversationPath,
     antigravityStateDirectory,
 } from './providers/antigravity/paths';
+export type { AntigravityUsageAnswer } from './providers/antigravity/usage-command';
+export {
+    ANTIGRAVITY_USAGE_ARGUMENTS,
+    parseAntigravityUsage,
+    readAntigravityUsage,
+} from './providers/antigravity/usage-command';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { CAXRI_CLAUDE_ENTRYPOINT } from './providers/claude/entrypoint';
 export type { ClaudeFolderTrustOutcome } from './providers/claude/folder-trust';

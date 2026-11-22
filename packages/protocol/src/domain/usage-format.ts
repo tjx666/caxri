@@ -236,6 +236,28 @@ export function currentResetCredits(
 }
 
 /**
+ * A banked reset may be spent only while a plan window has this share or less left, so a credit is not burned on a
+ * window with plenty of room (Synara's rule for Codex resets; Codex's backend answers `nothingToReset` itself when no
+ * window qualifies).
+ */
+const RESET_CREDIT_MAX_REMAINING_PERCENT = 10;
+
+/**
+ * Whether spending a banked reset makes sense now: a credit is held and some current plan window has
+ * {@link RESET_CREDIT_MAX_REMAINING_PERCENT} or less left. The Client enables its action from this and the Server
+ * rechecks it on a fresh reading before spending.
+ */
+export function isResetCreditRedeemable(
+    limit: UsageLimit | null | undefined,
+    now: number,
+): boolean {
+    if (limit?.provider !== 'codex' || !currentResetCredits(limit, now)) return false;
+    return currentLimitWindows(limit, now).some(
+        (window) => remainingLimitPercent(window.usedPercent) <= RESET_CREDIT_MAX_REMAINING_PERCENT,
+    );
+}
+
+/**
  * Whether the soonest banked reset expires within {@link RESET_CREDIT_EXPIRY_WARNING_MS}.
  */
 export function isResetCreditExpiringSoon(

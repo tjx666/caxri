@@ -65,10 +65,10 @@ export class ChatPermissionSwitches {
 /**
  * Switches a Chat's permission level or plan mode and saves it as the Chat's choice, so a later restart starts with it.
  * The switch waits its turn in the Chat's send chain like a model switch, so it lands between the messages sent around
- * it. A provider that switches in place (Claude Code, Codex) applies it from the next turn on; one that fixes it at
- * launch (Grok Build) restarts on the same conversation, which a running turn would cut short, so that fails with
- * `CONFLICT` instead. The service holds input sent after the switch until the restart finishes, so it reaches the
- * restarted provider instead of a process the restart is about to stop.
+ * it. A provider that switches in place (Claude Code, Codex, Antigravity's session modes) applies it from the next turn
+ * on; one that fixes it at launch (Grok Build, Antigravity's full access) restarts on the same conversation, which a
+ * running turn would cut short, so that fails with `CONFLICT` instead. The service holds input sent after the switch
+ * until the restart finishes, so it reaches the restarted provider instead of a process the restart is about to stop.
  *
  * A Chat with no provider process only saves the choice: its next start launches with it, so the switch neither starts
  * the provider nor, for Grok Build, starts it twice (once to switch, once to restart).
@@ -94,9 +94,10 @@ async function switchChatPermission(
             request,
         );
         if (next.permissionMode === permissionMode && next.planMode === (planMode ?? false)) return;
-        if (session.setPermission) {
-            await session.setPermission(next);
-        } else {
+        const isSwitchedInPlace =
+            session.setPermission !== undefined &&
+            (await session.setPermission(next)) !== 'restartRequired';
+        if (!isSwitchedInPlace) {
             if (state.projection.snapshot.activeTurnId)
                 throw new CaxriError(
                     'CONFLICT',

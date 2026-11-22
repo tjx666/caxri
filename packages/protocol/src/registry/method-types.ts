@@ -354,6 +354,7 @@ export const effectfulCommandRecovery = {
     'session.markDone': 'durable',
     'session.markDoneMany': 'durable',
     'usage.dismissNotice': 'durable',
+    'usage.redeemResetCredit': 'memory',
     'session.refreshDeliveryOnFocus': 'memory',
     'session.reorder': 'durable',
     'session.reorderPinned': 'durable',

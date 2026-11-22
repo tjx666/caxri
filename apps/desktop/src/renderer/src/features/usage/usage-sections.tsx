@@ -16,7 +16,11 @@ import { useRelativeTime } from '../../hooks/use-relative-time';
 import { useTranslation } from '../../i18n';
 import { CHART_CURSOR_CLASS } from '../../lib/chart-cursor';
 import { formatCount } from '../../lib/locale-format';
-import { localizedDuration, localizedLimitWindowName } from '../../lib/usage-format';
+import {
+    limitWindowKey,
+    localizedDuration,
+    localizedLimitWindowLabel,
+} from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
 import { UsageActivityCard } from './usage-activity-card';
@@ -202,7 +206,7 @@ function LimitWindowRow({
     window: UsageLimit['windows'][number];
 }) {
     const { t } = useTranslation();
-    const name = localizedLimitWindowName(window.windowMinutes, t);
+    const name = localizedLimitWindowLabel(window, t);
     const state = limitWindowState(window, generatedAt, t);
     const isReset = state.kind === 'reset';
     return (
@@ -255,7 +259,7 @@ function ProviderLimits({ generatedAt, limit }: { generatedAt: number; limit: Us
             </div>
             {limit.windows.map((window) => (
                 <LimitWindowRow
-                    key={window.windowMinutes}
+                    key={limitWindowKey(window)}
                     generatedAt={generatedAt}
                     observedAgo={observedAgo}
                     window={window}

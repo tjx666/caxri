@@ -129,16 +129,46 @@ else is dropped because `agy acp` has no model flag.
   input; `providers/antigravity/items.ts` maps them to the names every Chat surface uses. A rejected
   command goes back to `in_progress`, so only the Chat's record of the user's answer marks it
   declined.
-- Usage is the prompt result's `usage.totalTokens`; `agy acp` reports no context window. The cache
-  notice assumes the Gemini API's default 60-minute cache lifetime, an estimate.
-- Images, steering a running turn, rewind, fork, and file restore are unavailable: `agy acp`
-  advertises no prompt capabilities and offers no way to truncate or copy a conversation. Edit is
-  hidden and Fork Session is disabled with its reason; Continue in another Agent still works.
-  A message sent while a turn runs waits in the queue and starts the next turn.
+- Context usage is the latest `usage_update` (`used` of `size` tokens), applied as it arrives and
+  after a `session/load` replay; without one it falls back to the prompt result's
+  `usage.totalTokens`. The cache notice assumes the Gemini API's default 60-minute cache lifetime,
+  an estimate.
+- The permission level and plan mode are session modes (`default`, `accept-edits`, `auto`,
+  `plan`), switched in place; full access is a launch flag and restarts. See
+  [Permission level and plan mode](agent-chat.md#permission-level-and-plan-mode). In plan mode the plan arrives as a
+  `write_file` artifact with `ArtifactMetadata.RequestFeedback`, which the Chat shows as a proposed
+  plan with Start Building.
+- Images are ACP `image` content blocks; the user message keeps only the Client's thumbnails.
+- A message sent while a turn runs is a second `session/prompt`: `agy acp` ends the running request
+  with `end_turn` and carries on with the new message in the same turn, so the Chat ignores the
+  superseded answer and shows the message as steered.
+- A prompt that fails with Antigravity's used-up quota (`You have exhausted your quota on this
+model.`, or `RESOURCE_EXHAUSTED`) fails the turn with a usage-limit notice naming the window and
+  reset from a fresh `/usage` reading (see [Plan limits](#plan-limits)), which Continue in another
+  Agent and auto-continue use.
+- Rewind, fork, and file restore are unavailable: `agy acp` offers no way to truncate or copy a
+  conversation. Edit is hidden and Fork Session is disabled with its reason; Continue in another
+  Agent still works.
+
+## Plan limits
+
+`agy -p /usage --output-format json` runs the built-in `/usage` command without a model turn
+(`num_turns: 0`, zero tokens), so reading it spends no quota. Its answer groups models that share
+a quota (`Gemini Models`, `Claude and GPT models`), each with `5h`, `weekly`, or `monthly`
+buckets and the fraction left. `providers/antigravity/usage-command.ts` maps each enabled bucket to
+a usage-limit window with its `group` (`Gemini`, `Claude & GPT`); the status bar names the group
+and shows only the groups the conversation's models belong to, and `usageLimitedUntil` treats the
+account as limited only while every group is used up.
+
+A running Chat reads it at most once a minute when the status bar asks (`AntigravityPlanLimits`),
+and afresh after a turn fails on the quota. The same command answers the sign-in marker: a signed-out
+CLI prints `status: ERROR` with `authentication failed or timed out` and exits, rather than waiting
+for a pasted code, because the command runs with stdin closed.
 
 ## Verification boundaries
 
 Automated tests use repository-owned fakes
 (`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-antigravity-acp.ts`) and isolated
 homes; they never invoke the host `agy`. The ACP shapes, hook payloads, and state layout were
-checked once with a content-free local probe of `agy` 1.4.11.
+checked once with a content-free local probe of `agy` 1.4.11, and the session modes, image
+prompts, steering, `usage_update`, plan artifact, and `/usage` answer with `agy` 1.5.14.

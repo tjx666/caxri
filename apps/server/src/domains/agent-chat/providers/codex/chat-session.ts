@@ -462,6 +462,14 @@ class CodexChatSession implements AgentChatProviderSession {
         );
     }
 
+    consumeResetCredit(idempotencyKey: string) {
+        return this.usageLimits.consumeResetCredit(
+            (method, parameters, timeoutMs) =>
+                this.requireConnection().request(method, parameters, timeoutMs),
+            idempotencyKey,
+        );
+    }
+
     async continueAfterUsageLimit(): Promise<void> {
         const connection = this.requireConnection();
         const result = await this.models.startTurn(

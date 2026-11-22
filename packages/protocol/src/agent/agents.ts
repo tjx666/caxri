@@ -245,7 +245,7 @@ export const agentProviderCatalog = {
     },
     /**
      * Google's Antigravity CLI. Chat runs its hidden `agy acp` subcommand; see `docs/antigravity.md`. Verified against
-     * `agy` 1.4.11.
+     * `agy` 1.5.14.
      */
     antigravity: {
         autonomyArgs: ['--dangerously-skip-permissions'],
@@ -254,9 +254,9 @@ export const agentProviderCatalog = {
             automaticSuspension: false,
             chat: true,
             /**
-             * `agy acp` advertises no `promptCapabilities`, so it takes text prompts only.
+             * `agy acp` takes ACP `image` content blocks in a prompt (since 1.5).
              */
-            chatImages: false,
+            chatImages: true,
             /**
              * `agy acp` offers `session/load`, `resume`, `close`, and `list` but no way to truncate or copy a
              * conversation.

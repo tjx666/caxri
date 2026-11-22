@@ -15,10 +15,11 @@ import {
 import type { Translate, TranslationKey } from '../../i18n';
 import { formatCount } from '../../lib/locale-format';
 import {
+    limitWindowKey,
     localizedLimitReset,
-    localizedLimitWindowName,
+    localizedLimitWindowLabel,
     localizedResetCreditExpiry,
-    localizedShortLimitWindowName,
+    localizedShortLimitWindowLabel,
 } from '../../lib/usage-format';
 
 /**
@@ -55,6 +56,27 @@ function isNearlySpentWindow(window: { usedPercent: number }): boolean {
 }
 
 /**
+ * The windows that apply to the conversation's models. A provider whose models share quota per group (Antigravity's
+ * `Gemini` and `Claude & GPT`) reports each group's windows; the chip keeps only the groups whose name matches a model
+ * the conversation used, by word (`claude-sonnet-4-6` matches `Claude & GPT`). Windows without a group always apply,
+ * and when no group matches (no model yet, or an unknown name) every window is kept.
+ */
+export function windowsForModels<T extends { group?: string | undefined }>(
+    windows: readonly T[],
+    models: readonly string[],
+): T[] {
+    if (windows.every((window) => !window.group)) return [...windows];
+    const modelText = models.join(' ').toLowerCase();
+    const matches = (group: string) =>
+        group
+            .toLowerCase()
+            .split(/[^a-z\d]+/u)
+            .some((word) => word.length > 1 && modelText.includes(word));
+    const kept = windows.filter((window) => !window.group || matches(window.group));
+    return kept.some((window) => window.group) ? kept : [...windows];
+}
+
+/**
  * The live limit windows the chip itself shows: {@link currentLimitWindows} filtered by the Setting. `auto` shows the
  * 5-hour window for {@link isFiveHourBoundPlan} plans and every other window otherwise, and falls back to every live
  * window when its pick has none, so a reading without a 5-hour window still shows its weekly one. In `auto`, a live
@@ -64,8 +86,9 @@ function agentUsageChipWindows(
     limit: UsageLimit | undefined,
     now: number,
     { limitWindows }: AgentUsageChipOptions,
+    models: readonly string[] = [],
 ): ReturnType<typeof currentLimitWindows> {
-    const windows = currentLimitWindows(limit, now);
+    const windows = windowsForModels(currentLimitWindows(limit, now), models);
     const isFiveHour = (window: (typeof windows)[number]) =>
         window.windowMinutes === FIVE_HOUR_WINDOW_MINUTES;
     switch (limitWindows) {
@@ -103,13 +126,13 @@ export function agentUsageLabel(
     const parts = [formatTokens(readout.tokens.total)];
     const cost = agentUsageCostLabel(readout);
     if (cost) parts.push(cost);
-    const windows = agentUsageChipWindows(readout.limit, now, options);
+    const windows = agentUsageChipWindows(readout.limit, now, options, readout.models);
     if (windows.length > 0)
         parts.push(
             windows
                 .map((window) =>
                     t('statusBar.usage.chipLimitWindow', {
-                        window: localizedShortLimitWindowName(window.windowMinutes, t),
+                        window: localizedShortLimitWindowLabel(window, t),
                         percent: remainingLimitPercent(window.usedPercent),
                     }),
                 )
@@ -160,14 +183,14 @@ function agentUsageWarningCauses(
     options: AgentUsageChipOptions,
     isPaceDismissed: boolean,
 ): AgentUsageWarningCause[] {
-    const windows = agentUsageChipWindows(readout.limit, now, options);
+    const windows = agentUsageChipWindows(readout.limit, now, options, readout.models);
     const causes: AgentUsageWarningCause[] = [];
     if (windows.some((window) => isNearlySpentWindow(window))) causes.push('nearlySpent');
     // Only a window the chip shows may colour it, so a 5-hour-only chip never warns about the week it does not show.
     const shortfall = isPaceDismissed ? undefined : limitPaceShortfall(readout.limit, now);
     if (
         shortfall !== undefined &&
-        windows.some((window) => window.windowMinutes === shortfall.window.windowMinutes)
+        windows.some((window) => limitWindowKey(window) === limitWindowKey(shortfall.window))
     )
         causes.push('pace');
     // A banked reset that is about to expire is lost unless the user acts, so the chip asks for a glance.
@@ -210,7 +233,7 @@ export function agentUsagePaceNote(
     const shortfall = limitPaceShortfall(readout.limit, now);
     if (!shortfall) return undefined;
     return t('statusBar.usage.paceNote', {
-        window: localizedLimitWindowName(shortfall.window.windowMinutes, t),
+        window: localizedLimitWindowLabel(shortfall.window, t),
     });
 }
 
@@ -253,7 +276,7 @@ export function agentUsageLimitRows(
         });
         rows.push({
             label: t('statusBar.usage.limit', {
-                window: localizedLimitWindowName(window.windowMinutes, t),
+                window: localizedLimitWindowLabel(window, t),
             }),
             value:
                 window.resetsAt === undefined
@@ -297,8 +320,8 @@ export function agentUsageClockSignature(
     const windows = currentLimitWindows(limit, now)
         .map((window) =>
             window.resetsAt === undefined
-                ? `${window.windowMinutes}`
-                : `${window.windowMinutes}:${localizedLimitReset(window.resetsAt, now, t)}`,
+                ? limitWindowKey(window)
+                : `${limitWindowKey(window)}:${localizedLimitReset(window.resetsAt, now, t)}`,
         )
         .join('|');
     const credits = agentUsageResetCreditsValue(limit, now, t);

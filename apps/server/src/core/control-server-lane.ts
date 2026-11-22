@@ -13,6 +13,8 @@ const SELF_SERIALIZED_OPERATIONS = new Set([
     'claudeWindow.tick',
     'claudeWindow.update',
     'files.copy',
+    // Waits up to ten seconds on Codex's backend; `ResetCreditRedeemer` runs one attempt at a time.
+    'usage.redeemResetCredit',
     'environmentMonitor.checkNow',
     /**
      * Waits for the phone to run the action (a Termux command may take minutes) and touches no shared Server state;

@@ -25,13 +25,19 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
             streaming: false,
         });
         const { lastResponseAt, ...usage } = snapshot.usage ?? {};
-        expect(usage).toEqual({ totalTokens: 900, cacheTtlMinutes: 60 });
+        // The context comes from agy's `usage_update`, with its window.
+        expect(usage).toEqual({
+            totalTokens: 850,
+            contextWindow: 1_000_000,
+            cacheTtlMinutes: 60,
+        });
         expect(lastResponseAt).toBeTypeOf('number');
         // Antigravity picks the id in `session/new`; a conversation without a turn is never bound.
         expect(database.getTerminal(terminal.id)?.agentSessionId).toMatch(/^[\da-f-]{36}$/u);
         const [open] = await sessionOpens();
-        // Ask-before-commands is agy's default; only full access passes the skip flag.
+        // Without a chosen level the Chat edits without asking; only full access passes the skip flag.
         expect(open).toEqual({ method: 'session/new', args: ['acp'] });
+        expect(snapshot.permissionMode).toBe('acceptEdits');
         expect(signals.map((signal) => signal.phase)).toEqual([
             'sessionIdentified',
             'turnStarted',
@@ -134,32 +140,97 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         expect(done.status).toBe('ready');
     });
 
-    it('queues a mid-turn message behind the turn, since agy cannot steer', async () => {
+    it('steers a running turn with a new prompt, which ends the earlier one without ending the turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'antigravity' });
         await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
         await service.send(terminal.id, { text: 'and then' }, 'steer');
-        const queued = await until((snapshot) => (snapshot.queue?.length ?? 0) > 0);
-        expect(queued.queue?.map((entry) => entry.text)).toEqual(['and then']);
-        expect(queued.turns).toHaveLength(1);
-        await service.interrupt(terminal.id);
+        const done = await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+        );
+        expect(done.turns).toHaveLength(1);
+        expect(done.queue ?? []).toEqual([]);
+        expect(done.items.filter((item) => item.type === 'userMessage')).toMatchObject([
+            { text: 'slow please' },
+            { text: 'and then', delivery: 'steered' },
+        ]);
+        expect(done.items.at(-1)).toMatchObject({
+            text: expect.stringContaining('You said: and then') as string,
+        });
     });
 
-    it('rejects images, which agy acp does not accept', async () => {
+    it('sends images as prompt content and shows their thumbnails', async () => {
         const { service, terminal, until } = await fixture({ provider: 'antigravity' });
         await until((snapshot) => snapshot.status === 'ready');
-        await expect(
-            service.send(terminal.id, {
-                text: 'look',
-                images: [
-                    {
-                        mediaType: 'image/png',
-                        data: 'iVBORw0KGgo=',
-                        thumbnail: 'data:image/jpeg;base64,AA==',
-                    },
-                ],
-            }),
-        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await service.send(terminal.id, {
+            text: 'look',
+            images: [
+                {
+                    mediaType: 'image/png',
+                    data: 'iVBORw0KGgo=',
+                    thumbnail: 'data:image/jpeg;base64,AA==',
+                },
+            ],
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items[0]).toMatchObject({
+            type: 'userMessage',
+            images: [{ thumbnail: 'data:image/jpeg;base64,AA==' }],
+        });
+        expect(done.items.at(-1)).toMatchObject({ text: 'Saw 1 image' });
+    });
+
+    it('switches the permission level and plan mode in place through session modes', async () => {
+        const { service, terminal, until, sessionOpens } = await fixture({
+            provider: 'antigravity',
+        });
+        await until((snapshot) => snapshot.status === 'ready');
+        await service.setPermission(terminal.id, { permissionMode: 'auto' });
+        await service.send(terminal.id, { text: 'which session mode' });
+        let done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.at(-1)).toMatchObject({ text: 'Mode: auto' });
+        expect(done.permissionMode).toBe('auto');
+
+        await service.setPermission(terminal.id, { planMode: true });
+        await service.send(terminal.id, { text: 'make a plan' });
+        done = await until(
+            (snapshot) =>
+                snapshot.turns.length === 2 && snapshot.turns.at(-1)?.status === 'completed',
+        );
+        expect(done.planMode).toBe(true);
+        const plan = done.items.find((item) => item.type === 'agentMessage' && item.proposedPlan);
+        expect(plan).toMatchObject({ text: '# Plan\n\n1. Do it' });
+        // No restart: both switches ran on the process that opened the conversation.
+        expect((await sessionOpens()).map((open) => open.method)).toEqual(['session/new']);
+    });
+
+    it('restarts to cross full access, a launch flag', async () => {
+        const { service, terminal, until, sessionOpens } = await fixture({
+            provider: 'antigravity',
+        });
+        await until((snapshot) => snapshot.status === 'ready');
+        await service.setPermission(terminal.id, { permissionMode: 'fullAccess' });
+        await until((snapshot) => snapshot.status === 'ready');
+        expect(service.read(terminal.id).permissionMode).toBe('fullAccess');
+        const opens = await sessionOpens();
+        expect(opens.at(-1)?.args).toEqual(['acp', '--dangerously-skip-permissions']);
+    });
+
+    it('fails a turn refused on a used-up quota with the limit it hit', async () => {
+        const { service, terminal, until, signals } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'use the quota' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'failed');
+        expect(done.items.at(-1)).toMatchObject({
+            type: 'notice',
+            kind: 'error',
+            // The test spawns no real `agy -p /usage`, so the window that ran out is unknown here; reading it is
+            // `antigravityUsageLimit`'s unit test.
+            usageLimit: { window: 'unknown' },
+        });
+        expect(signals.at(-1)).toMatchObject({
+            phase: 'turnFailed',
+            agentFailure: 'billing_error',
+        });
     });
 
     it('resumes the bound session with the history session/load replays', async () => {

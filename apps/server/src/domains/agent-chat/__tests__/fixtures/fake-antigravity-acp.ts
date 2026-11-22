@@ -4,17 +4,24 @@
  *
  * - `approve`: a `run_command` tool call that asks first; allowing it runs it, rejecting it leaves it unrun.
  * - `read`: a `view_file` tool call that runs without asking.
- * - `slow`: a long streamed reply that `session/cancel` can stop.
+ * - `slow`: a long streamed reply that `session/cancel` can stop, or a later `session/prompt` ends with `end_turn` (how
+ *   `agy` takes a message steered into a running turn).
+ * - `plan`: in the `plan` session mode, a `write_file` of a plan artifact that requests the user's feedback.
+ * - `quota`: a failed prompt with Antigravity's used-up quota message.
+ * - `session mode`: a reply naming the current session mode.
+ * - Image blocks: a reply counting them.
  * - Anything else: a thought and a reply quoting the message, naming the current model and thinking level.
+ *
+ * Every finished prompt reports its context with a `usage_update`.
  *
  * The agent picks the session id in `session/new`, as Antigravity does, and reports its model and thinking level only
  * through `configOptions`, which `session/set_config_option` changes. Sessions persist to `FAKE_ANTIGRAVITY_STATE_DIR`
  * (or the OS temp directory) as their update list, so `session/load` replays real history; each session open appends
  * its method and the process arguments to `session-opens.jsonl` there.
  *
- * Mirrors the shapes `agy` 1.4.11 emitted in a content-free protocol probe: no `promptCapabilities`, tool calls named
- * by Antigravity's own identifiers in a non-standard `name`, PascalCase tool input, and `usage.totalTokens` on the
- * `session/prompt` result.
+ * Mirrors the shapes `agy` 1.5.14 emitted in a content-free protocol probe: image `promptCapabilities`, the
+ * `default`/`accept-edits`/`auto`/`plan` session modes, tool calls named by Antigravity's own identifiers in a
+ * non-standard `name`, PascalCase tool input, and `usage.totalTokens` on the `session/prompt` result.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -45,15 +52,24 @@ const state: {
     updates: Array<Record<string, unknown>>;
     model: string;
     level: string;
+    mode: string;
     cancelled: boolean;
+    /**
+     * Counts `session/prompt` requests, so a running one sees a later one supersede it.
+     */
+    prompts: number;
     nextRequestId: number;
 } = {
     updates: [],
     model: 'gemini-fake-flash',
     level: 'high',
+    mode: 'default',
     cancelled: false,
+    prompts: 0,
     nextRequestId: 1,
 };
+
+const MODES = ['default', 'accept-edits', 'auto', 'plan'];
 const pending = new Map<number | string, (result: unknown) => void>();
 
 function write(message: Record<string, unknown>): void {
@@ -151,11 +167,41 @@ async function didRunCommand(command: string): Promise<boolean> {
     return isAllowed;
 }
 
-async function prompt(text: string): Promise<Record<string, unknown>> {
+function writePlan(): void {
+    const toolCallId = crypto.randomUUID();
+    const rawInput = {
+        Path: path.join(process.cwd(), 'plan.md'),
+        Content: '# Plan\n\n1. Do it\n',
+        ArtifactMetadata: { RequestFeedback: true, Summary: 'The plan', UserFacing: true },
+    };
+    update({
+        sessionUpdate: 'tool_call',
+        toolCallId,
+        name: 'write_file',
+        title: 'File plan.md',
+        kind: 'edit',
+        status: 'in_progress',
+        rawInput,
+    });
+    update({ sessionUpdate: 'tool_call_update', toolCallId, status: 'completed' });
+}
+
+async function prompt(text: string, images: number): Promise<Record<string, unknown>> {
     state.cancelled = false;
+    state.prompts += 1;
+    const turn = state.prompts;
+    const isSuperseded = () => state.prompts !== turn;
     update({ sessionUpdate: 'user_message_chunk', content: { type: 'text', text } });
+    if (text.includes('quota')) throw new Error('You have exhausted your quota on this model.');
     let reply: string;
-    if (text.includes('approve')) {
+    if (images > 0) {
+        reply = `Saw ${images} image${images === 1 ? '' : 's'}`;
+    } else if (text.includes('session mode')) {
+        reply = `Mode: ${state.mode}`;
+    } else if (text.includes('plan') && state.mode === 'plan') {
+        writePlan();
+        reply = 'Review the plan.';
+    } else if (text.includes('approve')) {
         reply = (await didRunCommand('npm test')) ? 'The command ran.' : 'The command did not run.';
     } else if (text.includes('read')) {
         const toolCallId = crypto.randomUUID();
@@ -172,7 +218,7 @@ async function prompt(text: string): Promise<Record<string, unknown>> {
         update({ sessionUpdate: 'tool_call_update', toolCallId, status: 'completed' });
         reply = 'Read it.';
     } else if (text.includes('slow')) {
-        for (let index = 0; index < 200 && !isCancelled(); index += 1) {
+        for (let index = 0; index < 200 && !isCancelled() && !isSuperseded(); index += 1) {
             update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '.' } });
             // eslint-disable-next-line no-await-in-loop -- paced so a cancel lands mid-turn
             await delay(20);
@@ -187,6 +233,7 @@ async function prompt(text: string): Promise<Record<string, unknown>> {
         reply = `You said: ${text} (${state.model}, ${state.level})`;
     }
     update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: reply } });
+    update({ sessionUpdate: 'usage_update', used: 850, size: 1_000_000 });
     persist();
     return {
         stopReason: isCancelled() ? 'cancelled' : 'end_turn',
@@ -200,8 +247,11 @@ async function handle(message: RpcMessage): Promise<unknown> {
         case 'initialize': {
             return {
                 protocolVersion: 1,
-                agentCapabilities: { loadSession: true },
-                agentInfo: { name: 'antigravity', version: '1.4.11-fake' },
+                agentCapabilities: {
+                    loadSession: true,
+                    promptCapabilities: { image: true, audio: true, embeddedContext: true },
+                },
+                agentInfo: { name: 'antigravity', version: '1.5.14-fake' },
                 _meta: { antigravity: { systemPrompt: { append: true } } },
             };
         }
@@ -210,7 +260,21 @@ async function handle(message: RpcMessage): Promise<unknown> {
             state.sessionId = crypto.randomUUID();
             state.updates = [];
             persist();
-            return { sessionId: state.sessionId, configOptions: configOptions() };
+            return {
+                sessionId: state.sessionId,
+                configOptions: configOptions(),
+                modes: {
+                    currentModeId: state.mode,
+                    availableModes: MODES.map((id) => ({ id, name: id })),
+                },
+            };
+        }
+        case 'session/set_mode': {
+            const modeId = String(parameters.modeId);
+            if (!MODES.includes(modeId)) throw new Error(`Unknown mode ${modeId}`);
+            state.mode = modeId;
+            update({ sessionUpdate: 'current_mode_update', currentModeId: modeId }, false);
+            return {};
         }
         case 'session/load': {
             recordOpen('session/load');
@@ -232,6 +296,7 @@ async function handle(message: RpcMessage): Promise<unknown> {
                     .filter((block) => block.type === 'text')
                     .map((block) => block.text ?? '')
                     .join(''),
+                blocks.filter((block) => block.type === 'image').length,
             );
         }
         case 'session/set_config_option': {

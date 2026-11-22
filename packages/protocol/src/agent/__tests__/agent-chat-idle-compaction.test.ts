@@ -89,4 +89,33 @@ describe('usageLimitedUntil', () => {
             usageLimitedUntil({ windows: [window(100, now + 10)] }, now, 'weekly'),
         ).toBeUndefined();
     });
+
+    it('judges model groups apart: limited only while every group is used up', () => {
+        const grouped = (group: string, usedPercent: number, resetsAt: number) => ({
+            ...window(usedPercent, resetsAt, 'session'),
+            group,
+        });
+        expect(
+            usageLimitedUntil(
+                {
+                    windows: [
+                        grouped('Gemini', 100, now + 10),
+                        grouped('Claude & GPT', 40, now + 30),
+                    ],
+                },
+                now,
+            ),
+        ).toBeUndefined();
+        expect(
+            usageLimitedUntil(
+                {
+                    windows: [
+                        grouped('Gemini', 100, now + 10),
+                        grouped('Claude & GPT', 100, now + 30),
+                    ],
+                },
+                now,
+            ),
+        ).toBe(now + 10);
+    });
 });

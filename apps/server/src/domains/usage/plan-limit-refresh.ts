@@ -3,11 +3,11 @@ import type { AgentProvider, UsageLimit, UsageResetCredits } from '@caxri/protoc
 import { ResetCreditRefresh } from './reset-credit-refresh';
 
 /**
- * Providers whose plan limits come from asking the running process, because their transcript records none. Codex writes
- * its windows into the rollout, which the live scan already reads; it is asked only for its banked resets
- * ({@link ResetCreditRefresh}), which the rollout lacks.
+ * Providers whose plan limits come from asking the running Chat, because their transcript records none (an Antigravity
+ * Chat runs its CLI's `/usage` command). Codex writes its windows into the rollout, which the live scan already reads;
+ * it is asked only for its banked resets ({@link ResetCreditRefresh}), which the rollout lacks.
  */
-const ASKED_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude']);
+const ASKED_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'antigravity']);
 
 /**
  * Keeps the status bar's plan-limit reading for a provider like Claude Code current while one of its Chats is in view.

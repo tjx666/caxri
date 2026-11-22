@@ -2,10 +2,12 @@ import type { AgentUsageReadout } from '@caxri/protocol';
 import {
     agentProviderCatalog,
     agentUsageCostLabel,
+    currentResetCredits,
     defaultAppSettings,
     formatTokens,
     formatUsd,
     isPlanPaceDismissed,
+    isResetCreditRedeemable,
 } from '@caxri/protocol';
 import { ChartColumn } from 'lucide-react';
 
@@ -17,6 +19,7 @@ import type { Translate } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
 import { useSettings } from '../../stores/selectors';
+import { ResetCreditAction } from '../usage/reset-credit/reset-credit-action';
 import { openUsagePageForTerminal } from '../usage/usage-page-request';
 import { AgentDailyCostBars } from './agent-daily-cost-bars';
 import {
@@ -88,11 +91,34 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
     // The pace note explains why the chip warns; once the user dismisses that warning the tooltip stops repeating it.
     const paceNote = isPaceDismissed ? undefined : agentUsagePaceNote(readout, now, t);
     const resetCreditsNote = agentUsageResetCreditsNote(readout.limit, now, t);
+    // Only Codex banks resets, and only its running Chat can spend one, so the action is Codex's alone.
+    const spendableCredits =
+        readout.provider === 'codex' ? currentResetCredits(readout.limit, now) : undefined;
+    const isResetCreditUsable = isResetCreditRedeemable(readout.limit, now);
+    const resetCreditsLabel = t('statusBar.usage.resetCredits');
+    const usageRows = agentUsageLimitRows(readout.limit, now, limitObservedAgo, t).map((row) =>
+        spendableCredits && row.label === resetCreditsLabel
+            ? {
+                  ...row,
+                  value: (
+                      <>
+                          {row.value}
+                          <ResetCreditAction
+                              credits={spendableCredits}
+                              isEnabled={isResetCreditUsable}
+                              terminalId={terminalId}
+                          />
+                      </>
+                  ),
+              }
+            : row,
+    );
     return (
         <StatusItem
             ariaLabel={ariaLabel}
             className={cn('statusbar-agent-usage', limitTone === 'warning' && 'text-warning')}
             icon={<ChartColumn />}
+            interactiveTitle={spendableCredits !== undefined}
             isUrgent={limitTone === 'warning'}
             onClick={() => openUsagePageForTerminal(terminalId)}
             title={
@@ -124,10 +150,13 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                             value: <AgentDailyCostBars provider={readout.provider} />,
                         },
                         { label: t('statusBar.usage.models'), value: readout.models.join(', ') },
-                        ...agentUsageLimitRows(readout.limit, now, limitObservedAgo, t),
+                        ...usageRows,
                     ]}
                     notes={[
                         ...(resetCreditsNote ? [resetCreditsNote] : []),
+                        ...(spendableCredits && !isResetCreditUsable
+                            ? [t('statusBar.usage.useResetCreditBlockedNote')]
+                            : []),
                         ...(paceNote ? [paceNote] : []),
                     ]}
                     hint={t('statusBar.usage.clickToOpen')}

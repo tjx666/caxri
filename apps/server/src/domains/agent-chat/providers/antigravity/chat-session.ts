@@ -1,29 +1,56 @@
 import type {
+    AgentChatMessageInput,
     AgentChatModelChange,
+    AgentChatPermission,
     AgentChatPermissionMode,
     AgentChatSnapshot,
+    AgentChatUsageLimit,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import { readAntigravityUsage } from '../../../agents';
 import { isRecord } from '../../chat-items';
-import { supportedChatPermission } from '../../chat-permissions';
+import { chatPermissionState, supportedChatPermission } from '../../chat-permissions';
 import type { AgentChatDriver, AgentChatSessionHost, ChatFork } from '../../chat-provider';
+import type { JsonRpcConnection } from '../../json-rpc-connection';
 import { JsonRpcRequestError } from '../../json-rpc-connection';
 import { antigravityChatSettings } from '../../launch-settings';
+import type { AcpActiveTurn } from '../acp/dialect';
 import { AcpChatSession, TURN_REQUEST_TIMEOUT_MS } from '../acp/session';
 import {
     antigravityConfigState,
+    antigravityMode,
     antigravityModels,
+    antigravityPermission,
+    antigravityProposedPlan,
     antigravityToolPresentation,
     antigravityUsage,
+    isAntigravityUsageLimitError,
 } from './items';
+import { AntigravityPlanLimits, antigravityUsageLimit } from './plan-limits';
 
 /**
- * One live `agy acp` process: standard ACP with the model and its thinking level as config options. `agy acp` picks the
- * conversation's id in `session/new`, has no way to steer a running turn or rewind, and fixes its permission at launch,
- * so a permission switch restarts it. See `docs/antigravity.md`.
+ * One live `agy acp` process: standard ACP with the model and its thinking level as config options, and session modes
+ * for the permission level and plan mode, switched in place. Full access is the `--dangerously-skip-permissions` launch
+ * flag, so a switch into or out of it restarts the process. A message sent mid-turn is a new `session/prompt`, which
+ * `agy acp` takes as steering. `agy acp` picks the conversation's id in `session/new` and cannot rewind. See
+ * `docs/antigravity.md`.
  */
 class AntigravityChatSession extends AcpChatSession {
+    private readonly planLimits: AntigravityPlanLimits;
+
+    /**
+     * The permission level the process launched with; only crossing full access needs a restart.
+     */
+    private launchedPermission: AgentChatPermissionMode | undefined;
+
+    private launchedPlanMode = false;
+
+    /**
+     * The latest `usage_update`, which the turn's usage reports in place of the prompt result's token total.
+     */
+    private context: { used: number; size: number } | undefined;
+
     constructor(options: AgentChatSessionHost) {
         super(
             options,
@@ -34,8 +61,18 @@ class AntigravityChatSession extends AcpChatSession {
                 configState: antigravityConfigState,
                 // `agy acp` replays no turn ends, so every replayed turn finished.
                 settledReplayTurns: 'completed',
+                images: true,
+                proposedPlan: antigravityProposedPlan,
+                isUsageLimitError: isAntigravityUsageLimitError,
             },
             options.agentSessionId,
+        );
+        this.planLimits = new AntigravityPlanLimits(() =>
+            readAntigravityUsage({
+                executable: options.executable,
+                cwd: options.cwd,
+                env: options.environment,
+            }),
         );
     }
 
@@ -69,14 +106,34 @@ class AntigravityChatSession extends AcpChatSession {
         ]);
     }
 
+    /**
+     * Puts the conversation into the session mode `permission` names.
+     */
+    private async setMode(permission: AgentChatPermission): Promise<void> {
+        try {
+            await this.requireConnection().request(
+                'session/set_mode',
+                { sessionId: this.requireSessionId(), modeId: antigravityMode(permission) },
+                TURN_REQUEST_TIMEOUT_MS,
+            );
+        } catch (error) {
+            if (!(error instanceof JsonRpcRequestError)) throw error;
+            throw new CaxriError('UNAVAILABLE', 'Antigravity could not switch its permission mode');
+        }
+    }
+
     protected launchArguments(): {
         args: string[];
         permissionMode: AgentChatPermissionMode | undefined;
+        planMode: boolean;
     } {
         const { args, isAutonomous } = antigravityChatSettings(this.options.launch);
+        const chosen = supportedChatPermission('antigravity', this.options.permission);
+        // Before session modes, a Chat without a chosen level edited without asking; it keeps doing so.
         const permissionMode =
-            supportedChatPermission('antigravity', this.options.permission).permissionMode ??
-            (isAutonomous ? 'fullAccess' : 'acceptEdits');
+            chosen.permissionMode ?? (isAutonomous ? 'fullAccess' : 'acceptEdits');
+        this.launchedPermission = permissionMode;
+        this.launchedPlanMode = chosen.planMode;
         return {
             args: [
                 'acp',
@@ -84,19 +141,110 @@ class AntigravityChatSession extends AcpChatSession {
                 ...args,
             ],
             permissionMode,
+            planMode: chosen.planMode,
         };
+    }
+
+    /**
+     * `agy acp` remembers each conversation's mode, and a new one starts in `default`, so the mode the Chat's
+     * permission names is set on every open.
+     */
+    protected async onOpened(): Promise<void> {
+        await this.setMode({
+            ...(this.launchedPermission && { permissionMode: this.launchedPermission }),
+            planMode: this.launchedPlanMode,
+        });
     }
 
     protected openingState(opened: unknown): Partial<AgentChatSnapshot> {
         const configOptions = isRecord(opened) ? opened.configOptions : undefined;
+        const usage = this.context && antigravityUsage(undefined, this.context);
         return {
             ...antigravityConfigState(configOptions),
             models: antigravityModels(configOptions),
+            ...(usage && { usage }),
         };
     }
 
     protected usage(result: unknown): AgentChatSnapshot['usage'] {
-        return antigravityUsage(result);
+        return antigravityUsage(result, this.context);
+    }
+
+    protected onContextUsage(used: number, size: number): void {
+        this.context = { used, size };
+        if (this.updates.isReplaying) return;
+        const usage = antigravityUsage(undefined, this.context);
+        if (usage) this.updates.applyState({ usage });
+    }
+
+    /**
+     * Follows a mode `agy acp` reports, including one it switched to on its own, and saves it as the Chat's choice.
+     */
+    protected onModeChanged(modeId: string): void {
+        const snapshot = this.options.read();
+        const current: AgentChatPermission = {
+            ...(snapshot.permissionMode && { permissionMode: snapshot.permissionMode }),
+            planMode: snapshot.planMode ?? false,
+        };
+        const next = antigravityPermission(
+            modeId,
+            current,
+            this.launchedPermission === 'fullAccess',
+        );
+        if (
+            !next ||
+            (next.permissionMode === current.permissionMode && next.planMode === current.planMode)
+        )
+            return;
+        this.options.apply([
+            {
+                op: 'state',
+                state: chatPermissionState('antigravity', next.permissionMode, next.planMode),
+            },
+        ]);
+        this.options.onPermissionChanged(next);
+    }
+
+    protected async usageLimit(): Promise<AgentChatUsageLimit> {
+        let reading: Awaited<ReturnType<AntigravityPlanLimits['read']>>;
+        try {
+            reading = await this.planLimits.read(true);
+        } catch {
+            // A failed `/usage` read still reports the limit, only without its window.
+            reading = undefined;
+        }
+        return antigravityUsageLimit(reading, this.options.read().model);
+    }
+
+    protected steer(
+        connection: JsonRpcConnection,
+        turn: AcpActiveTurn,
+        message: Omit<AgentChatMessageInput, 'delivery'>,
+    ): Promise<'steered'> {
+        return Promise.resolve(this.supersedePrompt(connection, turn, message));
+    }
+
+    /**
+     * Switches the session mode in place; crossing full access, a launch flag, needs a restart instead.
+     */
+    async setPermission(permission: AgentChatPermission): Promise<void | 'restartRequired'> {
+        const isFullAccess = permission.permissionMode === 'fullAccess';
+        if (isFullAccess !== (this.launchedPermission === 'fullAccess')) return 'restartRequired';
+        await this.setMode(permission);
+        this.options.apply([
+            {
+                op: 'state',
+                state: chatPermissionState(
+                    'antigravity',
+                    permission.permissionMode,
+                    permission.planMode,
+                ),
+            },
+        ]);
+    }
+
+    readPlanLimits() {
+        return this.planLimits.read();
     }
 
     async configure({ model, effort }: AgentChatModelChange): Promise<void> {

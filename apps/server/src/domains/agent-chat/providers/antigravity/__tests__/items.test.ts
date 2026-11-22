@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AcpToolCall } from '../../acp/items';
 import { mapAcpPermission, mapAcpToolCall, mergeAcpToolCall } from '../../acp/items';
 import { AcpUpdates } from '../../acp/updates';
 import {
     antigravityConfigState,
+    antigravityMode,
     antigravityModels,
+    antigravityPermission,
+    antigravityProposedPlan,
     antigravityToolPresentation,
     antigravityUsage,
+    isAntigravityUsageLimitError,
 } from '../items';
 
 /**
@@ -123,9 +128,92 @@ describe('Antigravity config options', () => {
 describe('antigravityUsage', () => {
     it('reads the standard usage total with an estimated cache lifetime', () => {
         expect(
-            antigravityUsage({ stopReason: 'end_turn', usage: { totalTokens: 900 } }, 5),
+            antigravityUsage({ stopReason: 'end_turn', usage: { totalTokens: 900 } }, undefined, 5),
         ).toEqual({ totalTokens: 900, cacheTtlMinutes: 60, lastResponseAt: 5 });
-        expect(antigravityUsage({ stopReason: 'end_turn' }, 5)).toBeUndefined();
+        expect(antigravityUsage({ stopReason: 'end_turn' }, undefined, 5)).toBeUndefined();
+    });
+
+    it('prefers the context a usage_update reported, with its window', () => {
+        expect(
+            antigravityUsage(
+                { stopReason: 'end_turn', usage: { totalTokens: 900 } },
+                { used: 8_693, size: 1_048_576 },
+                5,
+            ),
+        ).toEqual({
+            totalTokens: 8_693,
+            contextWindow: 1_048_576,
+            cacheTtlMinutes: 60,
+            lastResponseAt: 5,
+        });
+    });
+});
+
+describe('antigravity session modes', () => {
+    it('maps each permission to the mode agy acp runs it in, plan mode first', () => {
+        expect(antigravityMode({ permissionMode: 'ask', planMode: false })).toBe('default');
+        expect(antigravityMode({ permissionMode: 'acceptEdits', planMode: false })).toBe(
+            'accept-edits',
+        );
+        expect(antigravityMode({ permissionMode: 'auto', planMode: false })).toBe('auto');
+        expect(antigravityMode({ permissionMode: 'fullAccess', planMode: false })).toBe('default');
+        expect(antigravityMode({ permissionMode: 'auto', planMode: true })).toBe('plan');
+    });
+
+    it('reads a reported mode back, keeping full access for a process launched with it', () => {
+        const current = { permissionMode: 'acceptEdits' as const, planMode: false };
+        expect(antigravityPermission('plan', current, false)).toEqual({
+            permissionMode: 'acceptEdits',
+            planMode: true,
+        });
+        expect(antigravityPermission('auto', current, false)).toEqual({
+            permissionMode: 'auto',
+            planMode: false,
+        });
+        expect(antigravityPermission('default', current, true)).toEqual({
+            permissionMode: 'fullAccess',
+            planMode: false,
+        });
+        expect(antigravityPermission('unknown-mode', current, false)).toBeUndefined();
+    });
+});
+
+describe('antigravityProposedPlan', () => {
+    const call = (rawInput: Record<string, unknown>): AcpToolCall => ({
+        id: 'call-1',
+        toolName: 'write_file',
+        title: 'File plan.md',
+        kind: 'edit',
+        status: 'completed',
+        rawInput,
+        content: [],
+    });
+
+    it('reads the plan artifact a feedback request carries', () => {
+        expect(
+            antigravityProposedPlan(
+                call({
+                    Content: '# Plan\n\n1. Append world\n',
+                    ArtifactMetadata: { RequestFeedback: true, UserFacing: true },
+                }),
+            ),
+        ).toBe('# Plan\n\n1. Append world');
+    });
+
+    it('ignores an ordinary file write', () => {
+        expect(
+            antigravityProposedPlan(call({ Content: 'world\n', Path: '/tmp/hello.txt' })),
+        ).toBeUndefined();
+    });
+});
+
+describe('isAntigravityUsageLimitError', () => {
+    it('recognizes a used-up quota but not other failures', () => {
+        expect(isAntigravityUsageLimitError('You have exhausted your quota on this model.')).toBe(
+            true,
+        );
+        expect(isAntigravityUsageLimitError('429 RESOURCE_EXHAUSTED')).toBe(true);
+        expect(isAntigravityUsageLimitError('connection reset')).toBe(false);
     });
 });
 

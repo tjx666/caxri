@@ -87,6 +87,24 @@ export const statusBar: TranslatedNamespace<typeof source> = {
     'statusBar.usage.resetCreditsExpiringNote':
         '有一张重置卡{{expiry}}。请在此之前到 Codex 中使用，否则会作废。',
     'statusBar.usage.limitsAsOf': '限额更新于',
+    'statusBar.usage.useResetCredit': '使用重置卡',
+    'statusBar.usage.useResetCreditBlockedNote': '任一限额剩余 10% 或更少时才能使用重置卡。',
+    'statusBar.usage.resetCreditConfirmTitle': '使用一张 Codex 重置卡？',
+    'statusBar.usage.resetCreditConfirmMessage':
+        '这会消耗你 {{count}} 张重置卡中的一张，立即重置 Codex 限额，且无法撤销。',
+    'statusBar.usage.resetCreditConfirm': '使用重置卡',
+    'statusBar.usage.resetCreditRetryTitle': '再次确认上一次重置？',
+    'statusBar.usage.resetCreditRetryMessage':
+        'Codex 没有确认上一次重置。若它其实已生效，再次确认不会再消耗一张重置卡。',
+    'statusBar.usage.resetCreditRetryConfirm': '再次确认',
+    'statusBar.usage.resetCreditDone': 'Codex 限额已重置。',
+    'statusBar.usage.resetCreditNothingToReset': '没有需要重置的 Codex 限额，未消耗重置卡。',
+    'statusBar.usage.resetCreditNoCredit': '没有可用的重置卡。',
+    'statusBar.usage.resetCreditNotEligible': '已没有接近用完的 Codex 限额，未消耗重置卡。',
+    'statusBar.usage.resetCreditUnavailable':
+        '没有运行中的 Codex 对话响应，未消耗重置卡。请打开 Codex 对话后重试。',
+    'statusBar.usage.resetCreditUnconfirmed':
+        'Codex 没有确认重置。再次点击使用重置卡可确认结果，不会重复消耗。',
     'statusBar.usage.clickToOpen': '点击查看此会话的用量',
     'statusBar.terminal.childProcessOne': '{{count}} 个子进程',
     'statusBar.terminal.childProcessOther': '{{count}} 个子进程',

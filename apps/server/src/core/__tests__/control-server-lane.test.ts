@@ -394,6 +394,7 @@ const expectedLanes: Record<string, ControlLane> = {
     'claudeWindow.tick': 'self-serialized',
     'claudeWindow.update': 'self-serialized',
     'files.copy': 'self-serialized',
+    'usage.redeemResetCredit': 'self-serialized',
     'environmentMonitor.checkNow': 'self-serialized',
     'mobile.deviceAction.exec': 'self-serialized',
     'mobile.deviceAction.openUrl': 'self-serialized',

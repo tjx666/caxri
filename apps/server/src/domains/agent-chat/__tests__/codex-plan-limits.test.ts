@@ -99,3 +99,28 @@ describe('CodexUsageLimits.read banked resets', () => {
         );
     });
 });
+
+describe('CodexUsageLimits.consumeResetCredit', () => {
+    it('sends the idempotency key through the app-server consume request and returns its outcome', async () => {
+        const request = vi.fn(() => Promise.resolve({ outcome: 'alreadyRedeemed' }));
+
+        await expect(new CodexUsageLimits().consumeResetCredit(request, 'key-1')).resolves.toBe(
+            'alreadyRedeemed',
+        );
+        expect(request).toHaveBeenCalledWith(
+            'account/rateLimitResetCredit/consume',
+            { idempotencyKey: 'key-1' },
+            15_000,
+        );
+    });
+
+    it('rejects an unknown outcome and a failed request, so the caller cannot assume a spend', async () => {
+        const limits = new CodexUsageLimits();
+        await expect(
+            limits.consumeResetCredit(() => Promise.resolve({ outcome: 'later' }), 'key-1'),
+        ).rejects.toThrow('unknown reset credit outcome');
+        await expect(
+            limits.consumeResetCredit(() => Promise.reject(new Error('timeout')), 'key-1'),
+        ).rejects.toThrow('timeout');
+    });
+});

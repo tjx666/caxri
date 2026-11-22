@@ -1,12 +1,13 @@
-import type { AgentChatModel, AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatModel, AgentChatPermission, AgentChatSnapshot } from '@caxri/protocol';
 
 import { isRecord, stringField } from '../../chat-items';
-import type { AcpToolPresentation } from '../acp/items';
+import type { AcpToolCall, AcpToolPresentation } from '../acp/items';
 import { acpConfigChoices, acpConfigValue, acpToolSubject, acpUsage } from '../acp/items';
 
 /**
  * Antigravity's dialect of ACP (`agy acp`): its tool names, the `model` and `thought_level` config options that carry
- * the model and its effort, and its usage report. Inputs are untrusted JSON. Verified against `agy` 1.4.11.
+ * the model and its effort, its session modes, its plan artifact, and its usage report. Inputs are untrusted JSON.
+ * Verified against `agy` 1.5.14.
  */
 
 /**
@@ -17,11 +18,13 @@ const ANTIGRAVITY_TOOL_NAMES: Readonly<Record<string, string>> = {
     view_file: 'Read',
     read_file: 'Read',
     write_to_file: 'Write',
+    write_file: 'Write',
     create_file: 'Write',
     replace_file_content: 'Edit',
     multi_replace_file_content: 'Edit',
     edit_file: 'Edit',
     list_dir: 'LS',
+    run_command: 'Bash',
     grep_search: 'Grep',
     find_by_name: 'Glob',
     command_status: 'BashOutput',
@@ -36,6 +39,7 @@ const ANTIGRAVITY_SUBJECT_FIELDS = [
     'CommandLine',
     'AbsolutePath',
     'TargetFile',
+    'Path',
     'DirectoryPath',
     'SearchPath',
     'Pattern',
@@ -98,12 +102,87 @@ export function antigravityConfigState(configOptions: unknown): Partial<AgentCha
 const ANTIGRAVITY_CACHE_TTL_MINUTES = 60;
 
 /**
- * Context usage from a `session/prompt` result's standard `usage.totalTokens`. `agy acp` reports no context window.
+ * Context usage: the latest `usage_update` (`context`) when `agy acp` sent one, which counts what the conversation
+ * holds against the model's window, otherwise a `session/prompt` result's standard `usage.totalTokens`.
  */
 export function antigravityUsage(
     result: unknown,
+    context: { used: number; size: number } | undefined,
     respondedAt = Date.now(),
 ): AgentChatSnapshot['usage'] {
     const usage = isRecord(result) && isRecord(result.usage) ? result.usage : undefined;
-    return acpUsage(usage?.totalTokens, undefined, ANTIGRAVITY_CACHE_TTL_MINUTES, respondedAt);
+    return acpUsage(
+        context?.used ?? usage?.totalTokens,
+        context?.size,
+        ANTIGRAVITY_CACHE_TTL_MINUTES,
+        respondedAt,
+    );
+}
+
+/**
+ * `agy acp`'s session modes (`session/set_mode`), which carry both the Chat's permission level and its plan mode.
+ * `--dangerously-skip-permissions` is a launch flag rather than a mode, so full access runs in `default`.
+ */
+export type AntigravityMode = 'default' | 'accept-edits' | 'auto' | 'plan';
+
+/**
+ * The session mode a Chat permission runs in: plan mode wins over the level, as it does in Antigravity's own TUI.
+ */
+export function antigravityMode(permission: AgentChatPermission): AntigravityMode {
+    if (permission.planMode) return 'plan';
+    switch (permission.permissionMode) {
+        case 'ask': {
+            return 'default';
+        }
+        case 'auto': {
+            return 'auto';
+        }
+        case 'acceptEdits': {
+            return 'accept-edits';
+        }
+        default: {
+            return 'default';
+        }
+    }
+}
+
+/**
+ * The Chat permission a reported session mode means. A process launched with full access asks nothing in any mode but
+ * `plan`, so its level stays `fullAccess`; plan mode keeps the level the Chat returns to.
+ */
+export function antigravityPermission(
+    modeId: string,
+    current: AgentChatPermission,
+    isFullAccess: boolean,
+): AgentChatPermission | undefined {
+    if (modeId === 'plan') return { ...current, planMode: true };
+    const levels: Readonly<Record<string, AgentChatPermission['permissionMode']>> = {
+        'default': 'ask',
+        'accept-edits': 'acceptEdits',
+        'auto': 'auto',
+    };
+    if (!(modeId in levels)) return undefined;
+    return { permissionMode: isFullAccess ? 'fullAccess' : levels[modeId], planMode: false };
+}
+
+/**
+ * The plan a finished `write_file` call proposes: in plan mode Antigravity writes its plan as an artifact whose
+ * `ArtifactMetadata.RequestFeedback` asks the user to review it before it builds anything.
+ */
+export function antigravityProposedPlan(call: AcpToolCall): string | undefined {
+    if (call.toolName !== 'write_file') return undefined;
+    const metadata = isRecord(call.rawInput.ArtifactMetadata)
+        ? call.rawInput.ArtifactMetadata
+        : undefined;
+    if (metadata?.RequestFeedback !== true) return undefined;
+    const plan = stringField(call.rawInput.Content)?.trim();
+    return plan === '' ? undefined : plan;
+}
+
+/**
+ * Whether a failed prompt is Antigravity refusing the turn on a used-up quota (its `You have exhausted your quota on
+ * this model.`, or the Gemini API's `RESOURCE_EXHAUSTED`), rather than an outage or a rate limit it retries itself.
+ */
+export function isAntigravityUsageLimitError(message: string): boolean {
+    return /exhausted your quota|quota exhausted|resource_exhausted/iu.test(message);
 }

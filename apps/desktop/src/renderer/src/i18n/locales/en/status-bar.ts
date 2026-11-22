@@ -89,6 +89,27 @@ export const statusBar = {
     'statusBar.usage.resetCreditsExpiringNote':
         'A banked reset {{expiry}}. Use it in Codex before then, or it is lost.',
     'statusBar.usage.limitsAsOf': 'Limits as of',
+    'statusBar.usage.useResetCredit': 'Use reset credit',
+    'statusBar.usage.useResetCreditBlockedNote':
+        'A reset credit can be used once a limit has 10% or less left.',
+    'statusBar.usage.resetCreditConfirmTitle': 'Use a Codex reset credit?',
+    'statusBar.usage.resetCreditConfirmMessage':
+        'This spends one of your {{count}} reset credits to reset your Codex limits now. It cannot be undone.',
+    'statusBar.usage.resetCreditConfirm': 'Use Reset Credit',
+    'statusBar.usage.resetCreditRetryTitle': 'Check the last reset again?',
+    'statusBar.usage.resetCreditRetryMessage':
+        'Codex did not confirm the last reset. Checking again does not spend another credit if it already went through.',
+    'statusBar.usage.resetCreditRetryConfirm': 'Check Again',
+    'statusBar.usage.resetCreditDone': 'Codex limits were reset.',
+    'statusBar.usage.resetCreditNothingToReset':
+        'No Codex limit needed a reset, so no credit was spent.',
+    'statusBar.usage.resetCreditNoCredit': 'No reset credit is available.',
+    'statusBar.usage.resetCreditNotEligible':
+        'No Codex limit is nearly used up anymore, so no credit was spent.',
+    'statusBar.usage.resetCreditUnavailable':
+        'No running Codex Chat answered, so no credit was spent. Open the Codex Chat and try again.',
+    'statusBar.usage.resetCreditUnconfirmed':
+        'Codex did not confirm the reset. Use reset credit again to check it without spending another credit.',
     'statusBar.usage.clickToOpen': "Click to open this Session's usage",
     'statusBar.terminal.childProcessOne': '{{count}} child process',
     'statusBar.terminal.childProcessOther': '{{count}} child processes',
