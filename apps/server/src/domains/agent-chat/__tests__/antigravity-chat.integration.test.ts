@@ -180,6 +180,54 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         expect(done.status).toBe('ready');
     });
 
+    it('keeps a turn running until the foreground command agy moved to the background finishes', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'run the build in the background' });
+        const replied = await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
+        );
+        const command = replied.items.find((item) => item.type === 'command')!;
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.items.find((item) => item.id === command.id)).toMatchObject({
+            status: 'completed',
+            output: 'built',
+        });
+        expect(done.activeTurnId).toBeUndefined();
+    });
+
+    it('ends a turn whose only running command agy started as a daemon', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'run the build in the background as a daemon' });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.activeTurnId).toBeUndefined();
+    });
+
+    it('stops a turn held for a running command', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'run the build in the background forever' });
+        await until((snapshot) =>
+            snapshot.items.some(
+                (item) => item.type === 'agentMessage' && item.text === 'Started the build.',
+            ),
+        );
+        await service.interrupt(terminal.id);
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        expect(done.activeTurnId).toBeUndefined();
+        expect(done.status).toBe('ready');
+    });
+
+    it('stops a turn at once when the cancelled prompt leaves its command running', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'run something stuck' });
+        await until((snapshot) => snapshot.items.some((item) => item.type === 'command'));
+        const stopped = Date.now();
+        await service.interrupt(terminal.id);
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        // Not the 10 s fallback that stops the agent process.
+        expect(Date.now() - stopped).toBeLessThan(5_000);
+        expect(done.status).toBe('ready');
+    });
+
     it('steers a running turn with a new prompt, which ends the earlier one without ending the turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'antigravity' });
         await service.send(terminal.id, { text: 'slow please' });

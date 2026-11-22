@@ -1,0 +1,85 @@
+import type { AgentChatTurn } from '@caxri/protocol';
+
+import type { AgentChatSessionHost } from '../../chat-provider';
+import { ChatShellToolSignals } from '../../worktree/shell-tool-signals';
+import type { AcpToolCall, AcpToolPresentation } from './items';
+
+type TurnStatus = AgentChatTurn['status'];
+
+/**
+ * The tool calls of an ACP Chat's turn that are still running: it feeds shell commands to the Workbench Root's worktree
+ * attribution (see {@link ChatShellToolSignals}) and, for a dialect with `shouldHoldTurn`, holds the turn's end until
+ * the calls that keep it open have finished.
+ *
+ * Antigravity's `agy acp` answers `session/prompt` with `end_turn` once it moves a slow foreground command to the
+ * background, then reports the command finished later. Measured on agy 1.5.14: a 25 s `sleep` ended the prompt about 16
+ * s after it started and finished 8 s after the prompt had ended, with no reply following it. Ending the turn on the
+ * prompt's answer closed the still-running command as stopped and let the composer, attention, and a waiting delegation
+ * read an unfinished turn as done. Paseo's Antigravity provider keeps such turns open the same way
+ * (`deferTurnOnRunningTools`).
+ */
+export class AcpRunningTools {
+    private readonly shellTools: ChatShellToolSignals;
+
+    /**
+     * Ids of the running calls that keep the turn open.
+     */
+    private readonly holding = new Set<string>();
+
+    /**
+     * Ends the turn whose prompt answered while calls in `holding` still ran.
+     */
+    private held: ((status?: TurnStatus) => void) | undefined;
+
+    constructor(
+        lifecycle: AgentChatSessionHost['lifecycle'],
+        private readonly presentation: AcpToolPresentation,
+        private readonly shouldHoldTurn?: (call: AcpToolCall) => boolean,
+    ) {
+        this.shellTools = new ChatShellToolSignals(lifecycle);
+    }
+
+    /**
+     * Only a running (`in_progress`) call of the running turn can keep it open; `canHoldTurn` is false for a call the
+     * user declined (Antigravity reports a declined command back as `in_progress` without ever finishing it) and for a
+     * late update after the turn ended. A call waiting for approval cannot outlive its prompt.
+     */
+    observe(call: AcpToolCall, canHoldTurn: boolean): void {
+        if (call.kind === 'execute') {
+            if (call.status === 'completed') this.shellTools.ended(call.id, 'finished');
+            else if (call.status === 'failed') this.shellTools.ended(call.id, 'failed');
+            else this.shellTools.started(call.id, this.presentation.shellCommand(call));
+        }
+        const keepsOpen =
+            canHoldTurn && call.status === 'in_progress' && this.shouldHoldTurn?.(call);
+        if (keepsOpen) this.holding.add(call.id);
+        else if (this.holding.delete(call.id) && this.holding.size === 0) this.release();
+    }
+
+    /**
+     * Ends the turn through `finish` now, or once the last call that keeps it open finishes. A prompt that answered
+     * `interrupted` ends at once: Stop asked for that, and a cancelled command may never report its end.
+     */
+    endTurn(status: TurnStatus, finish: (status?: TurnStatus) => void): void {
+        if (status === 'interrupted' || this.holding.size === 0) finish();
+        else this.held = finish;
+    }
+
+    /**
+     * Ends a held turn now with `status`, as a Stop does; nothing happens when no turn is held.
+     */
+    release(status?: TurnStatus): void {
+        const held = this.held;
+        this.held = undefined;
+        held?.(status);
+    }
+
+    /**
+     * Forgets every running call once the turn ended or the agent stopped.
+     */
+    clear(): void {
+        this.shellTools.clear();
+        this.holding.clear();
+        this.held = undefined;
+    }
+}

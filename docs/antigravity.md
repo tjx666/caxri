@@ -142,6 +142,12 @@ else is dropped because `agy acp` has no model flag.
 - A message sent while a turn runs is a second `session/prompt`: `agy acp` ends the running request
   with `end_turn` and carries on with the new message in the same turn, so the Chat ignores the
   superseded answer and shows the message as steered.
+- `agy acp` answers `session/prompt` with `end_turn` once it moves a slow foreground command to the
+  background, then reports the command finished later (agy 1.5.14: a 25 s `sleep` ended the prompt
+  at about 16 s and finished 8 s after it). The Chat keeps such a turn running until every
+  foreground command (`run_command` without `IsDaemon`) that is running has finished; a declined
+  command, which agy leaves `in_progress`, and a daemon do not hold it. Stop ends a held turn as
+  interrupted. See `providers/acp/running-tools.ts`.
 - A prompt that fails with Antigravity's used-up quota (`You have exhausted your quota on this
 model.`, or `RESOURCE_EXHAUSTED`) fails the turn with a usage-limit notice naming the window and
   reset from a fresh `/usage` reading (see [Plan limits](#plan-limits)), which Continue in another
