@@ -5,6 +5,8 @@ import type {
     AgentChatPatchOperation,
 } from '@caxri/protocol';
 
+import type { AppStateValue } from '../../db';
+
 /**
  * Stamps each usage-limit notice with where another Agent continued its turn, from the continuation's own delegation
  * record, so a history replay keeps the link, and with the Chat's own automatic continuation of it
@@ -61,6 +63,28 @@ export interface ProjectionUsageLimitWaits {
 export type UsageLimitNotice = Extract<AgentChatItem, { type: 'notice' }> & {
     usageLimit: NonNullable<Extract<AgentChatItem, { type: 'notice' }>['usageLimit']>;
 };
+
+/**
+ * The usage-limit notice a stored wait stands for, rebuilt from its record when the provider's history does not keep
+ * it.
+ */
+export function storedWaitNotice(
+    record: AppStateValue<'agentChatUsageLimitWaits'>[number],
+): UsageLimitNotice {
+    return {
+        id: `${record.turnId}:error`,
+        turnId: record.turnId,
+        type: 'notice',
+        kind: 'error',
+        ...(record.message && { message: record.message }),
+        usageLimit: {
+            window: record.window,
+            ...(record.resetsAt !== undefined && { resetsAt: record.resetsAt }),
+            ...(record.source === 'usageGuard' && { trigger: 'usageGuard' as const }),
+        },
+        createdAt: record.failedAt,
+    };
+}
 
 /**
  * Marks every usage-limit notice of a Chat before the one for `turnId` superseded (see

@@ -19,7 +19,7 @@ import type { AppStateValue, CaxriDatabase } from '../../db';
 import type { WatchHandle, WatchHub } from '../../watch';
 import type { ChatStateDelivery, ChatStates } from '../chat-states';
 import type { UsageLimitNotice } from './usage-continuation-stamp';
-import { supersedeEarlierNotices } from './usage-continuation-stamp';
+import { storedWaitNotice, supersedeEarlierNotices } from './usage-continuation-stamp';
 import {
     MISSED_AFTER_MS,
     SWEEP_INTERVAL_MS,
@@ -315,22 +315,6 @@ export class ChatUsageLimitWaits {
         }
     }
 
-    private noticeOf(record: StoredWait): UsageLimitNotice {
-        return {
-            id: `${record.turnId}:error`,
-            turnId: record.turnId,
-            type: 'notice',
-            kind: 'error',
-            ...(record.message && { message: record.message }),
-            usageLimit: {
-                window: record.window,
-                ...(record.resetsAt !== undefined && { resetsAt: record.resetsAt }),
-                ...(record.source === 'usageGuard' && { trigger: 'usageGuard' as const }),
-            },
-            createdAt: record.failedAt,
-        };
-    }
-
     attach(chat: UsageLimitWaitChatHost): void {
         this.chat = chat;
     }
@@ -362,7 +346,7 @@ export class ChatUsageLimitWaits {
         // While the guard holds, the Composer's guard card carries the wait; the notice appears once it lifts.
         if (record.source === 'usageGuard' && this.options.isUsageGuarded(terminalId))
             return undefined;
-        return this.noticeOf(record);
+        return storedWaitNotice(record);
     }
 
     /**
@@ -432,7 +416,7 @@ export class ChatUsageLimitWaits {
         }
         if (record.autoContinue.status === 'waiting')
             this.chat?.states.apply(terminalId, [
-                { op: 'upsertItem', item: this.noticeOf(record) },
+                { op: 'upsertItem', item: storedWaitNotice(record) },
             ]);
     }
 
@@ -565,7 +549,12 @@ export class ChatUsageLimitWaits {
         if (record?.source !== 'usageLimit' || record.autoContinue.status !== 'waiting') return;
         record.resetsAt = this.now();
         this.update(record, { status: 'waiting', at: record.resetsAt });
-        void this.sweep();
+        // A sweep already running may have passed this Chat, so a fresh one follows it.
+        void (this.sweeping ?? Promise.resolve())
+            .then(() => this.sweep())
+            .catch((error: unknown) =>
+                this.log(record, 'failed', { code: toWireError(error).code }),
+            );
     }
 
     start(watchHub: Pick<WatchHub, 'registerPoller'>, intervalMs = SWEEP_INTERVAL_MS): void {
