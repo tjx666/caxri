@@ -4,7 +4,6 @@ import type {
     AgentChatPermission,
     AgentChatPermissionMode,
     AgentChatSnapshot,
-    AgentChatUsageLimit,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -17,6 +16,7 @@ import { JsonRpcRequestError } from '../../json-rpc-connection';
 import { antigravityChatSettings } from '../../launch-settings';
 import type { AcpActiveTurn } from '../acp/dialect';
 import { AcpChatSession, TURN_REQUEST_TIMEOUT_MS } from '../acp/session';
+import { refinedUsageLimitOperations } from '../acp/turn-operations';
 import {
     antigravityConfigState,
     antigravityMode,
@@ -205,15 +205,15 @@ class AntigravityChatSession extends AcpChatSession {
         this.options.onPermissionChanged(next);
     }
 
-    protected async usageLimit(): Promise<AgentChatUsageLimit> {
-        let reading: Awaited<ReturnType<AntigravityPlanLimits['read']>>;
+    protected async onUsageLimit(turnId: string): Promise<void> {
         try {
-            reading = await this.planLimits.read(true);
+            const reading = await this.planLimits.read(true);
+            const snapshot = this.options.read();
+            const usageLimit = antigravityUsageLimit(reading, snapshot.model);
+            this.options.apply(refinedUsageLimitOperations(snapshot, turnId, usageLimit));
         } catch {
-            // A failed `/usage` read still reports the limit, only without its window.
-            reading = undefined;
+            // A failed `/usage` read, or a Chat closed meanwhile, leaves the limit without its window.
         }
-        return antigravityUsageLimit(reading, this.options.read().model);
     }
 
     protected steer(

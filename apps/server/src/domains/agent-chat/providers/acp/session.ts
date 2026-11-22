@@ -6,7 +6,6 @@ import type {
     AgentChatResponse,
     AgentChatSnapshot,
     AgentChatTurn,
-    AgentChatUsageLimit,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -256,9 +255,10 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             if (!(error instanceof JsonRpcRequestError) || !this.isCurrentPrompt(turnId, prompt))
                 return;
             const usageLimit = this.dialect.isUsageLimitError?.(error.message)
-                ? await this.usageLimit()
+                ? ({ window: 'unknown' } as const)
                 : undefined;
             this.finishTurn(turnId, 'failed', { error: error.message, usageLimit });
+            if (usageLimit) void this.onUsageLimit?.(turnId);
             return;
         }
         if (!this.isCurrentPrompt(turnId, prompt)) return;
@@ -384,11 +384,10 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     protected onModeChanged?(modeId: string): void;
 
     /**
-     * The used-up limit a turn failed on, from a fresh quota reading. Without one, the window is unknown.
+     * A turn just failed on a used-up limit whose window is unknown so far: a dialect that can read its quota names the
+     * window afterwards (`refinedUsageLimitOperations`), so the turn never waits on that reading (issue #4114).
      */
-    protected usageLimit(): Promise<AgentChatUsageLimit> {
-        return Promise.resolve({ window: 'unknown' });
-    }
+    protected onUsageLimit?(turnId: string): Promise<void>;
 
     /**
      * Parameters shared by `session/new` and `session/load`.

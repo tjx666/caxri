@@ -90,3 +90,25 @@ export function stampedReceipt(
     if (resetsAt !== undefined) stamped.failureResetsAt = resetsAt;
     return stamped;
 }
+
+/**
+ * The reset time a failed task's retry can be scheduled for: the one stamped when it failed or, without one, what the
+ * lookup finds now. An Antigravity Chat names the window that ran out only after its failed turn ended (issue #4114),
+ * so the stamp at the failure can miss a reset time the Chat's notice carries a few seconds later.
+ */
+export function currentFailureResetsAt(
+    record: Pick<StoredAgentDelegation, 'receipt' | 'turnId'>,
+    now: number,
+    limitResetsAt?: (failure: DelegationLimitFailure) => number | undefined,
+): Pick<AgentDelegationReceipt, 'failureResetsAt'> {
+    const { receipt } = record;
+    if (receipt.failureResetsAt !== undefined) return receipt;
+    if (receipt.status !== 'failed' || !LIMIT_FAILURES.has(receipt.failure)) return {};
+    const failure = {
+        provider: receipt.provider,
+        terminalId: receipt.terminalId,
+        turnId: record.turnId,
+    };
+    const resetsAt = futureTime(limitResetsAt?.(failure), now);
+    return resetsAt === undefined ? {} : { failureResetsAt: resetsAt };
+}

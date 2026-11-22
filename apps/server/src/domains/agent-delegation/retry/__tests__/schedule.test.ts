@@ -59,6 +59,27 @@ describe('scheduled retry: claim', () => {
         );
     });
 
+    it('schedules from a reset time the failed Chat named after the failure was stamped', async () => {
+        // An Antigravity Chat names the window that ran out only after its failed turn ended (issue #4114).
+        const notice = { resetsAt: undefined as number | undefined };
+        const { dueAt, failedTask, service, stored } = await scheduled({
+            limitResetsAt: () => notice.resetsAt,
+        });
+        const failed = await failedTask();
+        expect(stored(failed.id).receipt.failureResetsAt).toBeUndefined();
+        notice.resetsAt = T0 + RESET_IN_MS;
+
+        expect((await service.retries.options(failed.id)).schedule).toEqual({
+            available: true,
+            scheduledFor: dueAt,
+        });
+        expect(await service.retries.retry(failed.id, 'resume', 'reset')).toEqual({
+            status: 'scheduled',
+            delegationId: failed.id,
+            scheduledFor: dueAt,
+        });
+    });
+
     it('refuses to schedule while a retry now still holds its claim before the insert', async () => {
         const { failTask, service, stored, database } = await scheduled();
         const failed = await failTask();
