@@ -68,12 +68,13 @@ const agentChatPermissionCapabilities = {
      */
     grok: { modes: ['ask', 'auto', 'fullAccess'], planMode: false, appliesOnNextTurn: false },
     /**
-     * Antigravity's `agy acp` edits workspace files without asking and asks before running a command;
-     * `--dangerously-skip-permissions` asks nothing. A switch restarts it and is refused while a turn runs.
+     * Antigravity's `agy acp` session modes `default`, `accept-edits`, `auto`, and `plan`, switched in place; full
+     * access is its `--dangerously-skip-permissions` launch flag, so a switch into or out of it restarts the process
+     * and is refused while a turn runs.
      */
     antigravity: {
-        modes: ['acceptEdits', 'fullAccess'],
-        planMode: false,
+        modes: ['ask', 'acceptEdits', 'auto', 'fullAccess'],
+        planMode: true,
         appliesOnNextTurn: false,
     },
 } as const satisfies Record<AgentProvider, AgentChatPermissionCapabilities>;

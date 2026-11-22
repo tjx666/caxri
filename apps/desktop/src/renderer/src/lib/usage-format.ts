@@ -1,3 +1,5 @@
+import type { UsageLimit } from '@caxri/protocol';
+
 import type { Translate } from '../i18n';
 import { formatCount } from './locale-format';
 
@@ -48,6 +50,32 @@ export function localizedShortLimitWindowName(minutes: number, t: Translate): st
         return t('core.usageFormat.shortWindow.days', { count: minutes / 1_440 });
     if (minutes % 60 === 0) return t('core.usageFormat.shortWindow.hours', { count: minutes / 60 });
     return t('core.usageFormat.shortWindow.minutes', { count: minutes });
+}
+
+type NamedLimitWindow = Pick<UsageLimit['windows'][number], 'group' | 'windowMinutes'>;
+
+/**
+ * A rate-limit window's name with the model group it measures, when it measures one (`Gemini Weekly`); see
+ * {@link localizedLimitWindowName}.
+ */
+export function localizedLimitWindowLabel(window: NamedLimitWindow, t: Translate): string {
+    const name = localizedLimitWindowName(window.windowMinutes, t);
+    return window.group ? `${window.group} ${name}` : name;
+}
+
+/**
+ * {@link localizedShortLimitWindowName} with the window's model group, when it has one (`Gemini wk`).
+ */
+export function localizedShortLimitWindowLabel(window: NamedLimitWindow, t: Translate): string {
+    const name = localizedShortLimitWindowName(window.windowMinutes, t);
+    return window.group ? `${window.group} ${name}` : name;
+}
+
+/**
+ * A stable key for one window of a provider's limit: its length, and its model group when it has one.
+ */
+export function limitWindowKey(window: NamedLimitWindow): string {
+    return window.group ? `${window.group}:${window.windowMinutes}` : `${window.windowMinutes}`;
 }
 
 /**

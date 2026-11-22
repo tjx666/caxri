@@ -1,18 +1,16 @@
 import type {
+    AgentChatImageInput,
     AgentChatMessageInput,
     AgentChatModelChange,
-    AgentChatPatchOperation,
     AgentChatPermissionMode,
     AgentChatResponse,
     AgentChatSnapshot,
     AgentChatTurn,
-    AgentProvider,
+    AgentChatUsageLimit,
 } from '@caxri/protocol';
-import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 import {
-    clip,
-    closeDanglingItem,
     endedSessionOperations,
     isRecord,
     slashCommandPrompt,
@@ -30,21 +28,24 @@ import type {
     ChatRewindTarget,
     ChatTaskHistory,
 } from '../../chat-provider';
-import { AgentChatStartError, turnNotSteerableError } from '../../chat-provider';
+import { turnNotSteerableError } from '../../chat-provider';
 import { withCacheRewriteEstimate } from '../../chat-usage';
 import type { JsonRpcServerRequest } from '../../json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from '../../json-rpc-connection';
 import { queuedPromptUuid } from '../../queued-prompt-uuid';
 import { ChatShellToolSignals } from '../../worktree/shell-tool-signals';
-import type { AcpToolCall, AcpToolPresentation } from './items';
-import type { AcpQuestionDialect } from './requests';
+import type { AcpActiveTurn, AcpDialect } from './dialect';
+import type { AcpToolCall } from './items';
 import { AcpRequestBroker } from './requests';
+import { initializeAcpConnection, loadAcpSession, newAcpSession } from './session-open';
+import type { AcpPromptBlock, AcpTurnDetails } from './turn-operations';
 import {
-    failAcpStart,
-    initializeAcpConnection,
-    newAcpSession,
-    SESSION_OPEN_TIMEOUT_MS,
-} from './session-open';
+    finishedTurnEvent,
+    finishedTurnOperations,
+    promptBlocks,
+    proposedPlanItem,
+    userMessageItem,
+} from './turn-operations';
 import { AcpUpdates, stopReasonStatus } from './updates';
 
 export const TURN_REQUEST_TIMEOUT_MS = 30_000;
@@ -55,36 +56,6 @@ export const TURN_REQUEST_TIMEOUT_MS = 30_000;
 const INTERRUPT_TIMEOUT_MS = 10_000;
 
 type Json = Record<string, unknown>;
-
-export interface AcpActiveTurn {
-    id: string;
-    startedAt: number;
-    isCompaction: boolean;
-    /**
-     * Settle every `interrupt()` waiting for the cancelled prompt to answer; a repeated Stop adds another.
-     */
-    onFinished: Array<() => void>;
-}
-
-/**
- * What differs between ACP agents at the level a session needs before it opens: its name in errors, its tool titles,
- * and its extensions to the update and request streams.
- */
-export interface AcpDialect {
-    provider: AgentProvider;
-    /**
-     * The agent's name in errors, e.g. `Grok Build`.
-     */
-    label: string;
-    presentation: AcpToolPresentation;
-    questions?: AcpQuestionDialect;
-    displayText?: (content: Json | undefined) => string | undefined;
-    configState?: (configOptions: unknown) => Partial<AgentChatSnapshot> | undefined;
-    /**
-     * The status a replayed turn the agent did not mark finished gets; see {@link AcpUpdates.endReplay}.
-     */
-    settledReplayTurns: AgentChatTurn['status'];
-}
 
 /**
  * One live ACP (Agent Client Protocol) agent process bound to one Chat Terminal. It translates session updates into
@@ -135,6 +106,8 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             ...(dialect.displayText && { displayText: dialect.displayText }),
             ...(dialect.configState && { configState: dialect.configState }),
             onToolCall: (call) => this.onToolCall(call),
+            onContextUsage: (used, size) => this.onContextUsage?.(used, size),
+            onModeChanged: (modeId) => this.onModeChanged?.(modeId),
         });
         this.requests = new AcpRequestBroker({
             host: options,
@@ -149,10 +122,25 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
      * Feeds the Workbench Root's worktree attribution from shell tool calls; see {@link ChatShellToolSignals}.
      */
     private onToolCall(call: AcpToolCall): void {
+        this.showProposedPlan(call);
         if (call.kind !== 'execute') return;
         if (call.status === 'completed') this.shellTools.ended(call.id, 'finished');
         else if (call.status === 'failed') this.shellTools.ended(call.id, 'failed');
         else this.shellTools.started(call.id, this.dialect.presentation.shellCommand(call));
+    }
+
+    /**
+     * Shows the plan a finished plan-mode tool call proposes as a proposed-plan reply, which `agentChat.implementPlan`
+     * builds from.
+     */
+    private showProposedPlan(call: AcpToolCall): void {
+        if (call.status !== 'completed' || !this.dialect.proposedPlan) return;
+        const turnId = this.activeTurn?.id;
+        if (!turnId || this.options.read().planMode !== true) return;
+        const plan = this.dialect.proposedPlan(call);
+        if (!plan) return;
+        this.updates.closeStreaming();
+        this.options.apply([{ op: 'upsertItem', item: proposedPlanItem(call.id, turnId, plan) }]);
     }
 
     private onNotification(method: string, parameters: Json): void {
@@ -201,7 +189,13 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             this.options.lifecycle({ phase: 'sessionIdentified', agentSessionId: sessionId });
         }
         this.turnCount += 1;
-        this.activeTurn = { id: turnId, startedAt: Date.now(), isCompaction, onFinished: [] };
+        this.activeTurn = {
+            id: turnId,
+            startedAt: Date.now(),
+            isCompaction,
+            prompt: 0,
+            onFinished: [],
+        };
         const snapshot = this.options.read();
         this.options.apply([startedTurnOperation(snapshot, turnId)]);
         this.options.lifecycle({
@@ -214,7 +208,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     private finishTurn(
         turnId: string,
         status: AgentChatTurn['status'],
-        details: { result?: unknown; error?: string } = {},
+        details: AcpTurnDetails = {},
     ): void {
         const turn = this.activeTurn;
         if (turn?.id !== turnId) return;
@@ -223,78 +217,51 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         this.updates.closeStreaming();
         const durationMs = Date.now() - turn.startedAt;
         const snapshot = this.options.read();
-        const operations: AgentChatPatchOperation[] = [];
-        for (const item of snapshot.items) {
-            if (item.turnId !== turnId) continue;
-            const closed = closeDanglingItem(item);
-            if (closed) operations.push({ op: 'upsertItem', item: closed });
-        }
-        if (details.error)
-            operations.push({
-                op: 'upsertItem',
-                item: {
-                    id: `${turnId}:error`,
-                    turnId,
-                    type: 'notice',
-                    kind: 'error',
-                    message: clip(details.error, 2_000),
-                },
-            });
-        if (status === 'completed' && turn.isCompaction)
-            operations.push({
-                op: 'upsertItem',
-                item: { id: `${turnId}:compacted`, turnId, type: 'notice', kind: 'compacted' },
-            });
         const reported = this.usage(details.result);
         const usage = reported && withCacheRewriteEstimate(reported, snapshot.model);
-        operations.push({
-            op: 'state',
-            state: {
-                turns: snapshot.turns.map((existing) =>
-                    existing.id === turnId ? { ...existing, status, durationMs } : existing,
-                ),
-                activeTurnId: null,
-                ...(usage && { usage }),
-            },
-        });
-        this.options.apply(operations);
+        const end = { ...details, turnId, status, durationMs, isCompaction: turn.isCompaction };
+        this.options.apply(finishedTurnOperations(snapshot, { ...end, ...(usage && { usage }) }));
         this.requests.settleTurn(turnId);
         this.options.onTurnFinished(status, durationMs, turnId);
-        const agentSessionId = this.sessionId ?? '';
-        this.options.lifecycle(
-            status === 'failed'
-                ? {
-                      phase: 'turnFailed',
-                      agentSessionId,
-                      agentTurnId: turnId,
-                      agentFailure: 'provider_failed',
-                  }
-                : { phase: 'turnFinished', agentSessionId, agentTurnId: turnId },
-        );
+        this.options.lifecycle(finishedTurnEvent(this.sessionId ?? '', end));
         if (status === 'completed' && turn.isCompaction)
             this.options.lifecycle({ phase: 'compactionFinished' });
         for (const settle of turn.onFinished) settle();
     }
 
+    /**
+     * Whether `turnId` is still running on prompt request `prompt`, rather than having ended or moved to a later one.
+     */
+    private isCurrentPrompt(turnId: string, prompt: number): boolean {
+        const turn = this.activeTurn;
+        return turn?.id === turnId && turn.prompt === prompt;
+    }
+
     private async awaitPrompt(
         connection: JsonRpcConnection,
         turnId: string,
-        text: string,
+        prompt: number,
+        blocks: AcpPromptBlock[],
     ): Promise<void> {
         let result: unknown;
         const meta = this.promptMeta?.(turnId);
         try {
             result = await connection.request('session/prompt', {
                 sessionId: this.sessionId,
-                prompt: [{ type: 'text', text }],
+                prompt: blocks,
                 ...(meta && { _meta: meta }),
             });
         } catch (error) {
             // A stopped process already closed the turn through `onEnd`; a provider error fails it visibly.
-            if (error instanceof JsonRpcRequestError)
-                this.finishTurn(turnId, 'failed', { error: error.message });
+            if (!(error instanceof JsonRpcRequestError) || !this.isCurrentPrompt(turnId, prompt))
+                return;
+            const usageLimit = this.dialect.isUsageLimitError?.(error.message)
+                ? await this.usageLimit()
+                : undefined;
+            this.finishTurn(turnId, 'failed', { error: error.message, usageLimit });
             return;
         }
+        if (!this.isCurrentPrompt(turnId, prompt)) return;
         this.finishTurn(
             turnId,
             stopReasonStatus(isRecord(result) ? result.stopReason : undefined),
@@ -326,35 +293,8 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         });
     }
 
-    /**
-     * Replays a bound conversation through `session/load`, which streams the history as session updates before it
-     * answers, then applies it as one reset.
-     */
-    private async load(connection: JsonRpcConnection): Promise<unknown> {
-        this.updates.beginReplay();
-        let result: unknown;
-        try {
-            result = await connection.request(
-                'session/load',
-                { ...this.sessionParameters(), sessionId: this.sessionId },
-                SESSION_OPEN_TIMEOUT_MS,
-            );
-        } catch {
-            this.updates.endReplay(false);
-            return failAcpStart(
-                connection,
-                new AgentChatStartError(
-                    'resume_failed',
-                    `${this.dialect.label} could not resume this conversation`,
-                ),
-            );
-        }
-        this.options.apply(this.updates.endReplay(true, this.dialect.settledReplayTurns));
-        return result;
-    }
-
     private async open(): Promise<'resumed' | 'started'> {
-        const { args, permissionMode } = this.launchArguments();
+        const { args, permissionMode, planMode = false } = this.launchArguments();
         let spawnFailure: ChatProcessEnd | undefined;
         const connection = new JsonRpcConnection({
             label: this.dialect.label,
@@ -384,7 +324,14 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         this.onInitialized?.(initialized);
         const outcome = this.isSessionBound ? 'resumed' : 'started';
         let opened: unknown;
-        if (this.isSessionBound) opened = await this.load(connection);
+        if (this.isSessionBound)
+            opened = await loadAcpSession(
+                connection,
+                this.dialect,
+                { ...this.sessionParameters(), sessionId: this.sessionId },
+                this.updates,
+                (operations) => this.options.apply(operations),
+            );
         else {
             const created = await newAcpSession(
                 connection,
@@ -400,10 +347,11 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
                 op: 'state',
                 state: {
                     ...this.openingState(opened),
-                    ...chatPermissionState(this.dialect.provider, permissionMode, false),
+                    ...chatPermissionState(this.dialect.provider, permissionMode, planMode),
                 },
             },
         ]);
+        await this.onOpened?.();
         return outcome;
     }
 
@@ -413,7 +361,34 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     protected abstract launchArguments(): {
         args: string[];
         permissionMode: AgentChatPermissionMode | undefined;
+        /**
+         * Whether the conversation opens in plan mode; only a dialect with a plan mode sets it.
+         */
+        planMode?: boolean;
     };
+
+    /**
+     * Runs once the conversation is open and its opening state applied, before the first message, such as putting the
+     * agent into the session mode the Chat's permission names.
+     */
+    protected onOpened?(): Promise<void>;
+
+    /**
+     * The context a `usage_update` reports; see `AcpUpdatesHost.onContextUsage`.
+     */
+    protected onContextUsage?(used: number, size: number): void;
+
+    /**
+     * The session mode a `current_mode_update` reports; see `AcpUpdatesHost.onModeChanged`.
+     */
+    protected onModeChanged?(modeId: string): void;
+
+    /**
+     * The used-up limit a turn failed on, from a fresh quota reading. Without one, the window is unknown.
+     */
+    protected usageLimit(): Promise<AgentChatUsageLimit> {
+        return Promise.resolve({ window: 'unknown' });
+    }
 
     /**
      * Parameters shared by `session/new` and `session/load`.
@@ -491,23 +466,46 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     /**
      * Starts a turn with `text`. The prompt request stays open for the whole turn and answers with its stop reason.
      */
-    protected prompt(text: string, isCompaction: boolean, options: ChatInputOptions = {}): void {
+    protected prompt(
+        text: string,
+        isCompaction: boolean,
+        options: ChatInputOptions = {},
+        images: readonly AgentChatImageInput[] = [],
+    ): void {
         const connection = this.requireConnection();
         const turnId = queuedPromptUuid(options.delivery);
         this.beginTurn(turnId, isCompaction);
         this.options.apply([
             {
                 op: 'upsertItem',
-                item: {
-                    id: `${turnId}:user`,
-                    turnId,
-                    type: 'userMessage',
-                    text: clip(text, MAX_AGENT_CHAT_TEXT_LENGTH),
-                    ...(options.delivery && { delivery: options.delivery }),
-                },
+                item: userMessageItem(`${turnId}:user`, turnId, text, images, options.delivery),
             },
         ]);
-        void this.awaitPrompt(connection, turnId, text);
+        void this.awaitPrompt(connection, turnId, 0, promptBlocks(text, images));
+    }
+
+    /**
+     * Steers the running turn by sending `message` as a new `session/prompt`, for an agent that ends the running
+     * request (with `end_turn`) and carries on with the new one, as typing mid-turn does in its own TUI. The earlier
+     * request's answer then no longer ends the turn; the new request's does.
+     */
+    protected supersedePrompt(
+        connection: JsonRpcConnection,
+        turn: AcpActiveTurn,
+        message: Omit<AgentChatMessageInput, 'delivery'>,
+    ): 'steered' {
+        turn.prompt += 1;
+        const images = message.images ?? [];
+        this.updates.closeStreaming();
+        const id = this.updates.nextItemId(turn.id, 'user');
+        this.options.apply([
+            {
+                op: 'upsertItem',
+                item: userMessageItem(id, turn.id, message.text, images, 'steered'),
+            },
+        ]);
+        void this.awaitPrompt(connection, turn.id, turn.prompt, promptBlocks(message.text, images));
+        return 'steered';
     }
 
     get isOpen(): boolean {
@@ -522,7 +520,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         message: Omit<AgentChatMessageInput, 'delivery'>,
         options?: ChatInputOptions,
     ): Promise<void> {
-        if (message.images && message.images.length > 0)
+        if (message.images && message.images.length > 0 && !this.dialect.images)
             throw new CaxriError('VALIDATION', `${this.dialect.label} Chat does not accept images`);
         if (options?.exactTurnId !== undefined)
             throw turnNotSteerableError(`${this.dialect.label} cannot steer an exact turn`);
@@ -533,7 +531,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         if (turn && !this.steer)
             throw turnNotSteerableError(`${this.dialect.label} cannot add to a running turn`);
         if (turn && (await this.steer?.(connection, turn, message, options)) === 'steered') return;
-        this.prompt(message.text, false, options);
+        this.prompt(message.text, false, options, message.images);
     }
 
     runCommand(

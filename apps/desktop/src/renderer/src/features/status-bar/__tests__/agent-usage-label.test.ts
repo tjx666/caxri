@@ -12,6 +12,7 @@ import {
     agentUsageResetCreditsValue,
     agentUsageWarningReason,
     dailyCostSeries,
+    windowsForModels,
 } from '../agent-usage-label';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
@@ -35,6 +36,30 @@ function readout(overrides: Partial<AgentUsageReadout> = {}): AgentUsageReadout 
         ...overrides,
     };
 }
+
+describe('windowsForModels', () => {
+    const windows = [
+        { windowMinutes: 300, group: 'Gemini' },
+        { windowMinutes: 300, group: 'Claude & GPT' },
+        { windowMinutes: 10_080 },
+    ];
+
+    it('keeps the model groups the conversation used, and windows without a group', () => {
+        expect(windowsForModels(windows, ['claude-sonnet-4-6'])).toEqual([
+            { windowMinutes: 300, group: 'Claude & GPT' },
+            { windowMinutes: 10_080 },
+        ]);
+        expect(windowsForModels(windows, ['gemini-3.8-flash'])).toEqual([
+            { windowMinutes: 300, group: 'Gemini' },
+            { windowMinutes: 10_080 },
+        ]);
+    });
+
+    it('keeps every window when no group names a model', () => {
+        expect(windowsForModels(windows, [])).toEqual(windows);
+        expect(windowsForModels(windows, ['unknown-model'])).toEqual(windows);
+    });
+});
 
 describe('agent usage hover card limit rows', () => {
     it('names the plan before each live window and the reading age', () => {

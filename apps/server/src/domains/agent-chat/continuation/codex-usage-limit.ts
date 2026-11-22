@@ -50,6 +50,24 @@ export function isCodexUsageLimitError(error: unknown): boolean {
  */
 const RATE_LIMITS_READ_TIMEOUT_MS = 10_000;
 
+/**
+ * How long a reset credit request waits: Codex's own backend call times out at ten seconds, so this leaves room for its
+ * error answer before the request counts as unconfirmed.
+ */
+const RESET_CREDIT_CONSUME_TIMEOUT_MS = 15_000;
+
+/**
+ * Codex's `ConsumeAccountRateLimitResetCreditOutcome`.
+ */
+export type CodexResetCreditOutcome = 'reset' | 'nothingToReset' | 'noCredit' | 'alreadyRedeemed';
+
+const CODEX_RESET_CREDIT_OUTCOMES: ReadonlySet<CodexResetCreditOutcome> = new Set([
+    'reset',
+    'nothingToReset',
+    'noCredit',
+    'alreadyRedeemed',
+]);
+
 type CodexRequest = (method: string, parameters: Json, timeoutMs?: number) => Promise<unknown>;
 
 /**
@@ -149,6 +167,28 @@ export class CodexUsageLimits {
             ...(credits && { credits }),
             ...(resetCredits && { resetCredits }),
         };
+    }
+
+    /**
+     * Spends one banked reset (`account/rateLimitResetCredit/consume`, `ConsumeAccountRateLimitResetCreditParams` in
+     * the codex-cli app-server schema). `idempotencyKey` identifies one logical attempt: Codex's backend answers
+     * `alreadyRedeemed` when the same key already completed, so a retry never spends a second credit. With no
+     * `creditId` the backend picks the next available credit (the soonest expiring). Throws when Codex does not answer
+     * or answers an unknown outcome; the caller cannot tell whether the credit was spent and must retry the same key.
+     */
+    async consumeResetCredit(
+        request: CodexRequest,
+        idempotencyKey: string,
+    ): Promise<CodexResetCreditOutcome> {
+        const result = await request(
+            'account/rateLimitResetCredit/consume',
+            { idempotencyKey },
+            RESET_CREDIT_CONSUME_TIMEOUT_MS,
+        );
+        const outcome = isRecord(result) ? result.outcome : undefined;
+        if (CODEX_RESET_CREDIT_OUTCOMES.has(outcome as CodexResetCreditOutcome))
+            return outcome as CodexResetCreditOutcome;
+        throw new Error('Codex answered an unknown reset credit outcome');
     }
 
     /**

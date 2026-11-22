@@ -458,9 +458,11 @@ export interface AgentChatProviderSession {
     /**
      * Applies a validated permission level and plan mode to the live provider, for the next turn onward; a running turn
      * keeps its own where the provider allows. A provider that fixes them at launch (Grok Build) omits it, and the
-     * service restarts it on the same conversation instead.
+     * service restarts it on the same conversation instead. One that switches some in place but fixes others at launch
+     * (Antigravity's full access is a launch flag) answers `restartRequired` without changing anything, and gets the
+     * same restart.
      */
-    setPermission?(permission: AgentChatPermission): Promise<void>;
+    setPermission?(permission: AgentChatPermission): Promise<void | 'restartRequired'>;
     /**
      * The permission this session runs under, and whether the provider has applied it. Read by agent delegation to
      * decide what a delegating Agent may approve; a provider without it (Grok Build, Antigravity) covers nothing.
@@ -543,6 +545,15 @@ export interface AgentChatProviderSession {
      * does not answer. Providers that cannot be asked omit it.
      */
     readPlanLimits?(): Promise<Omit<UsageLimit, 'provider'> | undefined>;
+    /**
+     * Spends one banked plan-limit reset through the provider process (Codex's reset credits), irreversibly.
+     * `idempotencyKey` names one attempt, so repeating it never spends twice. Resolves the provider's own outcome;
+     * rejects when the provider does not confirm, which leaves the spend unknown. Providers without banked resets omit
+     * it.
+     */
+    consumeResetCredit?(
+        idempotencyKey: string,
+    ): Promise<'reset' | 'nothingToReset' | 'noCredit' | 'alreadyRedeemed'>;
     /**
      * Answers a side question from the conversation's context without adding it to the conversation (`/btw`): it runs
      * at once, even during a turn, and never interrupts, queues, or steers one. `history` is the same side thread's

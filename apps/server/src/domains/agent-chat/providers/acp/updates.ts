@@ -51,6 +51,19 @@ export interface AcpUpdatesHost {
      * A live tool call changed, after its update was merged. A `session/load` replay reports none.
      */
     onToolCall?: (call: AcpToolCall) => void;
+    /**
+     * A `usage_update`: how many tokens the conversation's context holds (`used`) out of its window (`size`). A
+     * `session/load` replay reports it too, so the reopened Chat shows the context it resumed with.
+     */
+    onContextUsage?: (used: number, size: number) => void;
+    /**
+     * A `current_mode_update` outside a replay: the agent switched its session mode, on request or on its own.
+     */
+    onModeChanged?: (modeId: string) => void;
+}
+
+function isTokenCount(value: unknown): value is number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 export function stopReasonStatus(stopReason: unknown): AgentChatTurn['status'] {
@@ -326,8 +339,20 @@ export class AcpUpdates {
                 if (state && !this.replay) this.emit([{ op: 'state', state }]);
                 return;
             }
+            case 'usage_update': {
+                const { used, size } = update;
+                if (isTokenCount(used) && isTokenCount(size) && size > 0)
+                    this.host.onContextUsage?.(used, size);
+                return;
+            }
+            case 'current_mode_update': {
+                const modeId =
+                    typeof update.currentModeId === 'string' ? update.currentModeId : undefined;
+                if (modeId && !this.replay) this.host.onModeChanged?.(modeId);
+                return;
+            }
             default: {
-                // Mode and session info updates are not conversation content.
+                // Session info updates are not conversation content.
             }
         }
     }

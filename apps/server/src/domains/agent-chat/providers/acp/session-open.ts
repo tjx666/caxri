@@ -1,24 +1,28 @@
+import type { AgentChatPatchOperation } from '@caxri/protocol';
+
 import { isRecord } from '../../chat-items';
 import type { ChatProcessEnd } from '../../chat-provider';
 import { AgentChatStartError } from '../../chat-provider';
 import type { JsonRpcConnection } from '../../json-rpc-connection';
+import type { AcpDialect } from './dialect';
 import { ACP_PROTOCOL_VERSION, acpInitializeParameters } from './items';
+import type { AcpUpdates } from './updates';
 
 /**
- * Opening an ACP Chat: the `initialize` handshake, then `session/new` for a conversation that is not bound yet. Every
- * failure closes the connection and rejects with an {@link AgentChatStartError} carrying a closed reason. Resuming
- * through `session/load` stays in the session because it replays history through the session's updates.
+ * Opening an ACP Chat: the `initialize` handshake, then `session/new` for a conversation that is not bound yet, or
+ * `session/load` replaying a bound one through the session's updates. Every failure closes the connection and rejects
+ * with an {@link AgentChatStartError} carrying a closed reason.
  */
 
 type Json = Record<string, unknown>;
 
 const HANDSHAKE_TIMEOUT_MS = 15_000;
-export const SESSION_OPEN_TIMEOUT_MS = 30_000;
+const SESSION_OPEN_TIMEOUT_MS = 30_000;
 
 /**
  * Closes the connection that failed to open and rejects with `error`.
  */
-export async function failAcpStart(
+async function failAcpStart(
     connection: JsonRpcConnection,
     error: AgentChatStartError,
 ): Promise<never> {
@@ -102,4 +106,33 @@ export async function newAcpSession(
             ),
         );
     return { ...result, sessionId: returned };
+}
+
+/**
+ * Replays a bound conversation through `session/load`, which streams the history as session updates into `updates`
+ * before it answers, then applies it as one reset.
+ */
+export async function loadAcpSession(
+    connection: JsonRpcConnection,
+    dialect: Pick<AcpDialect, 'label' | 'settledReplayTurns'>,
+    parameters: Json,
+    updates: AcpUpdates,
+    apply: (operations: AgentChatPatchOperation[]) => void,
+): Promise<unknown> {
+    updates.beginReplay();
+    let result: unknown;
+    try {
+        result = await connection.request('session/load', parameters, SESSION_OPEN_TIMEOUT_MS);
+    } catch {
+        updates.endReplay(false);
+        return failAcpStart(
+            connection,
+            new AgentChatStartError(
+                'resume_failed',
+                `${dialect.label} could not resume this conversation`,
+            ),
+        );
+    }
+    apply(updates.endReplay(true, dialect.settledReplayTurns));
+    return result;
 }

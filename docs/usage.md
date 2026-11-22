@@ -159,7 +159,17 @@ the newest reading Server Core has from any conversation.
   least one card is held, and the chip takes the warning tone within 24 hours of the soonest expiry. The row is
   stateless: it shows for as long as the condition holds, never as a one-time popup. A PTY Codex Terminal with no Chat
   open is not asked, so the row appears only after a Codex Chat has run; an account or Codex build without the field
-  shows no row. There is no action to spend a card.
+  shows no row.
+  **Use reset credit** sits beside the count in the hover card (Codex only; the hover card turns interactive for it).
+  It is enabled while a plan window has 10% or less left (`isResetCreditRedeemable`, from Synara's rule) and always
+  asks first, because spending is irreversible. It calls `usage.redeemResetCredit` (owner-only), which
+  `ResetCreditRedeemer` serves through the open Codex Chat: a fresh `account/rateLimits/read` must still qualify, then
+  `account/rateLimitResetCredit/consume` is sent with the attempt id as `idempotencyKey` (no `creditId`, so Codex
+  picks the next credit). The result is a closed outcome (`reset`, `alreadyRedeemed`, `nothingToReset`, `noCredit`,
+  `notEligible`, `unavailable`, `unconfirmed`); `unconfirmed` (timeout or dropped connection) keeps the attempt, and
+  the next click offers `Check Again` with the same key and no new window check, so a request that did land is
+  reported `alreadyRedeemed` instead of spending twice. Each attempt logs `usage.reset_credit_redeem` (outcome,
+  `isRetry`, duration; never ids). Nothing is spent without an open Codex Chat; a PTY Terminal cannot spend one.
 - **Claude Code** records no limits in its transcript, so Caxri reads them the way T3 Code does. While a Claude Chat
   is open and its provider process runs, `PlanLimitRefresh` (`apps/server/src/domains/usage/plan-limit-refresh.ts`)
   asks the Chat on each status-bar poll, and the Chat's `ClaudePlanLimits` (`providers/claude/plan-limits.ts`) asks the process

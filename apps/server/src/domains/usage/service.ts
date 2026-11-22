@@ -1,5 +1,3 @@
-import { homedir } from 'node:os';
-
 import type {
     AgentProvider,
     AgentUsageReadout,
@@ -9,6 +7,7 @@ import type {
     UsageNotice,
     UsageReport,
     UsageReportParameters,
+    UsageResetCreditOutcome,
 } from '@caxri/protocol';
 import { agentProviderIds, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -28,15 +27,12 @@ import { LedgerReadThrottle, scanLogLevel } from './ledger-read-throttle';
 import { LiveAgentUsage } from './live-usage';
 import { PlanLimitRefresh } from './plan-limit-refresh';
 import { ModelPricing } from './pricing';
-import {
-    fetchPullRequestOutcomes,
-    isRefreshDue,
-    MAX_PULL_REQUESTS_PER_PASS,
-} from './pull-requests';
+import { PullRequestPass } from './pull-request-pass/pull-request-pass';
 import type { UsageRecord } from './record';
 import { parseUsageRecord } from './record';
 import type { OutsideUsageEntry, UsageLedgerEntry, UsageReportInput } from './report';
 import { buildUsageReport } from './report';
+import { ResetCreditRedeemer } from './reset-credits/reset-credit-redeemer';
 import {
     describeOutsideTranscripts,
     reportedPendingScans,
@@ -67,6 +63,18 @@ export interface UsageServiceOptions {
      */
     readPlanLimits?: (terminalId: string) => Promise<Omit<UsageLimit, 'provider'> | undefined>;
     /**
+     * Spends a banked reset through the Terminal's running Codex Chat; undefined without one. Rejects when Codex does
+     * not confirm.
+     */
+    consumeResetCredit?: (
+        terminalId: string,
+        idempotencyKey: string,
+    ) => Promise<'reset' | 'nothingToReset' | 'noCredit' | 'alreadyRedeemed'> | undefined;
+    /**
+     * Whether the Terminal runs an open Chat that can spend a banked reset (Codex).
+     */
+    canConsumeResetCredit?: (terminalId: string) => boolean;
+    /**
      * Each provider's newest plan-limit reading, from any source; see `LiveAgentUsage`.
      */
     onLimit?: (limit: UsageLimit) => void;
@@ -90,7 +98,7 @@ function outsideReference(row: Pick<ExternalAgentUsageRow, 'provider' | 'transcr
 export class UsageService {
     private readonly pricing: ModelPricing;
     private readonly syncs = new SingleFlight<'ledger' | 'outside', void>();
-    private pullRequestPass?: Promise<void>;
+    private readonly pullRequestPass: PullRequestPass;
     /**
      * Transcripts the running outside-Caxri scan has not reached yet.
      */
@@ -111,6 +119,7 @@ export class UsageService {
     private readonly live: LiveAgentUsage;
     private readonly planLimits: PlanLimitRefresh;
     private readonly noticeDismissals: UsageNoticeDismissals;
+    private readonly resetCredits: ResetCreditRedeemer;
 
     constructor(private readonly options: UsageServiceOptions) {
         this.ledgerReads = new LedgerReadThrottle({
@@ -132,6 +141,20 @@ export class UsageService {
             options.onLimit,
         );
         this.planLimits = new PlanLimitRefresh(options.readPlanLimits, this.live, () => this.now());
+        this.pullRequestPass = new PullRequestPass({
+            database: options.database,
+            logger: options.logger,
+            runner: options.runner,
+            now: () => this.now(),
+        });
+        this.resetCredits = new ResetCreditRedeemer({
+            logger: options.logger,
+            now: () => this.now(),
+            readLimits: async (terminalId) => options.readPlanLimits?.(terminalId),
+            consume: (terminalId, key) => options.consumeResetCredit?.(terminalId, key),
+            canConsume: (terminalId) => options.canConsumeResetCredit?.(terminalId) ?? false,
+            observer: this.live,
+        });
         this.noticeDismissals = new UsageNoticeDismissals({
             database: options.database,
             logger: options.logger,
@@ -440,51 +463,6 @@ export class UsageService {
     }
 
     /**
-     * Starts at most one background pass; the next report picks up whatever it stored.
-     */
-    private schedulePullRequestPass(
-        entries: ReadonlyArray<UsageLedgerEntry | OutsideUsageEntry>,
-    ): void {
-        if (this.pullRequestPass) return;
-        const { database } = this.options;
-        const now = this.now();
-        const known = new Map(
-            database.agentSessionUsage.listPullRequestOutcomes().map((row) => [row.url, row]),
-        );
-        const urls = [
-            ...new Set(entries.flatMap(({ record }) => record?.pullRequests ?? [])),
-        ].filter((url) => isRefreshDue(known.get(url), now));
-        if (urls.length === 0) return;
-        this.pullRequestPass = this.runPullRequestPass(urls);
-    }
-
-    private async runPullRequestPass(urls: readonly string[]): Promise<void> {
-        const { database, logger, runner } = this.options;
-        const startedAt = performance.now();
-        try {
-            const counts = await fetchPullRequestOutcomes(
-                urls.slice(0, MAX_PULL_REQUESTS_PER_PASS),
-                runner,
-                homedir(),
-                (row) => database.agentSessionUsage.savePullRequestOutcome(row),
-                () => this.now(),
-            );
-            logger.write('debug', logEventCatalog.usage.pullRequests, {
-                durationMs: performance.now() - startedAt,
-                fields: { pending: urls.length, ...counts },
-            });
-        } catch {
-            // Only the outcome store can throw here; the next report retries every URL still pending.
-            logger.write('warn', logEventCatalog.usage.pullRequests, {
-                durationMs: performance.now() - startedAt,
-                fields: { pending: urls.length, reason: 'store-failed' },
-            });
-        } finally {
-            this.pullRequestPass = undefined;
-        }
-    }
-
-    /**
      * Running usage of the conversation bound to one Agent Terminal, for the status bar.
      */
     async readTerminal(terminalId: string): Promise<AgentUsageReadout | null> {
@@ -503,6 +481,16 @@ export class UsageService {
     dismissNotice(provider: AgentProvider, notice: UsageNotice): null {
         this.noticeDismissals.dismiss(notice, provider);
         return null;
+    }
+
+    /**
+     * Spends one Codex banked reset for the user; answers `usage.redeemResetCredit`.
+     */
+    async redeemResetCredit(
+        terminalId: string,
+        attemptId: string,
+    ): Promise<{ outcome: UsageResetCreditOutcome }> {
+        return { outcome: await this.resetCredits.redeem(terminalId, attemptId) };
     }
 
     /**
@@ -570,7 +558,7 @@ export class UsageService {
             .map((row) => ({ row, record: parseUsageRecord(row.usageJson) }));
         const outside = parameters.scope === 'all' ? await this.loadOutside() : undefined;
         const pullRequests = database.agentSessionUsage.listPullRequestOutcomes();
-        this.schedulePullRequestPass([...entries, ...(outside?.entries ?? [])]);
+        this.pullRequestPass.schedule([...entries, ...(outside?.entries ?? [])]);
         const report = buildUsageReport({
             params: parameters,
             now: this.now(),

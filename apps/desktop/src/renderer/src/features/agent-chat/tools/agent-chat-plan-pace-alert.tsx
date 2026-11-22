@@ -12,7 +12,7 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
-import { localizedLimitReset, localizedLimitWindowName } from '../../../lib/usage-format';
+import { localizedLimitReset, localizedLimitWindowLabel } from '../../../lib/usage-format';
 import { dismissUsageNotice } from '../../usage/usage-notice-client';
 
 /**
@@ -45,7 +45,7 @@ export function AgentChatPlanPaceAlert({
     // An account working on credits past its weekly window gets the credits notice instead, dismissed or not.
     if (weeklyCreditsWindow(readout.limit, now)) return null;
     const { window, evenPacePercent } = shortfall;
-    const windowName = localizedLimitWindowName(window.windowMinutes, t);
+    const windowName = localizedLimitWindowLabel(window, t);
     return (
         <div
             className="flex h-8 min-w-0 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-warning"

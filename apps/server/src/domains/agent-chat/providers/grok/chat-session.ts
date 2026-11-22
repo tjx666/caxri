@@ -19,8 +19,8 @@ import type {
 import type { JsonRpcConnection, JsonRpcServerRequest } from '../../json-rpc-connection';
 import { JsonRpcRequestError } from '../../json-rpc-connection';
 import { forkGrokSession, rewindGrokSession } from '../../rewind/grok-rewind';
+import type { AcpActiveTurn } from '../acp/dialect';
 import { acpCommands } from '../acp/items';
-import type { AcpActiveTurn } from '../acp/session';
 import { AcpChatSession, TURN_REQUEST_TIMEOUT_MS } from '../acp/session';
 import {
     grokContextWindow,

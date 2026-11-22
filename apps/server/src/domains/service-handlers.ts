@@ -226,6 +226,14 @@ export function createServiceHandlers(services: {
     const usage = new UsageService({
         database,
         readPlanLimits: (terminalId) => services.agentChat.readPlanLimits(terminalId),
+        consumeResetCredit: (terminalId, key) => {
+            const session = services.agentChat.states.get(terminalId)?.session;
+            return session?.isOpen ? session.consumeResetCredit?.(key) : undefined;
+        },
+        canConsumeResetCredit: (terminalId) => {
+            const session = services.agentChat.states.get(terminalId)?.session;
+            return session?.isOpen === true && session.consumeResetCredit !== undefined;
+        },
         onLimit: (limit) => services.agentRuntime.usageGuards.observe(limit.provider, limit),
         environment: agentEnvironment,
         ...(process.env.CAXRI_E2E === '1' && { fetch: offlinePriceListFetch }),
@@ -481,6 +489,8 @@ export function createServiceHandlers(services: {
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'usage.limits': () => usage.readLimits(),
         'usage.dismissNotice': ({ provider, notice }) => usage.dismissNotice(provider, notice),
+        'usage.redeemResetCredit': ({ terminalId, attemptId }) =>
+            usage.redeemResetCredit(terminalId, attemptId),
         'usage.report': (parameters) => usage.report(parameters),
         'usage.sessionCost': ({ sessionId }) => usage.sessionCost(sessionId),
         'usage.delegationSummary': ({ sessionId }) => usage.delegationSummary(sessionId),

@@ -165,6 +165,12 @@ const usageLimitWindowSchema = z.object({
      * guard never mistakes a model-specific window for the account's weekly one by its length alone.
      */
     scope: z.enum(['session', 'weekly']).optional(),
+    /**
+     * The models whose shared quota this window measures, as a short display name (Antigravity's `Gemini` and `Claude &
+     * GPT` groups, each with its own windows). Absent for a window that covers the whole account. A used-up group
+     * leaves the others usable, so {@link usageLimitedUntil} judges each group on its own.
+     */
+    group: z.string().min(1).max(80).optional(),
 });
 const modelName = z.string().max(200);
 
@@ -199,6 +205,10 @@ export function hasUsableCredits(credits: UsageCredits | undefined): boolean {
  * When the latest of the plan windows that are used up resets, or `undefined` when the provider would take a request
  * now: no window is at 100% with a later reset, or the account keeps working past its windows on credits. `window`
  * narrows the check to one general window; an unnamed window then never counts.
+ *
+ * Windows that name a model `group` are judged per group: the account is limited only while every group has a used-up
+ * window, since a request to another group's model still goes through, and it is limited until the first group frees
+ * up. Windows without a group form one group, so an account-wide provider reads as before.
  */
 export function usageLimitedUntil(
     limit: Pick<UsageLimit, 'credits' | 'windows'> | undefined,
@@ -206,11 +216,17 @@ export function usageLimitedUntil(
     window?: 'session' | 'weekly',
 ): number | undefined {
     if (!limit || hasUsableCredits(limit.credits)) return undefined;
-    let until: number | undefined;
-    for (const { resetsAt, scope, usedPercent } of limit.windows) {
+    const groups = new Map<string, number | undefined>();
+    for (const { resetsAt, scope, usedPercent, group = '' } of limit.windows) {
+        if (!groups.has(group)) groups.set(group, undefined);
         if (resetsAt === undefined || usedPercent < 100 || resetsAt <= now) continue;
         if (window !== undefined && scope !== window) continue;
-        until = Math.max(until ?? 0, resetsAt);
+        groups.set(group, Math.max(groups.get(group) ?? 0, resetsAt));
+    }
+    let until: number | undefined;
+    for (const groupUntil of groups.values()) {
+        if (groupUntil === undefined) return undefined;
+        until = Math.min(until ?? groupUntil, groupUntil);
     }
     return until;
 }
@@ -232,6 +248,29 @@ const usageResetCreditsSchema = z.object({
     nextExpiresAt: count.optional(),
 });
 export type UsageResetCredits = z.infer<typeof usageResetCreditsSchema>;
+
+/**
+ * How a request to spend one banked reset ended (`usage.redeemResetCredit`). `reset` and `alreadyRedeemed` both mean
+ * the credit was spent and the plan windows were reset; `nothingToReset`, `noCredit`, and `alreadyRedeemed` are Codex's
+ * own answers. `notEligible` is Caxri's check, which spends nothing: no credit is held, or no plan window is nearly
+ * used up. `unavailable` means no running Codex Chat could be asked. `unconfirmed` means the request was sent but Codex
+ * did not confirm it (a timeout or a dropped connection): retrying with the same `attemptId` checks that attempt
+ * instead of spending another credit.
+ */
+const usageResetCreditOutcomeSchema = z.enum([
+    'reset',
+    'alreadyRedeemed',
+    'nothingToReset',
+    'noCredit',
+    'notEligible',
+    'unavailable',
+    'unconfirmed',
+]);
+export type UsageResetCreditOutcome = z.infer<typeof usageResetCreditOutcomeSchema>;
+
+const usageRedeemResetCreditResultSchema = z.strictObject({
+    outcome: usageResetCreditOutcomeSchema,
+});
 
 /**
  * Latest provider-reported plan rate-limit windows: Codex writes them into its own transcript, and a running Claude
@@ -494,6 +533,20 @@ export const usageMethods = {
         ...commandPolicy('server', 'write'),
         params: z.strictObject({ provider: agentProvider, notice: usageNoticeSchema }),
         result: z.null(),
+    },
+    /**
+     * Spends one Codex banked reset through the Terminal's running Codex Chat, irreversibly. The Server rechecks the
+     * account's credits and plan windows first (see `isResetCreditRedeemable`) and sends nothing when they no longer
+     * qualify. `attemptId` is one user confirmation: a retry after `unconfirmed` reuses it, so Codex's backend
+     * deduplicates instead of spending a second credit. Owner-only, so no Agent Endpoint can spend a credit.
+     */
+    'usage.redeemResetCredit': {
+        ...ownerOnlyCommandPolicy('server', 'write'),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            attemptId: z.string().min(8).max(100),
+        }),
+        result: usageRedeemResetCreditResultSchema,
     },
     /**
      * Null when the Terminal has no bound Agent session, its transcript is not found, or it recorded no usage yet.

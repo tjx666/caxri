@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { UsageLimit } from '../usage-contract.js';
 import {
     agentUsageCostLabel,
     currentLimitWindows,
@@ -9,6 +10,7 @@ import {
     formatTokens,
     formatUsd,
     isPlanPaceDismissed,
+    isResetCreditRedeemable,
     limitPaceShortfall,
     localDateWeekday,
     remainingLimitPercent,
@@ -192,5 +194,31 @@ describe('formatCreditsBalance', () => {
         );
         expect(formatCreditsBalance({ unlimited: false, balance: 1250.4 })).toBe('1,250');
         expect(formatCreditsBalance({ unlimited: true })).toBeUndefined();
+    });
+});
+
+describe('isResetCreditRedeemable', () => {
+    const NOW = 1_800_000_000_000;
+    const limit = (usedPercent: number, extra: Partial<UsageLimit> = {}): UsageLimit => ({
+        provider: 'codex',
+        observedAt: NOW,
+        windows: [{ windowMinutes: 300, usedPercent, resetsAt: NOW + 60_000 }],
+        resetCredits: { availableCount: 1 },
+        ...extra,
+    });
+
+    it('needs a credit and a current window with 10% or less left', () => {
+        expect(isResetCreditRedeemable(limit(90), NOW)).toBe(true);
+        expect(isResetCreditRedeemable(limit(89), NOW)).toBe(false);
+        expect(isResetCreditRedeemable(limit(100, { resetCredits: undefined }), NOW)).toBe(false);
+        expect(
+            isResetCreditRedeemable(limit(100, { resetCredits: { availableCount: 0 } }), NOW),
+        ).toBe(false);
+    });
+
+    it('ignores a window that already reset and a provider without banked resets', () => {
+        expect(isResetCreditRedeemable(limit(100), NOW + 120_000)).toBe(false);
+        expect(isResetCreditRedeemable(limit(100, { provider: 'claude' }), NOW)).toBe(false);
+        expect(isResetCreditRedeemable(undefined, NOW)).toBe(false);
     });
 });

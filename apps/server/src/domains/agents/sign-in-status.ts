@@ -2,6 +2,10 @@ import type { AgentProvider } from '@caxri/protocol';
 import { readBoundedRegularFileText, readE2EAgentPolicy } from '@caxri/system';
 
 import { runExternalCommand } from '../executables';
+import {
+    ANTIGRAVITY_USAGE_ARGUMENTS,
+    parseAntigravityUsage,
+} from './providers/antigravity/usage-command';
 
 /**
  * What a CLI's own status command says about its sign-in. `unknown` covers a provider without such a command, a
@@ -20,6 +24,10 @@ interface CommandOutcome {
 interface SignInCommand {
     arguments_: readonly string[];
     parse: (outcome: CommandOutcome) => AgentSignInStatus;
+    /**
+     * How long the command may run; defaults to {@link SIGN_IN_TIMEOUT_MS}.
+     */
+    timeoutMs?: number;
 }
 
 /**
@@ -47,10 +55,26 @@ export function parseCodexLoginStatus({ exitCode, stdout }: CommandOutcome): Age
 }
 
 /**
- * Providers whose CLI answers a sign-in question without starting a conversation. Grok Build and Antigravity have no
- * such command, so their status stays unknown rather than being guessed from files they own.
+ * `agy -p /usage --output-format json` answers from the account without a model call: a `SUCCESS` envelope when signed
+ * in, an authentication error when not (it prints a sign-in URL on stderr and exits nonzero, without waiting for input
+ * because stdin is closed). Any other answer is unknown.
+ */
+export function parseAntigravityUsageStatus({ stdout }: CommandOutcome): AgentSignInStatus {
+    const answer = parseAntigravityUsage(stdout, Date.now());
+    return answer.status;
+}
+
+/**
+ * Providers whose CLI answers a sign-in question without starting a conversation. Grok Build has no such command, so
+ * its status stays unknown rather than being guessed from files it owns.
  */
 const SIGN_IN_COMMANDS: Partial<Record<AgentProvider, SignInCommand>> = {
+    antigravity: {
+        arguments_: ANTIGRAVITY_USAGE_ARGUMENTS,
+        parse: parseAntigravityUsageStatus,
+        // The account round trip is slower than a local status file read.
+        timeoutMs: 20_000,
+    },
     claude: { arguments_: ['auth', 'status', '--json'], parse: parseClaudeAuthStatus },
     codex: { arguments_: ['login', 'status'], parse: parseCodexLoginStatus },
 };
@@ -62,16 +86,21 @@ const SIGN_IN_TIMEOUT_MS = 8_000;
  */
 const SIGN_IN_CACHE_MS = 30_000;
 
-type RunCommand = (executable: string, arguments_: readonly string[]) => Promise<CommandOutcome>;
+type RunCommand = (
+    executable: string,
+    arguments_: readonly string[],
+    timeoutMs: number,
+) => Promise<CommandOutcome>;
 
 async function runStatusCommand(
     executable: string,
     arguments_: readonly string[],
+    timeoutMs: number,
 ): Promise<CommandOutcome> {
     try {
         const { stdout } = await runExternalCommand(executable, arguments_, {
-            maxBuffer: 64 * 1024,
-            timeout: SIGN_IN_TIMEOUT_MS,
+            maxBuffer: 256 * 1024,
+            timeout: timeoutMs,
         });
         return { exitCode: 0, stdout };
     } catch (error) {
@@ -105,7 +134,9 @@ async function readStatus(
     executable: string,
     command: SignInCommand,
 ): Promise<AgentSignInStatus> {
-    return command.parse(await run(executable, command.arguments_));
+    return command.parse(
+        await run(executable, command.arguments_, command.timeoutMs ?? SIGN_IN_TIMEOUT_MS),
+    );
 }
 
 export interface AgentSignInProbe {

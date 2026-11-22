@@ -73,8 +73,14 @@ export function agentChatPlanLimitRows(
     return currentLimitWindows(limit, now).map((window) => {
         const leftPercent = remainingLimitPercent(window.usedPercent);
         return {
-            key: String(window.windowMinutes),
-            label: t('chat.model.limitName', { window: windowName(window.windowMinutes, t) }),
+            key: window.group
+                ? `${window.group}:${window.windowMinutes}`
+                : String(window.windowMinutes),
+            label: t('chat.model.limitName', {
+                window: window.group
+                    ? `${window.group} ${windowName(window.windowMinutes, t)}`
+                    : windowName(window.windowMinutes, t),
+            }),
             left: t('chat.model.limitLeft', { percent: leftPercent }),
             leftPercent,
             reset: window.resetsAt === undefined ? undefined : resetText(window.resetsAt, now, t),

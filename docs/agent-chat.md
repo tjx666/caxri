@@ -2124,14 +2124,14 @@ the task may decide a request within its own applied level
 ([Parent approval](agent-delegation.md#parent-approval)); the Chat's own level is unchanged. Server Core rejects any other level, or plan mode for a provider without it, with
 `VALIDATION`.
 
-| Level        | Codex                                                             | Claude Code                         | Grok Build                       |
-| ------------ | ----------------------------------------------------------------- | ----------------------------------- | -------------------------------- |
-| Read only    | `on-request`, `read-only` sandbox                                 | Not offered                         | Not offered                      |
-| Ask          | Not offered                                                       | `permissionMode: default`           | Root `--permission-mode default` |
-| Accept edits | Shown as "Default": `on-request`, `workspace-write` sandbox       | `permissionMode: acceptEdits`       | Not offered                      |
-| Auto         | `on-request`, `workspace-write`, `approvalsReviewer: auto_review` | `permissionMode: auto`              | Root `--permission-mode auto`    |
-| Full access  | `never`, `danger-full-access` sandbox                             | `permissionMode: bypassPermissions` | `agent --always-approve`         |
-| Plan mode    | `collaborationMode: plan` on `turn/start`                         | `permissionMode: plan`              | Not offered                      |
+| Level        | Codex                                                             | Claude Code                         | Grok Build                       | Antigravity                      |
+| ------------ | ----------------------------------------------------------------- | ----------------------------------- | -------------------------------- | -------------------------------- |
+| Read only    | `on-request`, `read-only` sandbox                                 | Not offered                         | Not offered                      | Not offered                      |
+| Ask          | Not offered                                                       | `permissionMode: default`           | Root `--permission-mode default` | Session mode `default`           |
+| Accept edits | Shown as "Default": `on-request`, `workspace-write` sandbox       | `permissionMode: acceptEdits`       | Not offered                      | Session mode `accept-edits`      |
+| Auto         | `on-request`, `workspace-write`, `approvalsReviewer: auto_review` | `permissionMode: auto`              | Root `--permission-mode auto`    | Session mode `auto`              |
+| Full access  | `never`, `danger-full-access` sandbox                             | `permissionMode: bypassPermissions` | `agent --always-approve`         | `--dangerously-skip-permissions` |
+| Plan mode    | `collaborationMode: plan` on `turn/start`                         | `permissionMode: plan`              | Not offered                      | Session mode `plan`              |
 
 The snapshot's `permissionMode` is the level the provider runs with. It is absent ("Custom" in the
 picker) when the launch settings match no level, for example Codex with `--ask-for-approval
@@ -2191,6 +2191,11 @@ mid-Chat differs per provider:
   conversation (`session/load`) with the new options. A running turn would be cut short, so the
   switch fails with `CONFLICT` until it finishes. Input sent while the switch is pending waits for
   the restart and reaches the new process, never the one being stopped.
+- **Antigravity** switches its ACP session mode in place with `session/set_mode`, and sets it after
+  every open because `agy acp` starts a new conversation in `default`. Full access is the
+  `--dangerously-skip-permissions` launch flag instead, so a switch into or out of it restarts the
+  Agent like Grok Build (`setPermission` answers `restartRequired`). A `current_mode_update` the
+  Agent sends on its own is followed and saved.
 
 A Chat with no provider process (stopped or failed) only saves a switch and shows it; the next start
 launches with it, so the switch never starts the provider by itself.
@@ -2212,12 +2217,14 @@ runs under Caxri Bot policy, which refuses Project writes.
 
 ### Approving a proposed plan
 
-"Plans first and changes nothing until you approve" holds for both Agents, and both end a plan with the same
-`Start with this plan?` card (`Start Building` / `Keep Planning`), but the mechanism differs because the providers differ.
-Claude Code raises an `ExitPlanMode` approval request, which the Chat answers through `agentChat.respond`. Codex has no
-such request (its TUI's `Implement this plan?` step is client-side), so Server Core orchestrates it:
+"Plans first and changes nothing until you approve" holds for every Agent with plan mode, and each ends a plan with the
+same `Start with this plan?` card (`Start Building` / `Keep Planning`), but the mechanism differs because the providers
+differ. Claude Code raises an `ExitPlanMode` approval request, which the Chat answers through `agentChat.respond`. Codex
+and Antigravity have no such request (their TUIs' approval step is client-side), so Server Core orchestrates it:
 
-- `mapCodexItem` marks the `plan` item's Agent message `proposedPlan: true`.
+- `mapCodexItem` marks the `plan` item's Agent message `proposedPlan: true`. An Antigravity Chat in plan mode adds
+  one after a finished `write_file` whose `ArtifactMetadata.RequestFeedback` asks for review, carrying the plan's
+  `Content` (the ACP dialect's `proposedPlan`).
 - `agentChatImplementablePlanId` names the one plan a Chat can still build: the latest finished proposed plan, while plan
   mode is on, no turn runs, and no user message came after it. The Desktop dock shows the shared approval card
   (`agentChatProposedPlanRequest`, shaped as an `ExitPlanMode` request with only the two buttons) for exactly that item.
