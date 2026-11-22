@@ -63,6 +63,20 @@ describe('AgentChatService usage limits', () => {
         expect(failedNotice(snapshot)?.usageLimit).toBeUndefined();
     });
 
+    it.each([
+        [
+            'connection dropped',
+            'API Error: Connection dropped (ECONNRESET). Check the proxy set in https_proxy, then try again.',
+        ],
+        ['unreported limit', "You've hit your weekly limit · resets 2pm (Asia/Shanghai)"],
+    ])('shows a Claude failure reply (%s) only as the failed turn’s error', async (text, error) => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text });
+        const snapshot = await until((current) => current.turns.at(-1)?.status === 'failed');
+        expect(failedNotice(snapshot)?.message).toBe(error);
+        expect(snapshot.items.filter((item) => item.type === 'agentMessage')).toEqual([]);
+    });
+
     it('marks a Codex turn that failed with usageLimitExceeded', async () => {
         const { service, terminal, until } = await fixture({ provider: 'codex' });
         await service.send(terminal.id, { text: 'usage exhausted' });

@@ -34,7 +34,11 @@ import {
     claudeUsageTokens,
     text,
 } from '../providers/claude/items';
-import { claudeCompaction } from '../providers/claude/system-notices';
+import {
+    claudeCompaction,
+    claudeErrorReplyNotice,
+    isClaudeErrorReply,
+} from '../providers/claude/system-notices';
 import { settleClaudeToolItem } from '../providers/claude/tool-results';
 import { ClaudeTurnClock } from './claude-turn-clock';
 
@@ -300,7 +304,19 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
             applyGoalNotices(state, feedback);
             return;
         }
+        const turn = state.turns.at(-1);
+        const current = turn && turn.id === state.turnId ? turn : undefined;
+        // The live Chat showed this failure as its turn's error notice, and a failed turn lets the composer offer Continue.
+        if (isClaudeErrorReply(message, record.error)) {
+            const key = text(record.uuid) || text(message.id);
+            const notice = state.turnId && claudeErrorReplyNotice(message, state.turnId, key);
+            if (notice) state.items.set(notice.id, { ...notice, ...recordTime(record) });
+            if (notice && current) current.status = 'failed';
+            return;
+        }
         const mapped = claudeAssistantItems(message, state.turnId, state.ids);
+        // Model output after a failure (a background task woke the Agent with no new prompt) means the work went on.
+        if (mapped.items.length > 0 && current?.status === 'failed') current.status = 'completed';
         const time = recordTime(record);
         if (
             !state.isSidechain &&

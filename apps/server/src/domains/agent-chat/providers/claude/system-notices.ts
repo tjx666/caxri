@@ -246,3 +246,39 @@ export function applyClaudePromptSuggestion(
     if (!text) return;
     host.apply([{ op: 'state', state: { promptSuggestion: { text, lastResponseAt } } }]);
 }
+/**
+ * Whether an assistant message is Claude Code's own reply to a request that failed (a used-up plan limit, a dropped
+ * connection): it comes from the `<synthetic>` model, never reached the API, and names the failure in `error`. Claude
+ * Code fails the turn with the same text right after, so the live Chat shows it only as the turn's error notice and a
+ * replayed transcript turns it into one, instead of rendering it as if the model had said it.
+ */
+export function isClaudeErrorReply(message: Json, error: unknown): boolean {
+    return typeof error === 'string' && error !== '' && message.model === '<synthetic>';
+}
+
+/**
+ * The error notice a replayed {@link isClaudeErrorReply} message stands for. The transcript keeps no `result`, so this
+ * reply is the only record that its turn failed. A turn can fail more than once (a retry after a limit), so each reply
+ * keys its own notice by `key`, its record's uuid.
+ */
+export function claudeErrorReplyNotice(
+    message: Json,
+    turnId: string,
+    key: string,
+): Extract<AgentChatItem, { type: 'notice' }> | undefined {
+    const blocks = Array.isArray(message.content) ? message.content.filter(isRecord) : [];
+    const text = blocks
+        .flatMap((block) =>
+            block.type === 'text' && typeof block.text === 'string' ? [block.text] : [],
+        )
+        .join('\n')
+        .trim();
+    if (!text) return undefined;
+    return {
+        id: clip(`${turnId}:error:${key}`, 200),
+        turnId,
+        type: 'notice',
+        kind: 'error',
+        message: clip(text, 2_000),
+    };
+}
