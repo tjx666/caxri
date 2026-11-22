@@ -1,12 +1,13 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { openAgentChat } from './support/agent-chat-fixture.ts';
 import type { DelegatingChat } from './support/delegating-chat-fixture.ts';
 import {
-    CHILD_SUMMARY,
+    completedChildId,
     createParentSession,
     DELEGATE_PROMPT,
+    HOLD_CHILD_FILE,
     launchDelegatingChat,
 } from './support/delegating-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -35,16 +36,17 @@ async function delegateAndFail(chat: DelegatingChat, resetsInMs: number) {
     const message = session.getByRole('textbox', { name: 'Message' });
     await message.fill(DELEGATE_PROMPT);
     await message.press('Enter');
-    const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+    const strip = session.getByRole('region', { name: 'Background work' });
     const rows = strip.locator('[data-agent-chat-delegated-session]');
-    await expect(rows).toContainText(CHILD_SUMMARY);
-    const childId = (await rows.getAttribute('data-agent-chat-delegated-session'))!;
+    const childId = await completedChildId(chat, parentId);
     const failedId = await runServerDatabase<string>('delegation-failure', {
         userData: chat.userData,
         sessionId: childId,
         failure: 'quota_exhausted',
         failureResetsAt: Date.now() + resetsInMs,
     });
+    // Held, so a retry's attempt keeps its row while the spec reads it.
+    await writeFile(join(chat.controlDirectory, HOLD_CHILD_FILE), '');
     await page.reload();
     await expect(strip).toContainText('1 failed');
     const feed = async () =>
@@ -137,7 +139,7 @@ test('a usage-limit failure can be retried at once with the other installed Agen
     const chat = await launchDelegatingChat('caxri-delegated-switch-', { withClaude: true });
     try {
         const { page } = chat.running;
-        const { failedId, feed, rows, strip } = await delegateAndFail(chat, 10 * 60_000);
+        const { failedId, feed, strip } = await delegateAndFail(chat, 10 * 60_000);
         const switchAction = strip.locator('[data-delegation-retry-switch="claude"]');
         await expect(switchAction).toContainText('Retry with Claude');
         await page.screenshot({ path: testInfo.outputPath('delegation-retry-switch.png') });
@@ -151,11 +153,8 @@ test('a usage-limit failure can be retried at once with the other installed Agen
         expect(await readFile(taskFile, 'utf8')).toContain(
             'A previous attempt at this task failed before finishing.',
         );
-        await expect(rows).toHaveCount(1);
-        await expect(rows).toHaveAttribute(
-            'data-agent-chat-delegated-session',
-            successor.sessionId,
-        );
+        // The canned Claude child finishes at once, so the failed attempt leaves the list with no row of its own.
+        await expect(strip.locator(`[data-delegation-retry="${failedId}"]`)).toHaveCount(0);
     } finally {
         await chat.cleanup();
     }

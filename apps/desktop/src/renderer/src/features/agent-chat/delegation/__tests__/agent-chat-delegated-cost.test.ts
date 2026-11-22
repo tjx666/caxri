@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { Translate } from '../../../../i18n';
 import {
+    COST_ACTIVE_POLL_MS,
     COST_SCAN_POLL_LIMIT,
     COST_SCAN_POLL_MS,
     costRefetchInterval,
     delegatedCostLabel,
-    delegatedHeaderFigure,
-    delegatedSessionCountLabel,
     formatCostAmount,
     retryChainSessionIds,
     sumDelegatedCost,
@@ -57,29 +56,6 @@ describe('delegatedCostLabel', () => {
         expect(delegatedCostLabel({ costUsd: 0, isPartial: false, isActive: false }, t)?.text).toBe(
             '$0',
         );
-    });
-});
-
-describe('delegatedHeaderFigure', () => {
-    it('is hidden until a delegated Session has usage', () => {
-        const base = {
-            delegatedCostUsd: 0,
-            delegatedSessions: 0,
-            isPartial: false,
-            isActive: false,
-            isScanPending: false,
-            children: [],
-        };
-
-        expect(delegatedHeaderFigure(undefined)).toBeUndefined();
-        expect(delegatedHeaderFigure(base)).toBeUndefined();
-        expect(
-            delegatedHeaderFigure({ ...base, delegatedSessions: 2, delegatedCostUsd: 3 }),
-        ).toEqual({
-            costUsd: 3,
-            isPartial: false,
-            isActive: false,
-        });
     });
 });
 
@@ -160,8 +136,8 @@ describe('formatCostAmount', () => {
 });
 
 describe('costRefetchInterval', () => {
-    it('is pure and polls only a pending scan, within the completed-read budget', () => {
-        const pending = { isScanPending: true };
+    it('is pure and polls a pending scan quickly, within the completed-read budget', () => {
+        const pending = { isActive: false, isScanPending: true };
         // Re-evaluating with the same inputs never spends the budget.
         for (let call = 0; call < 100; call += 1)
             expect(costRefetchInterval(pending, 0)).toBe(COST_SCAN_POLL_MS);
@@ -169,15 +145,18 @@ describe('costRefetchInterval', () => {
         expect(costRefetchInterval(pending, COST_SCAN_POLL_LIMIT)).toBe(false);
     });
 
-    it('never polls a settled summary, even while a task is running', () => {
-        expect(costRefetchInterval({ isScanPending: false }, 0)).toBe(false);
-        expect(costRefetchInterval(undefined, 0)).toBe(false);
+    it('reads a running task again after the Server ledger window, so its figure can grow', () => {
+        expect(costRefetchInterval({ isActive: true, isScanPending: false }, 0)).toBe(
+            COST_ACTIVE_POLL_MS,
+        );
+        // A spent scan budget falls back to the running poll rather than stopping.
+        expect(
+            costRefetchInterval({ isActive: true, isScanPending: true }, COST_SCAN_POLL_LIMIT),
+        ).toBe(COST_ACTIVE_POLL_MS);
     });
-});
 
-describe('delegatedSessionCountLabel', () => {
-    it('uses the singular form for one Session and the plural otherwise', () => {
-        expect(delegatedSessionCountLabel(1, t)).toBe('delegation.strip.cost.sessionsOne:');
-        expect(delegatedSessionCountLabel(3, t)).toBe('delegation.strip.cost.sessionsOther:');
+    it('never polls a settled, scanned summary', () => {
+        expect(costRefetchInterval({ isActive: false, isScanPending: false }, 0)).toBe(false);
+        expect(costRefetchInterval(undefined, 0)).toBe(false);
     });
 });

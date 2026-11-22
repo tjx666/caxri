@@ -129,39 +129,49 @@ test('a Codex Chat stops all of its running background work at once', async ({},
         await message.fill('run it in the background');
         await message.press('Enter');
         await expect(chat.getByText('The dev server is running in the background.')).toBeVisible();
-        const strip = await openBackgroundWork(chat);
+        // Two or three tasks fit the folded list, so each keeps its own Stop and there is no `N more` line to carry
+        // Stop all.
+        const strip = chat.getByRole('region', { name: 'Background work' });
+        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(2);
+        await expect(strip.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+
+        const runShell = async (count: number) => {
+            await message.fill('run it in the background');
+            await message.press('Enter');
+            await expect(strip.getByRole('listitem')).toHaveCount(Math.min(count, 3));
+        };
+        await runShell(3);
+        await runShell(4);
+        // Four tasks fold to three rows behind a quiet `1 more` line, which carries Stop all.
+        const more = strip.locator('[data-agent-chat-background-more]');
+        await expect(more).toHaveText('1 more');
         const stopAll = strip.getByRole('button', { name: 'Stop all' });
         await expect(stopAll).toBeVisible();
-        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(3);
+        // Three row Stops plus Stop all.
+        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(4);
         await page.screenshot({ path: testInfo.outputPath('codex-stop-all.png') });
 
-        // A stopped task moves behind the header's `Ended N` toggle, not a row of its own under the list. A second
-        // background shell keeps two tasks running, so the section keeps its header once the subagent stops.
-        await message.fill('run it in the background');
-        await message.press('Enter');
-        // Three task Stops plus Stop all.
-        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(4);
+        /**
+         * Unfolding only adds the fourth row below the ones in view.
+         */
+        const titles = () => strip.getByRole('listitem').allTextContents();
+        const folded = await titles();
+        await more.click();
+        await expect(more).toHaveText('Show less');
+        await expect(strip.getByRole('listitem')).toHaveCount(4);
+        expect((await titles()).slice(0, 3)).toEqual(folded);
+        await page.screenshot({ path: testInfo.outputPath('codex-background-expanded.png') });
+
+        // A stopped task leaves the list; back at three, the `N more` line and Stop all go with it.
         await strip.getByRole('button', { name: /^Stop Inspect the fixtures/u }).click();
-        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(3);
-        const ended = strip.getByRole('button', { name: 'Ended 1' });
-        await expect(ended).toHaveAttribute('aria-expanded', 'false');
-        await expect(strip.getByRole('list', { name: 'Ended background work' })).toBeHidden();
-        await ended.click();
-        await expect(ended).toHaveAttribute('aria-expanded', 'true');
-        await expect(strip.getByRole('list', { name: 'Ended background work' })).toBeVisible();
-        await page.screenshot({ path: testInfo.outputPath('codex-ended-expanded.png') });
+        await expect(strip.getByRole('listitem')).toHaveCount(3);
+        await expect(more).toHaveCount(0);
+        await expect(stopAll).toHaveCount(0);
 
-        // Folded, asking for the ended tasks unfolds the section too.
-        const fold = strip.locator('[data-agent-chat-strip-fold]');
-        await fold.click();
-        await expect(fold).toHaveAttribute('aria-expanded', 'false');
-        await ended.click();
-        await expect(fold).toHaveAttribute('aria-expanded', 'true');
-        await expect(strip.getByRole('list', { name: 'Ended background work' })).toBeVisible();
-
+        await runShell(4);
         await stopAll.click();
         await expect(chat.getByRole('button', { name: /^Stop / })).toHaveCount(0);
-        await expect(chat.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+        await expect(strip).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-stop-all-stopped.png') });
     } finally {
         await closeAppQuietly(running.app);

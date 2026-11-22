@@ -6,10 +6,9 @@ import { useClockTick } from '@/hooks/use-clock-tick';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { useTranslation } from '../../../i18n';
 import { AgentIdentityIcon } from '../../../icons/agents/agent-identity-icon';
-import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
 import { useProjectById, useSessionById } from '../../../stores/selectors';
-import { pushToast } from '../../../stores/toasts';
+import type { DelegationGlyph } from '../../delegation/delegation-copy';
 import {
     delegationCopy,
     delegationCopyInput,
@@ -19,83 +18,57 @@ import { delegationElapsedMs } from '../../delegation/delegation-feed';
 import { delegationPresetSummary } from '../../delegation/delegation-preset';
 import { DelegationPresetChip } from '../../delegation/delegation-preset-chip';
 import { DelegationRetryControls } from '../../delegation/delegation-retry-controls';
-import { useSessionPullRequest } from '../../primary-sidebar/hooks/use-session-pull-request';
-import { SessionPullRequestIndicator } from '../../primary-sidebar/session-pull-request-indicator';
 import { sessionTitleForDisplay } from '../../session/session-title';
-import {
-    delegatedOwnPullRequest,
-    delegatedSessionLine,
-    delegationPrFilesLabel,
-} from './agent-chat-delegated-sessions';
+import { AgentChatStripDismissButton } from '../composer/strip/agent-chat-strip-dismiss-button';
+import { AgentChatStripRowSlot } from '../composer/strip/agent-chat-strip-row-slot';
 import { AgentChatDelegationGlyph } from './agent-chat-delegation-glyph';
 import type { DelegatedCostLabel } from './cost/agent-chat-delegated-cost';
 import { useCanOpenDelegatedChild } from './hooks/use-can-open-delegated-child';
 import { openDelegatedChild } from './side-view/delegated-child-opener';
 
 /**
- * A finished task's own pull request as a compact `#N` link on the summary line's right edge, under the cost and
- * elapsed columns, so the row stays two lines tall. It is the button's sibling, absolutely placed, because a link
- * nested inside the row's button would be invalid interactive content. The trailing columns reserve its width
- * (`min-w-14`). Shows nothing when the task has no pull request or reports the delegating Session's own
- * (`delegatedOwnPullRequest`). Mounted only for a completed row, so a row still working does not subscribe to the pull
- * request snapshot.
+ * The status text's tone: amber for a task waiting on the user, red for a failure or for any other state that needs
+ * them (an interruption draws no glyph of its own), muted otherwise.
  */
-function DelegatedPullRequestLink({
-    parentSessionId,
-    sessionId,
-}: {
-    parentSessionId: string;
-    sessionId: string;
-}) {
-    const { t } = useTranslation();
-    const { pullRequest: child } = useSessionPullRequest(sessionId);
-    const { pullRequest: parent } = useSessionPullRequest(parentSessionId);
-    const pullRequest = delegatedOwnPullRequest(child, parent);
-    if (!pullRequest) return null;
-    const label = [
-        t('delegation.strip.openPullRequest', { number: pullRequest.number }),
-        delegationPrFilesLabel(pullRequest.changedFiles, t),
-    ]
-        .filter(Boolean)
-        .join(' · ');
-    return (
-        <Tooltip content={label}>
-            <button
-                aria-label={label}
-                className="absolute top-[22px] right-10 flex h-5 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[12px] leading-5 text-accent tabular-nums underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                type="button"
-                onClick={() => {
-                    // openExternalUrl reports its own rejection through the callback.
-                    void openExternalUrl(pullRequest.url, (message) => pushToast('error', message));
-                }}
-            >
-                <SessionPullRequestIndicator pullRequest={pullRequest} />
-                {`#${pullRequest.number}`}
-            </button>
-        </Tooltip>
-    );
+function statusTone(glyph: DelegationGlyph, requiresUser: boolean): string | undefined {
+    if (glyph === 'needsInput') return 'text-warning';
+    if (glyph === 'failed' || requiresUser) return 'text-danger';
+    return undefined;
 }
 
 /**
- * The row's visible content: the Agent, title, Project, attempt, the status or summary line, elapsed time, and glyph.
+ * The row's visible content on one line: the Agent, title, Project, preset, attempt, the parent it sits under, the
+ * state in words unless it is simply running, then cost and elapsed time. The running step is left out: the row says
+ * which work is open, and opening it shows what it is doing.
  */
 function DelegatedSessionRowContent({
     attempt,
     cost,
+    elapsed,
     entry,
+    glyph,
     isPresetDetailVisible,
+    requiresUser,
     projectTitle,
+    status,
     title,
     viaTitle,
 }: {
     attempt?: number;
     cost?: DelegatedCostLabel;
+    elapsed: string | null;
     entry: AgentDelegationSession;
+    glyph: DelegationGlyph;
     /**
      * Prints the preset's provider, model and effort in the row, for a row with no tooltip to carry them.
      */
     isPresetDetailVisible: boolean;
+    requiresUser: boolean;
     projectTitle?: string;
+    /**
+     * The state in words, absent while the task simply runs.
+     */
+    status?: string;
     title: string;
     /**
      * The direct child a deeper row sits under, titled; absent for a direct child.
@@ -103,61 +76,33 @@ function DelegatedSessionRowContent({
     viaTitle?: string;
 }) {
     const { t } = useTranslation();
-    const copyInput = delegationCopyInput(entry);
-    // A minute tick ages the elapsed label of a running task and expires a reset time. Mounted here, in the row, so the
-    // section and its siblings stay still; a settled task with no reset or retry time reads no clock at all.
-    const now = useClockTick(
-        'minute',
-        entry.settledAt === undefined || isDelegationCopyClockDependent(copyInput),
-    );
-    const copy = delegationCopy(copyInput, now, t);
-    const line = delegatedSessionLine(entry, copy);
-    const elapsed = formatNoticeableDuration(delegationElapsedMs(entry, now), t);
     return (
         <>
-            <span className="flex h-5 w-4 shrink-0 items-center justify-center">
+            <span className="flex size-4 shrink-0 items-center justify-center">
                 <AgentIdentityIcon identity={entry.provider} size={14} />
             </span>
-            <span className="flex min-w-0 flex-1 flex-col text-left">
-                <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 truncate text-foreground">{title}</span>
-                    {projectTitle && (
-                        <span className="min-w-0 shrink truncate">{projectTitle}</span>
-                    )}
-                    <DelegationPresetChip
-                        isDetailVisible={isPresetDetailVisible}
-                        selection={entry.selection}
-                    />
-                    {attempt !== undefined && (
-                        <span className="shrink-0">
-                            {t('delegation.retry.attempt', { number: attempt })}
-                        </span>
-                    )}
-                    {viaTitle !== undefined && (
-                        <span className="min-w-0 shrink truncate">
-                            {t('delegation.strip.via', { title: viaTitle })}
-                        </span>
-                    )}
+            <span className="min-w-0 truncate text-foreground">{title}</span>
+            {projectTitle && <span className="min-w-0 shrink truncate">{projectTitle}</span>}
+            <DelegationPresetChip
+                isDetailVisible={isPresetDetailVisible}
+                selection={entry.selection}
+            />
+            {attempt !== undefined && (
+                <span className="shrink-0">
+                    {t('delegation.retry.attempt', { number: attempt })}
                 </span>
-                <span
-                    className={cn('min-w-0 truncate', line.kind === 'step' && 'activity-shimmer')}
-                >
-                    {line.kind === 'summary' && line.isExcerpt && (
-                        <span className="mr-1 rounded-sm bg-list-hover-background px-1 text-[11px]">
-                            {t('delegation.strip.excerpt')}
-                        </span>
-                    )}
-                    {line.text}
-                    {line.kind === 'status' && line.detail && ` · ${line.detail}`}
+            )}
+            {viaTitle !== undefined && (
+                <span className="min-w-0 shrink truncate">
+                    {t('delegation.strip.via', { title: viaTitle })}
                 </span>
-            </span>
-            {/* A completed row reserves the width its pull request link takes on the line below. */}
-            <span
-                className={cn(
-                    'flex shrink-0 justify-end gap-2 tabular-nums',
-                    entry.status === 'completed' && 'min-w-14',
-                )}
-            >
+            )}
+            {status && (
+                <span className={cn('min-w-0 shrink truncate', statusTone(glyph, requiresUser))}>
+                    {status}
+                </span>
+            )}
+            <span className="ml-auto flex shrink-0 gap-2 pl-1 tabular-nums">
                 {cost && (
                     <span>
                         <span aria-hidden="true">{cost.text}</span>
@@ -166,34 +111,28 @@ function DelegatedSessionRowContent({
                 )}
                 {elapsed && <span>{elapsed}</span>}
             </span>
-            {/*
-             * The state glyph takes the header chevron's 28px column, and `ml-1` matches the header's gap before it,
-             * so the metrics end where the header's meta does.
-             */}
-            <span className="ml-1 flex w-7 flex-none justify-center">
-                <AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />
-            </span>
         </>
     );
 }
 
 const ROW_CLASS_NAME =
-    'flex w-full min-w-0 items-start gap-2 rounded py-0.5 pl-2 text-[12px] leading-5 text-muted';
+    'flex min-w-0 flex-1 items-center gap-2 rounded border-0 bg-transparent px-2 py-0.5 text-left text-[12px] leading-5 text-muted';
 
 /**
- * One child Session in the Delegated Sessions strip: the Agent, the child's title and Project, what it is doing or what
- * it produced, how long it ran, and the state glyph. The whole row opens the child; its own pull request link sits on
- * the summary line's right edge and a failed task's Retry action sits under it, each as its own control. The button has
- * no `aria-label` of its own: its content (title, Project, step or summary, elapsed time, and the glyph's label) names
- * it, so assistive technology hears what a sighted user reads. A child the Workbench no longer lists (deleted, or in a
- * hidden Project), or a failed one that never launched a Terminal, stays as a plain row.
+ * One child Session in the composer strip's Background work list, on one line: the Agent, the child's title and
+ * Project, its state in words when it is not simply running, its cost and elapsed time, and the state glyph. The row
+ * opens the child; a failed task's Retry action sits under it as its own control, and a failure or interruption the
+ * user has seen gives way to Dismiss (`onDismiss`) on hover or focus. The button has no `aria-label` of its own: its
+ * content names it, so assistive technology hears what a sighted user reads. A child the Workbench no longer lists
+ * (deleted, or in a hidden Project), or a failed one that never launched a Terminal, stays as a plain row.
  */
 export function AgentChatDelegatedSessionRow({
     attempt,
     cost,
     entry,
-    parentSessionId,
+    requiresUser,
     viaSessionId,
+    onDismiss,
 }: {
     /**
      * Which attempt this task is when it retries a failed one (2 or more); `undefined` for a first attempt.
@@ -204,20 +143,29 @@ export function AgentChatDelegatedSessionRow({
      */
     cost?: DelegatedCostLabel;
     entry: AgentDelegationSession;
-    /**
-     * The Session whose Chat shows the strip; a task's pull request that is also this Session's is not repeated.
-     */
-    parentSessionId?: string;
+    requiresUser: boolean;
     /**
      * The direct child this row sits under, for a deeper Session the roll-up lists; absent for a direct child.
      */
     viaSessionId?: string;
+    /**
+     * Dismisses a failure or interruption from the list; absent for a row the user cannot dismiss.
+     */
+    onDismiss?: () => void;
 }) {
     const { t } = useTranslation();
     const session = useSessionById(entry.sessionId);
     const viaSession = useSessionById(viaSessionId);
     const project = useProjectById(session?.projectId);
     const isOpenable = useCanOpenDelegatedChild(entry.sessionId, entry.status === 'failed');
+    const copyInput = delegationCopyInput(entry);
+    // A minute tick ages the elapsed label of a running task and expires a reset or retry time in the status words; a
+    // settled task with neither reads no clock at all.
+    const now = useClockTick(
+        'minute',
+        entry.settledAt === undefined || isDelegationCopyClockDependent(copyInput),
+    );
+    const copy = delegationCopy(copyInput, now, t);
     const title = session
         ? sessionTitleForDisplay(session.title, t)
         : t('delegation.strip.unavailable');
@@ -226,9 +174,17 @@ export function AgentChatDelegatedSessionRow({
         <DelegatedSessionRowContent
             attempt={attempt}
             cost={cost}
+            elapsed={formatNoticeableDuration(delegationElapsedMs(entry, now), t)}
             entry={entry}
+            glyph={copy.glyph}
             isPresetDetailVisible={!session}
+            requiresUser={requiresUser}
             projectTitle={project?.title}
+            status={
+                copy.glyph === 'running'
+                    ? undefined
+                    : [copy.headline, copy.detail].filter(Boolean).join(' · ')
+            }
             title={title}
             viaTitle={
                 viaSessionId === undefined
@@ -241,31 +197,41 @@ export function AgentChatDelegatedSessionRow({
     );
     return (
         <li
-            className="relative flex min-w-0 flex-col"
+            className="group/row flex min-w-0 list-none flex-col"
             data-agent-chat-delegated-session={entry.sessionId}
         >
-            {isOpenable ? (
-                <Tooltip content={presetSummary} disabled={presetSummary === undefined}>
-                    <button
-                        className={cn(
-                            ROW_CLASS_NAME,
-                            'cursor-pointer border-0 bg-transparent hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent',
-                        )}
-                        type="button"
-                        onClick={() => openDelegatedChild(entry.sessionId)}
-                    >
-                        {content}
-                    </button>
-                </Tooltip>
-            ) : (
-                <div className={ROW_CLASS_NAME}>{content}</div>
-            )}
-            {entry.status === 'completed' && session && parentSessionId && (
-                <DelegatedPullRequestLink
-                    parentSessionId={parentSessionId}
-                    sessionId={entry.sessionId}
+            <span
+                className={cn(
+                    'flex min-w-0 items-center gap-1 rounded',
+                    isOpenable && 'hover:bg-list-hover-background',
+                )}
+            >
+                {isOpenable ? (
+                    <Tooltip content={presetSummary} disabled={presetSummary === undefined}>
+                        <button
+                            className={cn(
+                                ROW_CLASS_NAME,
+                                'cursor-pointer hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent',
+                            )}
+                            data-agent-chat-delegated-open=""
+                            type="button"
+                            onClick={() => openDelegatedChild(entry.sessionId)}
+                        >
+                            {content}
+                        </button>
+                    </Tooltip>
+                ) : (
+                    <div className={ROW_CLASS_NAME}>{content}</div>
+                )}
+                <AgentChatStripRowSlot
+                    action={
+                        onDismiss ? (
+                            <AgentChatStripDismissButton title={title} onDismiss={onDismiss} />
+                        ) : undefined
+                    }
+                    glyph={<AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />}
                 />
-            )}
+            </span>
             {session && (
                 <DelegationRetryControls
                     className="pl-8 leading-5"

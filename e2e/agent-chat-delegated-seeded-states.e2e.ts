@@ -15,7 +15,7 @@ import type {
  * launched again on the same profile.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the strip words a usage limit, a task that needs input, an unreadable result, and a consult', async ({}, testInfo) => {
+test('the strip words a usage limit and a task that needs input, and leaves out settled tasks', async ({}, testInfo) => {
     const chat = await launchDelegatingChat('caxri-delegated-states-');
     try {
         const { projectId, sessionId: hostId } = await createParentSession(chat);
@@ -32,9 +32,9 @@ test('the strip words a usage limit, a task that needs input, an unreadable resu
         const { page } = chat.running;
         await selectSession(page, hostId);
         const session = page.locator(VISIBLE_SESSION);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         await expect(strip).toBeVisible();
-        await expect(strip).toContainText('4 delegated · 1 failed');
+        await expect(strip).toContainText('1 failed');
 
         // A task that needs input exists only once the Server runs (startup turns every active task into an interrupted
         // one), so it is recorded now and the Renderer is reloaded to read the feed again.
@@ -48,8 +48,7 @@ test('the strip words a usage limit, a task that needs input, an unreadable resu
         await page.reload();
         await expect(strip).toBeVisible();
 
-        // Header: every child counts; only input-needed and failed are called out, and an unreadable result is neither.
-        await expect(strip).toContainText('4 delegated');
+        // Only input-needed and failed are called out, and an unreadable result is neither.
         await expect(strip).toContainText('1 needs input');
         await expect(strip).toContainText('1 failed');
         const rowOf = (id: string) => strip.locator(`[data-agent-chat-delegated-session="${id}"]`);
@@ -62,23 +61,20 @@ test('the strip words a usage limit, a task that needs input, an unreadable resu
         ).toBeVisible();
 
         // A failed task that never launched a Terminal has nothing to open: its row carries the failure and stays
-        // plain, instead of leading to an empty Session page. A child that did not fail still opens.
-        await expect(rowOf(seed.quota).locator(':scope > button')).toHaveCount(0);
-        await expect(rowOf(seed.consult).locator(':scope > button')).toHaveCount(1);
+        // plain, instead of leading to an empty Session page.
+        await expect(rowOf(seed.quota).locator('[data-agent-chat-delegated-open]')).toHaveCount(0);
+        await expect(
+            rowOf(seed.needsInput).locator('[data-agent-chat-delegated-open]'),
+        ).toHaveCount(1);
 
         await expect(rowOf(seed.needsInput)).toContainText('Needs your input');
         await expect(
             rowOf(seed.needsInput).locator('[data-agent-chat-delegation-glyph="needsInput"]'),
         ).toBeVisible();
 
-        await expect(rowOf(seed.answerUnavailable)).toContainText(
-            'Finished, but its result could not be read',
-        );
-        await expect(
-            rowOf(seed.answerUnavailable).locator('[data-agent-chat-delegation-glyph]'),
-        ).toHaveCount(0);
-
-        await expect(rowOf(seed.consult)).toContainText('Quick second opinion');
+        // Settled tasks leave the list: an unreadable result and a finished consult have nothing left for the user here.
+        await expect(rowOf(seed.answerUnavailable)).toHaveCount(0);
+        await expect(rowOf(seed.consult)).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('delegated-states.png') });
 
         // The rows that need attention come first.
@@ -108,7 +104,7 @@ test('the strip words a usage limit, a task that needs input, an unreadable resu
 
 /**
  * A grandchild that needs the user is rolled up into the host's strip: its row reads "via" the direct child it sits
- * under, and the header counts it.
+ * under, and the live region counts it.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('the strip rolls up a failed grandchild and names the direct child it sits under', async ({}, testInfo) => {
@@ -129,8 +125,7 @@ test('the strip rolls up a failed grandchild and names the direct child it sits 
         await selectSession(page, hostId);
         const strip = page
             .locator(VISIBLE_SESSION)
-            .getByRole('region', { name: 'Delegated Sessions' });
-        await expect(strip).toContainText('1 delegated');
+            .getByRole('region', { name: 'Background work' });
         await expect(strip).toContainText('1 failed');
         const deeper = strip.locator(`[data-agent-chat-delegated-session="${seed.leaf}"]`);
         await expect(deeper).toContainText('Port the billing exports');
