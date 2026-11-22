@@ -18,15 +18,10 @@ export interface AgentChatBackgroundWork {
      */
     running: AgentChatTask[];
     /**
-     * Failures from the latest turn the user has not dismissed, most recent first: listed above the running tasks so a
+     * Failures from the latest turn the user has not dismissed, most recent first: listed before the running tasks so a
      * failure is never buried.
      */
     failed: AgentChatTask[];
-    /**
-     * Every other ended task (completed, stopped, and failures already dismissed or older than the latest turn), most
-     * recent first, behind the `Ended N` disclosure in the section's header.
-     */
-    ended: AgentChatTask[];
 }
 
 /**
@@ -48,10 +43,10 @@ export function agentChatLatestTurnStart(
 }
 
 /**
- * The Background work section above the composer, or `undefined` for none. It shows while anything runs or a failure
- * from the latest turn waits for the user, so a task that failed after the turn ended is not lost; once the last task
- * ends and every failure was dismissed it leaves, since the Agent reports results in the conversation and each task's
- * timeline row still opens it.
+ * The tasks of the Background work list above the composer, or `undefined` for none. It shows while anything runs or a
+ * failure from the latest turn waits for the user, so a task that failed after the turn ended is not lost; once the
+ * last task ends and every failure was dismissed it leaves, since the Agent reports results in the conversation and
+ * each task's timeline row still opens it.
  */
 export function agentChatBackgroundWork({
     latestTurnStartedAt,
@@ -69,11 +64,7 @@ export function agentChatBackgroundWork({
         (latestTurnStartedAt === undefined || (task.endedAt ?? 0) >= latestTurnStartedAt);
     const failed = allEnded.filter((task) => isUnseenFailure(task));
     if (running.length === 0 && failed.length === 0) return undefined;
-    return {
-        running,
-        failed,
-        ended: allEnded.filter((task) => !isUnseenFailure(task)),
-    };
+    return { running, failed };
 }
 
 /**
@@ -91,26 +82,6 @@ export function agentChatPlanSection({
     const progress = agentChatPlanProgress(plan);
     if (!activity && progress.completed >= progress.total) return undefined;
     return { plan, progress };
-}
-
-/**
- * The one task the Background work section shows as its whole body, or `undefined` while it needs a header: a single
- * running task and no failure waiting. A header saying `1 running` above that task's own row would only repeat it.
- */
-export function agentChatBackgroundWorkSoleTask(
-    work: AgentChatBackgroundWork,
-): AgentChatTask | undefined {
-    return work.running.length === 1 && work.failed.length === 0 ? work.running[0] : undefined;
-}
-
-/**
- * The task a folded Background work header names after its count: the latest to start, as a folded Plan names the step
- * in progress, so one row still says what the work is doing.
- */
-export function agentChatBackgroundWorkFoldedTask(
-    work: AgentChatBackgroundWork,
-): AgentChatTask | undefined {
-    return work.running.at(-1);
 }
 
 /**

@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react';
-
 import type { AgentChatTask } from '@caxri/protocol';
 import { agentChatTaskGlyphStatus, canStopAgentChatTask } from '@caxri/protocol';
 import { Square } from 'lucide-react';
@@ -14,6 +12,8 @@ import {
     stopAgentChatTask,
     useAgentChatTaskStopStore,
 } from '../agent-chat-commands';
+import { AgentChatStripDismissButton } from '../composer/strip/agent-chat-strip-dismiss-button';
+import { AgentChatStripRowSlot } from '../composer/strip/agent-chat-strip-row-slot';
 import { AgentChatStatusGlyph } from '../tools/agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { agentChatTaskTitle, agentChatTaskTitleParts } from './agent-chat-tasks';
@@ -61,23 +61,23 @@ function AgentChatTaskStopButton({
 }
 
 /**
- * One background task in the composer strip's Background work list: its kind, title, elapsed time, and status, opening
- * its side tab on click where the host can open one, with Stop while it runs. Stopping the turn with Esc never stops
- * it.
+ * One background task in the composer strip's Background work list: its kind, title, progress (a workflow run), elapsed
+ * time, and status, opening its side tab on click where the host can open one. Its status glyph gives way to Stop while
+ * it runs, or to Dismiss for a failure the user was shown (`onDismiss`), whenever the pointer or focus is on the row.
+ * Stopping the turn with Esc never stops it.
  */
 export function AgentChatTaskEntry({
-    actions,
     task,
     terminalId,
+    onDismiss,
     onOpenTask,
 }: {
-    /**
-     * Controls after the task's own Stop, inside the row so its hover background reaches them (the lone task's `Ended
-     * N` toggle).
-     */
-    actions?: ReactNode;
     task: AgentChatTask;
     terminalId: string;
+    /**
+     * Dismisses a failed task from the list; absent for a task that cannot be dismissed.
+     */
+    onDismiss?: () => void;
     /**
      * Opens the task's tab beside the Chat; absent where the host cannot, which leaves the task a plain row.
      */
@@ -105,18 +105,13 @@ export function AgentChatTaskEntry({
                     />
                 )}
                 <AgentChatTaskElapsed task={task} />
-                {task.status === 'running' ? (
-                    <Spinner className="size-3.5" role="presentation" />
-                ) : (
-                    <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
-                )}
             </span>
         </>
     );
     return (
         <li
             className={cn(
-                'flex min-w-0 items-center gap-1 rounded text-[12px] leading-5',
+                'group/row flex min-w-0 items-center gap-1 rounded text-[12px] leading-5',
                 onOpenTask && 'hover:bg-list-hover-background',
             )}
         >
@@ -136,10 +131,22 @@ export function AgentChatTaskEntry({
                 // A host that cannot open the task's tab (Caxri Bot window) lists the task as plain text.
                 <div className={TASK_ENTRY_CLASS_NAME}>{summary}</div>
             )}
-            {canStopAgentChatTask(task) && (
-                <AgentChatTaskStopButton task={task} terminalId={terminalId} />
-            )}
-            {actions}
+            <AgentChatStripRowSlot
+                action={
+                    canStopAgentChatTask(task) ? (
+                        <AgentChatTaskStopButton task={task} terminalId={terminalId} />
+                    ) : onDismiss ? (
+                        <AgentChatStripDismissButton title={title} onDismiss={onDismiss} />
+                    ) : undefined
+                }
+                glyph={
+                    task.status === 'running' ? (
+                        <Spinner className="size-3.5 text-muted" role="presentation" />
+                    ) : (
+                        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                    )
+                }
+            />
         </li>
     );
 }

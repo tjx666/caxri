@@ -97,7 +97,7 @@ async function delegateAndAsk(chat: DelegatingChat) {
     const message = session.getByRole('textbox', { name: 'Message' });
     await message.fill(DELEGATE_PROMPT);
     await message.press('Enter');
-    const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+    const strip = session.getByRole('region', { name: 'Background work' });
     const row = strip.locator('[data-agent-chat-delegated-session]');
     await expect(row).toContainText(CHILD_TITLE);
     const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
@@ -229,10 +229,8 @@ test('a delegated Agent asks, the user answers from the child Chat, and the chil
             .poll(() => readWhenWritten(join(chat.controlDirectory, 'wait.json')))
             .toContain(ANSWER);
         await selectSession(page, parent.id);
-        await expect(strip.locator('[data-agent-chat-delegated-session]')).toContainText(
-            CHILD_SUMMARY,
-        );
-        await expect(strip).not.toContainText('asking');
+        // Finished, the child leaves the list, its question with it.
+        await expect(strip).toHaveCount(0);
 
         // Question and answer text never reach a log.
         const logs = await readLogs(chat.userData);

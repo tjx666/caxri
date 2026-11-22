@@ -3,7 +3,6 @@ import { isDelegationFailed, isDelegationNeedsInput } from '@caxri/protocol';
 import { omit } from 'es-toolkit';
 
 import type { Translate } from '../../../i18n';
-import type { DelegationCopy } from '../../delegation/delegation-copy';
 import { delegationAttentionCounts } from '../../delegation/delegation-feed';
 
 /**
@@ -138,109 +137,4 @@ export function sortDelegatedSessions(
                 ? 3
                 : 2;
     return entries.toSorted((left, right) => rank(left) - rank(right));
-}
-
-/**
- * How long a completed task's row stays in view after it completed, so its result can be read without unfolding
- * anything, before it moves behind the strip header's `Completed N` toggle.
- */
-export const DELEGATED_COMPLETED_VISIBLE_MS = 10 * 60_000;
-
-/**
- * The strip's rows split for display: `shown` stays in the list, `folded` waits behind the `Completed N` toggle, and
- * `hasRecentCompleted` says a shown row will fold once its window passes, so the caller keeps a clock running only
- * then. Only a completed task folds, and never one that needs the user; one with no completion time (an older record)
- * folds at once. Both lists keep the input order.
- */
-export function splitDelegatedSessions<
-    Entry extends Pick<
-        AgentDelegationSession,
-        'failure' | 'result' | 'settledAt' | 'status' | 'waitingOn'
-    >,
->(
-    entries: readonly Entry[],
-    now: number,
-): { folded: Entry[]; hasRecentCompleted: boolean; shown: Entry[] } {
-    const shown: Entry[] = [];
-    const folded: Entry[] = [];
-    let hasRecentCompleted = false;
-    for (const entry of entries) {
-        if (entry.status !== 'completed' || isDelegationNeedsInput(entry)) {
-            shown.push(entry);
-            continue;
-        }
-        const completedAt = entry.settledAt ?? entry.result?.completedAt;
-        if (completedAt !== undefined && now - completedAt < DELEGATED_COMPLETED_VISIBLE_MS) {
-            hasRecentCompleted = true;
-            shown.push(entry);
-        } else folded.push(entry);
-    }
-    return { folded, hasRecentCompleted, shown };
-}
-
-/**
- * What a strip row says under the title.
- *
- * - `step`: the live step of an active task.
- * - `summary`: a completed task's result summary, with `isExcerpt` when it is the first paragraph rather than the Agent's
- *   own `Summary:` line.
- * - `status`: the status copy, for everything else (a failure, a task waiting on the user, a completed task whose result
- *   is missing or belongs to an earlier task).
- */
-export type DelegatedSessionLine =
-    | { kind: 'step'; text: string }
-    | { isExcerpt: boolean; kind: 'summary'; text: string }
-    | { detail?: string; kind: 'status'; text: string };
-
-export function delegatedSessionLine(
-    entry: Pick<AgentDelegationSession, 'delegationId' | 'result' | 'status' | 'step'>,
-    copy: Pick<DelegationCopy, 'detail' | 'glyph' | 'headline'>,
-): DelegatedSessionLine {
-    if (copy.glyph === 'running' && entry.step) return { kind: 'step', text: entry.step };
-    // A stored result belongs to the newest task only when the IDs match; after a follow-up started or failed, the
-    // summary on the entry is an earlier task's and must not read as this one's outcome.
-    if (
-        entry.status === 'completed' &&
-        entry.result &&
-        entry.delegationId !== undefined &&
-        entry.result.delegationId === entry.delegationId
-    )
-        return {
-            isExcerpt: entry.result.source === 'excerpt',
-            kind: 'summary',
-            text: entry.result.summary,
-        };
-    return {
-        kind: 'status',
-        text: copy.headline,
-        ...(copy.detail && { detail: copy.detail }),
-    };
-}
-
-/**
- * The `<n> PR files` label, or `undefined` when GitHub reported no positive count. The count is the whole pull
- * request's, not this delegation's output, which the label says. Never `0`: unknown is omitted.
- */
-export function delegationPrFilesLabel(
-    changedFiles: number | undefined,
-    t: Translate,
-): string | undefined {
-    if (changedFiles === undefined || !Number.isSafeInteger(changedFiles) || changedFiles <= 0)
-        return undefined;
-    return t(changedFiles === 1 ? 'delegation.strip.prFilesOne' : 'delegation.strip.prFilesOther', {
-        count: changedFiles,
-    });
-}
-
-/**
- * The pull request a finished task's row links to, or `undefined` when it has none of its own. A task that worked on
- * the delegating Session's branch reports that Session's pull request; repeating it on every row says nothing the user
- * does not already know from the Chat they are in, so the row shows a pull request only when it differs.
- */
-export function delegatedOwnPullRequest<PullRequest extends { url: string }>(
-    child: PullRequest | undefined,
-    parent: PullRequest | undefined,
-): PullRequest | undefined {
-    if (!child || child.url === parent?.url) return undefined;
-    return child;
 }

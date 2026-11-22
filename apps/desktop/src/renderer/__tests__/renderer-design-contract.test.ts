@@ -384,8 +384,6 @@ describe('Renderer design contract', () => {
             'agent-chat/attachments/agent-chat-message-images.tsx': 'image thumbnail zoom target',
             'agent-chat/composer/strip/agent-chat-strip-section.tsx': 'composer strip icon chrome',
             'agent-chat/context/token-list-card.tsx': 'flex-fill disclosure row',
-            'agent-chat/delegation/agent-chat-delegated-session-row.tsx':
-                'absolutely positioned row chrome',
             'agent-chat/tools/agent-chat-work-file-link.tsx':
                 'truncating inline file link with decoration styling',
             'agent-chat/turns/agent-chat-file-changes.tsx':

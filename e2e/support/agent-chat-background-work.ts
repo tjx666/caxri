@@ -3,15 +3,15 @@ import type { Locator } from '@playwright/test';
 import { expect } from './fixtures.ts';
 
 /**
- * Returns the composer strip's Background work section, unfolding it when the user folded it, so its tasks are visible.
- * A single running task has no fold header: its row is the whole section.
+ * Returns the composer strip's Background work list, unfolding its `N more` line when the list is longer than its
+ * folded rows, so every item is visible. A short list has no such line.
  */
 export async function openBackgroundWork(chat: Locator): Promise<Locator> {
     const section = chat.getByRole('region', { name: 'Background work' });
     await expect(section).toBeVisible();
-    const toggle = section.locator('[data-agent-chat-strip-fold]');
-    if ((await toggle.count()) === 0) return section;
-    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const more = section.locator('[data-agent-chat-background-more]');
+    if ((await more.count()) === 0) return section;
+    if ((await more.getAttribute('aria-expanded')) === 'false') await more.click();
+    await expect(more).toHaveAttribute('aria-expanded', 'true');
     return section;
 }

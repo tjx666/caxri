@@ -161,7 +161,7 @@ test('the delegating Agent approves a covered request while it is held quietly',
     try {
         const { page, parent, session } = await delegateAndRequest(chat);
         await sendToParent(session, DELEGATE_PROMPT);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const row = strip.locator('[data-agent-chat-delegated-session]');
         await expect(row).toContainText(CHILD_TITLE);
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
@@ -185,7 +185,8 @@ test('the delegating Agent approves a covered request while it is held quietly',
         await expect
             .poll(() => readWhenWritten(join(chat.controlDirectory, 'approve.json')))
             .toContain('approved');
-        await expect(row).toContainText(CHILD_SUMMARY);
+        // Finished, the child leaves the list.
+        await expect(row).toHaveCount(0);
 
         await selectSession(page, childId);
         await expect(session.getByText(NOTICE)).toBeVisible();
@@ -214,7 +215,7 @@ test('an uncovered request is amber at once and stays amber until the user answe
         await page.getByRole('menuitemradio', { name: /Read only/ }).click();
         await expect(picker).toHaveAccessibleName('Permissions: Read only');
         await sendToParent(session, DELEGATE_PROMPT);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const row = strip.locator('[data-agent-chat-delegated-session]');
         await expect(row).toContainText(CHILD_TITLE);
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
@@ -259,7 +260,7 @@ test('a covered request the delegating Agent leaves alone escalates to the user'
     try {
         const { page, session } = await delegateAndRequest(chat);
         await sendToParent(session, DELEGATE_PROMPT);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const row = strip.locator('[data-agent-chat-delegated-session]');
         await expect(row).toContainText(CHILD_TITLE);
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;

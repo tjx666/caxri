@@ -11,6 +11,7 @@ import {
     caxriCliCommand,
     CHILD_SUMMARY,
     CHILD_TITLE,
+    completedChildId,
     createParentSession,
     DELEGATE_PROMPT,
     HOLD_CHILD_FILE,
@@ -177,8 +178,10 @@ test('a settled delegated task wakes the idle parent Chat, and an active wait su
         const session = page.locator(VISIBLE_SESSION);
 
         await sendToParent(chat, DELEGATE_PROMPT);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
-        await expect(strip.locator('[data-agent-chat-delegated-session]')).toHaveCount(1);
+        const strip = session.getByRole('region', { name: 'Background work' });
+        const delegatedRow = strip.locator('[data-agent-chat-delegated-session]');
+        await expect(delegatedRow).toHaveCount(1);
+        const childId = (await delegatedRow.getAttribute('data-agent-chat-delegated-session'))!;
         await expect(session.getByText('Delegated the review to a new Session.')).toBeVisible();
         await expect(session.getByText(SETTLEMENT_NOTICE_REPLY)).toHaveCount(0);
 
@@ -193,10 +196,8 @@ test('a settled delegated task wakes the idle parent Chat, and an active wait su
         await expect(session.locator('[data-agent-chat-user-message]')).toHaveCount(1);
         await page.screenshot({ path: testInfo.outputPath('settlement-notice-turn.png') });
 
-        // The row opens the child Session it names.
-        const childId = (await strip
-            .locator('[data-agent-chat-delegated-session]')
-            .getAttribute('data-agent-chat-delegated-session'))!;
+        // The settled child left the list; the notice row opens the child Session it names.
+        await expect(strip).toHaveCount(0);
         await session.locator('[data-agent-chat-delegation-notice-item]').click();
         await expect.poll(() => selectedSessionId(page)).toBe(childId);
     } finally {
@@ -216,7 +217,7 @@ test('a delegated task the parent is waiting on produces no settlement notice tu
         const session = page.locator(VISIBLE_SESSION);
 
         await sendToParent(chat, WAIT_PROMPT);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         await expect(strip.locator('[data-agent-chat-delegated-session]')).toHaveCount(1);
         await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
         await expect(session.getByText(WAITED_REPLY)).toBeVisible({ timeout: 30_000 });
@@ -249,17 +250,14 @@ test('the user hands a taken-over Session back, the parent is told and its follo
         const session = page.locator(VISIBLE_SESSION);
 
         await sendToParent(chat, DELEGATE_PROMPT);
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
-        const row = strip.locator('[data-agent-chat-delegated-session]');
-        await expect(row).toContainText(CHILD_SUMMARY);
-        const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
+        const childId = await completedChildId(chat, parentId);
         // Let the settlement wake-up finish so the later notices are only the hand-back's.
         await expect(session.getByText(SETTLEMENT_NOTICE_REPLY)).toBeVisible({ timeout: 30_000 });
 
         await writeFollowUpScript(chat, projectId, childId);
 
         // Take over, and let the child answer: it is idle and under the user's control.
-        await row.click();
+        await session.locator('[data-agent-chat-delegation-notice-item]').click();
         await expect.poll(() => selectedSessionId(page)).toBe(childId);
         const childMessage = session.getByRole('textbox', { name: 'Message' });
         await childMessage.fill('Let me check one thing');
@@ -362,7 +360,7 @@ test('an independent Session gets its own sidebar row, opens with a Started by l
             'aria-level',
             (await sessionCard(page, parentId).getAttribute('aria-level'))!,
         );
-        await expect(session.getByRole('region', { name: 'Delegated Sessions' })).toHaveCount(0);
+        await expect(session.locator('[data-agent-chat-delegated-session]')).toHaveCount(0);
 
         // The sibling carries its origin line and a way back, and no delegation copy.
         await row.click();

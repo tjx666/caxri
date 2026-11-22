@@ -569,11 +569,13 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   current phase's progress, an ended one done/total, and a run that ended with a failed member stays
   in the failure area. A shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
-  in the composer strip's collapsible Background work section, headed `Background work N` and, folded, by the latest
-  task to start (`agentChatBackgroundWorkFoldedTask`), where each opens or stops on its own, and an `Ended N` button in
-  the header expands the ended ones under the list; a single running task with no failure is the section's
-  only row, without a header (`agentChatBackgroundWorkSoleTask`). The section is live status, not a log: it leaves once the
-  last task ends and its failures were dismissed, since the Agent reports the result in the conversation
+  in the composer strip's Background work list, one headerless list shared with the Sessions the Chat delegated to
+  (`agent-chat-background-items.ts`): rows group by kind (delegated Sessions, workflow runs, subagents, background
+  shells) and, within a kind, put the ones that need the user first. Folded, the list shows every row that needs the
+  user plus up to three in all, and a muted `N more` line unfolds the rest without moving a row already in view; that
+  line also carries `Stop all`, shown while the pointer or focus is in the list. Each row opens on click, and its status
+  glyph gives way to Stop while it runs or to Dismiss for a failure. The list is live status, not a log: a finished
+  task leaves at once, and the list leaves once the last task ends and its failures were dismissed, since the Agent reports the result in the conversation
   (`agentChatTaskStrip` in `packages/protocol/src/agent/agent-chat-tasks.ts`, whose `agentChatTaskStripView` the
   phone shows; see [Mobile](#mobile)). A finished task stays reachable from its
   timeline row.
@@ -611,7 +613,8 @@ only; the PTY surface and Grok never get them.
   own: only a Session with a top-level row does, so a subagent of a delegated Session appears once
   the user opens that Session. The setting `primarySidebar.showSubagents` does not hide nested
   Sessions.
-- The same delegated work shows inside the Chat: a Delegated Sessions section in the composer strip,
+- The same delegated work shows inside the Chat: its rows in the composer strip's Background work list
+  (above the Agent's own tasks; running, waiting, failed, or interrupted ones only, a completed one leaves),
   `Delegated to` records in the timeline that stay in view when the turn folds, and in the child's
   Chat an origin row and a `You took over` divider. A failed row in the strip (and the origin row)
   offers `Retry` for a retryable failure (preceded by `Sign in` for a signed-out Agent or
@@ -1027,9 +1030,9 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   ordinary message, the one the user would otherwise type (`isAgentChatTurnResumable`). The Codex app starts an
   empty turn instead, which not every provider supports. Enter in the empty input stays inert, so a stray press never
   sends; typing, an attachment, a queued message, Goal mode, or "Edit from here" brings Send back. The plan
-  and background work are collapsible sections in the strip above the row, each folded or unfolded per Chat for the
-  window's lifetime (`agentChatStripFolds`). A failure from the latest turn stays in the Background work section until
-  the user dismisses it with the section's X (`agentChatSeenTaskFailures`, per window), and only failures that ended
+  is a collapsible section in the strip above the row, folded or unfolded per Chat for the window's lifetime
+  (`agentChatStripFolds`). A failure from the latest turn stays in the Background work list until the user dismisses
+  it with its row's X (`agentChatSeenTaskFailures`, per window), and only failures that ended
   during the latest turn count, so reopening a Chat never resurfaces old ones. Only the activity summary and the strip's
   `N running · M failed` counts are polite live regions, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer

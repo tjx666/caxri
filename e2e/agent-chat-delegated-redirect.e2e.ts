@@ -37,7 +37,7 @@ test('a redirect steers a running delegated child and reads as updated direction
         await message.fill(DELEGATE_PROMPT);
         await message.press('Enter');
 
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const row = strip.locator('[data-agent-chat-delegated-session]');
         await expect(row.locator('[data-agent-chat-delegation-glyph="running"]')).toBeVisible();
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
@@ -72,9 +72,8 @@ test('a redirect steers a running delegated child and reads as updated direction
 
         await selectSession(page, parentId);
         await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
-        await expect(strip.locator('[data-agent-chat-delegated-session]')).toContainText(
-            'The retry design is sound.',
-        );
+        // Released, the redirected task finishes and leaves the list.
+        await expect(strip).toHaveCount(0);
     } finally {
         await chat.cleanup();
     }

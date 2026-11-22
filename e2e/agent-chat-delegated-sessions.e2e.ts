@@ -12,6 +12,7 @@ import { selectSession } from './support/delegated-sessions-fixture.ts';
 import {
     CHILD_SUMMARY,
     CHILD_TITLE,
+    completedChildId,
     createParentSession,
     DELEGATE_PROMPT,
     DELEGATING_PROJECT,
@@ -45,10 +46,9 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
         await message.fill(DELEGATE_PROMPT);
         await message.press('Enter');
 
-        // The child is running: the strip appears with one row and the running glyph.
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        // The child is running: the Background work list appears with one row and the running glyph.
+        const strip = session.getByRole('region', { name: 'Background work' });
         await expect(strip).toBeVisible();
-        await expect(strip).toContainText('1 delegated');
         const row = strip.locator('[data-agent-chat-delegated-session]');
         await expect(row).toHaveCount(1);
         await expect(row).toContainText(CHILD_TITLE);
@@ -57,11 +57,9 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
         await page.screenshot({ path: testInfo.outputPath('delegated-running.png') });
 
-        // Released, the child's authored Summary line becomes the row's result.
+        // Released, the completed child leaves the list: the conversation reports it, and the sidebar lists it.
         await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
-        await expect(row).toContainText(CHILD_SUMMARY);
-        await expect(row.locator('[data-agent-chat-delegation-glyph="running"]')).toHaveCount(0);
-        await expect(row).not.toContainText('Excerpt');
+        await expect(strip).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('delegated-completed.png') });
 
         // The timeline keeps a record of the delegation after the parent's turn folded.
@@ -106,11 +104,10 @@ test('a Chat shows the Session it delegated to as a strip row and a timeline rec
         );
         await page.screenshot({ path: testInfo.outputPath('delegated-taken-over.png') });
 
+        // A takeover settles the task another way; it does not bring a row back.
         await selectSession(page, parentId);
-        await expect(strip.locator('[data-agent-chat-delegated-session]')).toContainText(
-            CHILD_SUMMARY,
-        );
-        await expect(strip).not.toContainText('You said');
+        await expect(session.getByRole('textbox', { name: 'Message' })).toBeVisible();
+        await expect(strip).toHaveCount(0);
         await expect(session.locator('[data-agent-chat-delegation-record]')).toContainText(
             `Delegated to ${CHILD_TITLE}`,
         );
@@ -155,12 +152,7 @@ test('a consult record opens the child Chat in the Side View beside the parent',
 
         const record = session.locator('[data-agent-chat-delegation-record]');
         await expect(record).toContainText(`Delegated to ${CHILD_TITLE}`);
-        await expect(session.locator('[data-agent-chat-delegated-session]')).toContainText(
-            CHILD_SUMMARY,
-        );
-        const childId = (await session
-            .locator('[data-agent-chat-delegated-session]')
-            .getAttribute('data-agent-chat-delegated-session'))!;
+        const childId = await completedChildId(chat, parentId);
 
         await record.click();
         const sideView = page.locator('[data-agent-chat-portal]');
@@ -180,10 +172,11 @@ test('a consult record opens the child Chat in the Side View beside the parent',
 });
 
 /**
- * A delegated Session is the larger unit the user follows, so its section sits above the Agent's own Background work.
+ * One headerless list holds both: a delegated Session is the larger unit the user follows, so its row comes before the
+ * Agent's own background task.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the Delegated Sessions section sits above Background work in the strip', async ({}, testInfo) => {
+test('a delegated Session row sits above a background task in the one Background work list', async ({}, testInfo) => {
     const chat = await launchDelegatingChat('caxri-delegated-above-work-');
     try {
         const { page } = chat.running;
@@ -195,54 +188,18 @@ test('the Delegated Sessions section sits above Background work in the strip', a
         const message = session.getByRole('textbox', { name: 'Message' });
         await message.fill(DELEGATE_PROMPT);
         await message.press('Enter');
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
-        await expect(strip).toContainText('1 delegated');
+        const delegated = session.locator('[data-agent-chat-delegated-session]');
+        await expect(delegated).toHaveCount(1);
         await expect(session.getByText('Delegated the review to a new Session.')).toBeVisible();
 
         await message.fill('run it in the background');
         await message.press('Enter');
         const work = await openBackgroundWork(session);
-        const isAbove = await strip.evaluate(
-            (delegated, below) =>
-                Boolean(
-                    delegated.compareDocumentPosition(below) & Node.DOCUMENT_POSITION_FOLLOWING,
-                ),
-            await work.elementHandle(),
-        );
-        expect(isAbove).toBe(true);
+        await expect(work.locator('[data-agent-chat-delegated-session]')).toHaveCount(1);
+        const rows = work.getByRole('listitem');
+        await expect(rows).toHaveCount(2);
+        await expect(rows.first()).toHaveAttribute('data-agent-chat-delegated-session', /.+/u);
         await page.screenshot({ path: testInfo.outputPath('delegated-above-background-work.png') });
-    } finally {
-        await chat.cleanup();
-    }
-});
-
-/**
- * Once its only task has been completed for more than ten minutes (every settled Chat after a restart), the section
- * leaves the strip: a header over nothing but finished work cannot be dismissed and says nothing the sidebar does not.
- */
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a section whose every row folded behind Completed N leaves the strip', async ({}, testInfo) => {
-    const chat = await launchDelegatingChat('caxri-delegated-all-folded-');
-    try {
-        const { page } = chat.running;
-        const { projectId, sessionId: parentId } = await createParentSession(chat);
-        await chat.writeScript(projectId);
-        await openAgentChat(page, 'Codex Chat');
-        const session = page.locator(VISIBLE_SESSION);
-        const message = session.getByRole('textbox', { name: 'Message' });
-        await message.fill(DELEGATE_PROMPT);
-        await message.press('Enter');
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
-        const row = strip.locator('[data-agent-chat-delegated-session]');
-        await expect(row).toContainText(CHILD_SUMMARY);
-        const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
-
-        // Eleven minutes later, the completed row folds; reselecting the Chat reads the clock again.
-        await page.clock.setFixedTime(Date.now() + 11 * 60_000);
-        await selectSession(page, childId);
-        await selectSession(page, parentId);
-        await expect(strip).toHaveCount(0);
-        await page.screenshot({ path: testInfo.outputPath('delegated-all-folded.png') });
     } finally {
         await chat.cleanup();
     }
@@ -260,15 +217,17 @@ test('a delegated task shows the preset it was admitted with on the strip and th
         const { page } = chat.running;
         const { projectId } = await createParentSession(chat);
         await chat.writeScript(projectId);
+        // Held, so the row stays in the list while the spec reads it.
+        await writeFile(join(chat.controlDirectory, HOLD_CHILD_FILE), '');
         await openAgentChat(page, 'Codex Chat');
         const session = page.locator(VISIBLE_SESSION);
         const message = session.getByRole('textbox', { name: 'Message' });
         await message.fill(DELEGATE_PROMPT);
         await message.press('Enter');
 
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const row = strip.locator('[data-agent-chat-delegated-session]');
-        await expect(row).toContainText(CHILD_SUMMARY);
+        await expect(row).toHaveCount(1);
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
         await expect(row.locator('[data-delegation-preset="review"]')).toBeVisible();
 
@@ -298,7 +257,7 @@ test('a delegated task shows the preset it was admitted with on the strip and th
  * app is closed, and the Workbench's feed read proves they exist.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the Caxri Bot window shows no Delegated Sessions region', async ({}) => {
+test('the Caxri Bot window lists no delegated Sessions', async ({}) => {
     const chat = await launchDelegatingChat('caxri-delegated-bot-');
     try {
         await createParentSession(chat);
@@ -333,7 +292,7 @@ test('the Caxri Bot window shows no Delegated Sessions region', async ({}) => {
         await message.press('Enter');
         // A settled reply means the Chat and its composer strip rendered, so the absence below is not an early read.
         await expect(bot.getByText('You said: hello')).toBeVisible();
-        await expect(bot.getByRole('region', { name: 'Delegated Sessions' })).toHaveCount(0);
+        await expect(bot.locator('[data-agent-chat-delegated-session]')).toHaveCount(0);
         await expect(bot.locator('[data-agent-chat-delegation-record]')).toHaveCount(0);
     } finally {
         await chat.cleanup();
@@ -367,11 +326,9 @@ test('the owner retries a failed delegated task from the strip and the Agent tha
         await message.fill(DELEGATE_PROMPT);
         await message.press('Enter');
 
-        const strip = session.getByRole('region', { name: 'Delegated Sessions' });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const rows = strip.locator('[data-agent-chat-delegated-session]');
-        await expect(rows).toHaveCount(1);
-        await expect(rows).toContainText(CHILD_SUMMARY);
-        const childId = (await rows.getAttribute('data-agent-chat-delegated-session'))!;
+        const childId = await completedChildId(chat, parentId);
         const feed = async () =>
             (
                 await pageRequest<{ sessions: FeedSession[] }>(page, 'agent.delegation.sessions', {
@@ -402,7 +359,8 @@ test('the owner retries a failed delegated task from the strip and the Agent tha
         expect(await feed()).toHaveLength(1);
         await expect(rows).toHaveCount(1);
 
-        // Confirmed, with two more requests racing the click: still exactly one successor.
+        // Confirmed, with two more requests racing the click: still exactly one successor, held so its row stays.
+        await writeFile(join(chat.controlDirectory, HOLD_CHILD_FILE), '');
         await chooseFresh();
         const raced = [
             pageRequest(page, 'agent.delegation.retry', { delegationId: failedId, mode: 'fresh' }),
@@ -432,7 +390,6 @@ test('the owner retries a failed delegated task from the strip and the Agent tha
             successor.sessionId,
         );
         await expect(rows).toContainText('Attempt 2');
-        await expect(rows).toContainText(CHILD_SUMMARY);
         await expect(strip).not.toContainText('failed');
 
         // The Agent that delegated the task heard of the retry through its own Chat.
@@ -450,7 +407,9 @@ test('the owner retries a failed delegated task from the strip and the Agent tha
  * seeded).
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the strip states the estimated cost of a delegated Chat per row and in the header, and notes while it runs that it may grow', async ({}, testInfo) => {
+test('a delegated row states the estimated cost of its Chat and notes while it runs that it may grow', async ({}, testInfo) => {
+    // The running figure arrives on the 30s cost poll, after the Server's 30s ledger window.
+    test.setTimeout(180_000);
     const chat = await launchDelegatingChat('caxri-delegated-cost-');
     try {
         const { page } = chat.running;
@@ -463,7 +422,7 @@ test('the strip states the estimated cost of a delegated Chat per row and in the
         await message.fill(DELEGATE_PROMPT);
         await message.press('Enter');
 
-        const strip = session.getByRole('region', { name: /^Delegated Sessions/u });
+        const strip = session.getByRole('region', { name: 'Background work' });
         const row = strip.locator('[data-agent-chat-delegated-session]');
         await expect(row).toHaveCount(1);
         const childId = (await row.getAttribute('data-agent-chat-delegated-session'))!;
@@ -491,26 +450,14 @@ test('the strip states the estimated cost of a delegated Chat per row and in the
 
         // While the child runs, the figure carries no `~` marker; only its description says it may still grow.
         const rowCost = row.locator('span[aria-hidden="true"]', { hasText: '$' });
-        await expect(rowCost).toHaveText(/^\$\d+\.\d\d$/u, { timeout: 45_000 });
+        await expect(rowCost).toHaveText(/^\$\d+\.\d\d$/u, { timeout: 75_000 });
         await expect(row).toContainText('Still running; the figure may grow.');
-        await expect(strip).toContainText(/delegated · \$\d+\.\d\d/u);
         await expect(strip).not.toContainText('~');
         await page.screenshot({ path: testInfo.outputPath('delegated-cost-running.png') });
 
-        // Released, the child settles and the description drops the running note.
+        // Released, the child settles and its row, cost included, leaves the list.
         await rm(join(chat.controlDirectory, HOLD_CHILD_FILE));
-        await expect(row).toContainText(CHILD_SUMMARY);
-        await expect(row).not.toContainText('Still running', { timeout: 45_000 });
-        await expect(rowCost).toHaveText(/^\$\d+\.\d\d$/u);
-        await expect(strip).toContainText(/delegated · \$\d+\.\d\d/u);
-        await page.screenshot({ path: testInfo.outputPath('delegated-cost-settled.png') });
-
-        // The header's figure and the row's agree, and hovering the header states the basis.
-        const rowAmount = (await rowCost.textContent())!;
-        await expect(strip).toContainText(`delegated · ${rowAmount}`);
-        await strip.locator('[data-agent-chat-delegated-cost]').hover();
-        await expect(page.getByText('Estimated at API list prices')).toBeVisible();
-        await page.screenshot({ path: testInfo.outputPath('delegated-cost-tooltip.png') });
+        await expect(strip).toHaveCount(0, { timeout: 45_000 });
     } finally {
         await chat.cleanup();
     }

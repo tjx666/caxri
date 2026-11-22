@@ -124,20 +124,6 @@ export function sumDelegatedCost(
 }
 
 /**
- * The header's figure: everything below the Chat, from the summary. Hidden with no delegated Session that has usage.
- */
-export function delegatedHeaderFigure(
-    summary: DelegationCostSummary | undefined,
-): DelegatedCostFigure | undefined {
-    if (summary === undefined || summary.delegatedSessions === 0) return undefined;
-    return {
-        costUsd: summary.delegatedCostUsd,
-        isPartial: summary.isPartial,
-        isActive: summary.isActive,
-    };
-}
-
-/**
  * How many completed reads the summary gets while the usage ledger is still scanning, and how long between them. A scan
  * that outlives them leaves the last answer in place (the next feed change or reopen reads again), so a stuck scan
  * never becomes a hot loop.
@@ -146,24 +132,24 @@ export const COST_SCAN_POLL_MS = 3_000;
 export const COST_SCAN_POLL_LIMIT = 20;
 
 /**
- * The next `refetchInterval` for the summary. Pure: TanStack evaluates it on every configuration and state change, so
- * it must not count its own calls. The budget is the reads that completed since the scan became pending
- * (`fetchesSincePending`, counted by the caller), and `false` stops polling.
+ * How often the summary is read again while a delegated task still runs. A running child writes usage without any feed
+ * change, and the Server answers a read within 30s of its last ledger pass from stored rows
+ * (`LEDGER_READ_MIN_INTERVAL_MS`), so the read that would show the new figure has to come after that window. Matching
+ * it adds no ledger pass the Server would not already allow.
  */
-export function costRefetchInterval(
-    summary: Pick<DelegationCostSummary, 'isScanPending'> | undefined,
-    fetchesSincePending: number,
-): number | false {
-    if (!summary?.isScanPending) return false;
-    return fetchesSincePending < COST_SCAN_POLL_LIMIT ? COST_SCAN_POLL_MS : false;
-}
+export const COST_ACTIVE_POLL_MS = 30_000;
 
 /**
- * `1 Session` or `3 Sessions`, the count the cost tooltip ends on, with the language's own plural form.
+ * The next `refetchInterval` for the summary. Pure: TanStack evaluates it on every configuration and state change, so
+ * it must not count its own calls. The budget is the reads that completed since the scan became pending
+ * (`fetchesSincePending`, counted by the caller), and `false` stops polling. A summary with a task still running is
+ * read again on the slower `COST_ACTIVE_POLL_MS`, so its figure grows while the row says it may.
  */
-export function delegatedSessionCountLabel(count: number, t: Translate): string {
-    return t(
-        count === 1 ? 'delegation.strip.cost.sessionsOne' : 'delegation.strip.cost.sessionsOther',
-        { count },
-    );
+export function costRefetchInterval(
+    summary: Pick<DelegationCostSummary, 'isActive' | 'isScanPending'> | undefined,
+    fetchesSincePending: number,
+): number | false {
+    if (summary?.isScanPending && fetchesSincePending < COST_SCAN_POLL_LIMIT)
+        return COST_SCAN_POLL_MS;
+    return summary?.isActive ? COST_ACTIVE_POLL_MS : false;
 }

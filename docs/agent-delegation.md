@@ -678,11 +678,11 @@ caxri agent delegate create --type review --title "Review the retry fix" --promp
   sidebar as the selected row (`agent-notification-runtime.ts`). For the same reason the selection
   that follows archiving, deleting, or hiding never lands on a consult whose creator still exists
   (`isFallbackCandidate` in `session-policy.ts`).
-- **Side View.** Clicking a consult's timeline record, its Delegated Sessions row, or its notice
+- **Side View.** Clicking a consult's timeline record, its Background work row, or its notice
   opens the child's live Chat in the asking Chat's Side View (the Portal), as a
   `caxri-agent-delegation://<child Chat Terminal>` tab (`delegated-child-opener.ts`). The user reads
   its progress, answers it, or takes it over without leaving the parent; the tab mounts the Chat as
-  the `portal` host, which drops Fork, Continue in, beside-Chat tabs, and the Delegated Sessions strip
+  the `portal` host, which drops Fork, Continue in, beside-Chat tabs, and the delegated rows of the Background work list
   because each would act on the selected (parent) Session. The header's Open Session replaces Open in
   Split and selects the child's own Session. A Terminal child still opens as its own Session: one
   PTY renders in one place.
@@ -1128,7 +1128,7 @@ inherit the previous caller's delegation ownership.
 
 ### Retry now
 
-The owner can retry a failed delegated task from the Delegated Sessions strip or the child's origin
+The owner can retry a failed delegated task from its Background work row or the child's origin
 row ([issue #3572](https://github.com/tjx666/caxri/issues/3572)). It is owner-only: the Desktop
 Renderer calls `agent.delegation.retryOptions` (`{ delegationId }`, returns the two modes with
 `available` and a closed `unavailableReason`) and `agent.delegation.retry` (`{ delegationId, mode }`
@@ -1533,34 +1533,29 @@ An Agent Chat in a Workbench window shows delegated work in three places
 and Benchmark windows show none of them: the host reports no Delegated Sessions capability
 (`canShowDelegatedSessions` in `agent-chat-host.ts`), and the denied reads would only fail.
 
-- **Parent strip.** The Chat of the Session that delegated has a collapsible Delegated Sessions
-  section in the composer strip, one row per Session it created (`delegation/` in the Agent Chat
+- **Parent strip.** The Chat of the Session that delegated lists the Sessions it created in the composer
+  strip's Background work list, one line each and above the Agent's own background tasks
+  (`agent-chat-background-items.ts`; see [Background work](agent-chat.md#background-work)) (`delegation/` in the Agent Chat
   feature). Its data is the `agent.delegation.sessions` feed for that one Session ID, so a progress
   or state push refreshes the rows without re-rendering the transcript. The strip also lists the deeper Sessions that need the user
   (`agent.delegation.attention`: an approval, an escalated question, a blocked prompt, or a real
   failure at depth two and deeper), sorted with the direct rows, each with a muted `via <direct
-child title>` part. The header counts them in its needs-input and failed parts but keeps
-  `delegated` as the direct-child count; when the Server could not read or list every deeper item
-  it appends `and more`. Nothing was added to act on them: the rows are the existing rows (click
-  opens the Session), with no "next item" action, and a handoff subtree is not rolled up. A completed
-  row stays in the list for ten minutes, then folds behind the header's `Completed N` toggle. Once
-  every row folded (nothing open, failed, or waiting on the user, which is every settled Chat after
-  a restart), the whole section leaves the strip until the next delegation: a header over finished
-  work alone cannot be dismissed, and the sidebar already lists the child Sessions. The section mounts only
+child title>` part. The list's polite live region counts them in its needs-input and failed parts. Nothing was added to act on them: the rows are the existing rows (click
+  opens the Session), with no "next item" action, and a handoff subtree is not rolled up. A row shows
+  while its task works, waits, or needs the user (a question or approval, a real failure, an
+  interruption); a task that settled any other way (completed, stopped by its caller, taken over, an
+  unreadable result) leaves the list at once, since the Agent reports it in the conversation and the
+  sidebar lists the child Sessions. A failure or interruption the user has seen can be dismissed from
+  its row; one waiting on the user's answer cannot. The list mounts the delegated rows only
   while the Chat is shown, so a hidden Chat does not subscribe. A hidden kept-alive Chat also
   reads no record statuses, ticks no record clock, and follows no change of its origin row's
-  takeover time (`DelegationLiveContext`); showing it reads the cached values again. A completed row also shows the
-  pull request found for its Session and the whole pull request's `changedFiles`
-  (`<n> PR files`, labeled as the pull request's, not the delegation's). The sidebar owns the pull
-  request poll; the strip starts the same poll only while the sidebar is hidden.
-  A failed row whose failure can be retried carries a `Retry` action (a sibling of the row's open
+  takeover time (`DelegationLiveContext`); showing it reads the cached values again. A failed row whose failure can be retried carries a `Retry` action (a sibling of the row's open
   button) that opens a menu of the modes the Server allows now, read lazily on hover or focus
   (`agent.delegation.retryOptions`); an unavailable mode stays in the menu, disabled, with its
   reason. Both modes ask for confirmation first: file changes are not rolled back, and a fresh retry
   may repeat earlier side effects. Once retried, the failed row is dropped when its `retriedAs`
   equals another row's `delegationId` or `retryOf` (a fresh retry followed by a resume keeps
-  working), so the strip shows one current row labeled `Attempt N`, and the header counts the
-  collapsed list. Where the successor is missing from the feed the failed row stays. Several
+  working), so the strip shows one current row labeled `Attempt N`. Where the successor is missing from the feed the failed row stays. Several
   resume retries in a row hide the middle tasks, because the feed shows only the newest task per
   Session. A timeline record of a retried task shows a `Retried` mark.
   A usage-limit failure (`quota_exhausted`, `rate_limited`) reads its options as soon as the row
@@ -1573,7 +1568,7 @@ child title>` part. The header counts them in its needs-input and failed parts b
   carries the date when it is not today (`apps/desktop/src/renderer/src/features/delegation/delegation-retry-time.ts`).
   A pending schedule (`retriedAs` with `retryScheduledFor`) is waiting, not failed: the row reads
   `Retries at <time>` with a muted clock glyph and a `Cancel` action in place of the retry actions,
-  the header counts it as `<n> retry waiting` and not as failed, and the timeline record shows the
+  the live region counts it as `<n> retry waiting` and not as failed, and the timeline record shows the
   clock glyph instead of the `Retried` mark. The row stays in the collapsed list because the
   successor does not exist yet. A refusal (`retryScheduleOutcome`) is folded into the failure's
   detail line (`The scheduled retry did not run: ...`), keeps the red failure, and offers the retry
@@ -1594,7 +1589,7 @@ child title>` part. The header counts them in its needs-input and failed parts b
   `failureResetsAt` so the record words a limit failure like the strip row.
 - **Approval wording.** A row that waits on a permission request reads
   `Waiting for the Agent that delegated it to approve` (muted asking glyph) while the delegating Agent holds it, and `Waiting for your approval` (amber) once it is the user's, with one fixed sentence for the closed
-  `coverageReason`. The header counts escalated approvals as `<n> waiting for your approval` when
+  `coverageReason`. The live region counts escalated approvals as `<n> waiting for your approval` when
   every task that needs input is an approval, and as `<n> need input` otherwise; held ones count
   as `asking`, which is not attention and stays out of the live-region announcement.
 - **Child Chat.** A Delegated Session's own Chat keeps the `Delegated by <title> · <parent Project>`
@@ -1701,24 +1696,26 @@ delegation that never settled (a running or deleted one) still has its edge; mig
 backfilled the edges of Sessions that already existed. Edges outlive Session deletion on purpose,
 so a deleted middle Session does not hide its descendants' spend.
 
-The Delegated Sessions strip uses the edges to state spend:
+The delegated rows of the Background work list use the edges to state spend:
 
 - `usage.delegationSummary` (owner-only) walks the edges breadth-first from the Chat's Session over
   `delegated` and `consult` children (a `handoff` moves the user's own continuation, and an
   `independent` Session is the creator's separate task; neither is rolled up), visits each Session once, and prices the Usage ledger rows of every visited Session.
   The walk is bounded: at most 1000 descendants (the root does not count) and depth 8. A larger or
   deeper tree sets `isPartial`, so the figure reads as a floor.
-- A row shows its child's cost together with the cost of every attempt in its retry chain; the
-  header shows the total. `+` means a floor (a model without a list price, or a truncated walk).
+- A row shows its child's cost together with the cost of every attempt in its retry chain. `+` means a floor (a model without a list price, or a truncated walk).
   A figure carries no marker while a task below it still runs: every figure is already an estimate,
-  so a `~` would read as "about". The accessible description, and the header's tooltip, say instead
+  so a `~` would read as "about". The accessible description says instead
   that the figure may still grow. Unknown is never `$0`: a Session whose
   own usage is unknown has no `costUsd` in `usage.sessionCost`, which then carries only the
   `delegated*` fields.
 - Figures are estimates at API list prices, not a charge; a subscription plan bills differently.
 - The summary reports `isScanPending` while the Usage ledger is still scanning, and the Renderer
   re-reads on a short bounded interval until it lands. A settle also refreshes it through the
-  Delegated Sessions feed invalidation.
+  Delegated Sessions feed invalidation. While a task below the Chat still runs, the Renderer also
+  re-reads every 30 seconds: a running child writes usage without a feed change, and the Server
+  answers a read within 30 seconds of its last ledger pass from stored rows, so a faster poll would
+  add nothing.
 
 Privacy: `agent_delegation.history_read` and `agent_delegation.history_recorded` log identifiers,
 counts, durations, and closed reasons only. The query text, titles, summaries, and cursors appear in

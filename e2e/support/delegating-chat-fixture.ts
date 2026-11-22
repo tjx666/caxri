@@ -10,6 +10,7 @@ import {
     fakeCodexChatExecutableSource,
 } from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { createFakeAgentMode } from './agent-fixture.ts';
+import { expect } from './fixtures.ts';
 import type { RunningCaxri } from './helpers.ts';
 import { closeAppQuietly, createProjectSession, launchCaxri, pageRequest } from './helpers.ts';
 import type { LaunchCaxriOptions } from './launch-options.ts';
@@ -214,4 +215,22 @@ export async function createParentSession(
     const state = await pageRequest<BootstrapState>(page, 'app.bootstrap');
     const projectId = state.sessions.find((session) => session.id === sessionId)!.projectId;
     return { projectId, sessionId };
+}
+
+/**
+ * Waits until the parent's only delegated task completed and returns its child Session's ID. The composer strip drops a
+ * completed task's row, so a spec that needs the child after it finished reads the delegation feed instead.
+ */
+export async function completedChildId(chat: DelegatingChat, parentId: string): Promise<string> {
+    let childId: string | undefined;
+    await expect
+        .poll(async () => {
+            const { sessions } = await pageRequest<{
+                sessions: Array<{ sessionId: string; status?: string }>;
+            }>(chat.running.page, 'agent.delegation.sessions', { createdBySessionIds: [parentId] });
+            childId = sessions.find((entry) => entry.status === 'completed')?.sessionId;
+            return childId;
+        })
+        .toBeTruthy();
+    return childId!;
 }

@@ -9,7 +9,8 @@ import { COST_SCAN_POLL_MS, costRefetchInterval } from '../cost/agent-chat-deleg
  * What the Sessions this Chat delegated to have cost, read from `usage.delegationSummary` for the visible strip.
  *
  * Freshness has two parts. A feed change (a task started, settled, or failed) invalidates this read with the feed's own
- * record-push invalidation, so a settle shows its cost without polling, and a running task needs no timer. The usage
+ * record-push invalidation, so a settle shows its cost without polling. A running task writes usage with no feed
+ * change, so while any task runs the read repeats every `COST_ACTIVE_POLL_MS`, the Server's ledger window. The usage
  * ledger fills after a task settles, so while the Server reports `isScanPending` the read repeats on a short interval
  * for a bounded number of completed reads until the scan lands (`costRefetchInterval`). A finished, scanned summary is
  * never polled, and neither is a strip that is not mounted. A failed read returns `undefined` rather than the figure it
