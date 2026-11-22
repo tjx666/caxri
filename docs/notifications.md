@@ -97,6 +97,12 @@ They cross the local Main-to-Renderer request boundary only while rendering the 
 
 ### Native Agent banner content
 
+Agent banners appear only while Caxri is in the background. While any Caxri window is focused,
+visible, and not minimized, every Session's attention is left to the sidebar's unread and attention
+markers and Main records the `appFocused` outcome instead of a banner. That attention is not
+replayed when the user later leaves Caxri; the next attention raised in the background notifies
+again.
+
 A native Agent banner names the Agent first: the title is `<Provider> · <Session title>` (the
 provider alone for an unnamed Session) and the subtitle is the Session's Project. A waiting banner
 reads **Waiting for your input**. A completed-turn banner shows the Agent's closing reply of that
