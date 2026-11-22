@@ -16,6 +16,7 @@ import type { DelegationAuthority } from '../admission';
 import { isCaxriBotCaller } from '../admission';
 import { logDelegationRetry } from '../diagnostics';
 import { isSameCallerConversation } from '../ownership';
+import { currentFailureResetsAt } from '../receipt-timing';
 import { resumeRejection } from '../rejection';
 import type { AgentDelegationServiceOptions, DelegationWorktree } from '../service-options';
 import { RetryClaims } from './claims';
@@ -97,6 +98,17 @@ export class DelegationRetries {
 
     private get database() {
         return this.host.options.database;
+    }
+
+    /**
+     * When a retry of `failed` scheduled now would run, from its reset time as {@link currentFailureResetsAt} reads it.
+     */
+    private retryTime(failed: StoredAgentDelegation): number | undefined {
+        const now = this.host.now();
+        const resetsAt = currentFailureResetsAt(failed, now, (failure) =>
+            this.host.options.limitResetsAt?.(failure),
+        );
+        return scheduledRetryTime(resetsAt, now);
     }
 
     /**
@@ -290,9 +302,7 @@ export class DelegationRetries {
             switchTo,
         );
         let failed = checkedTask;
-        const scheduledFor = isScheduled
-            ? scheduledRetryTime(failed.receipt, this.host.now())
-            : undefined;
+        const scheduledFor = isScheduled ? this.retryTime(failed) : undefined;
         if (isScheduled && scheduledFor === undefined)
             throw this.refused(failed, mode, 'no_reset_time');
         if (this.claimChatWait(failed) === 'running')
@@ -478,7 +488,7 @@ export class DelegationRetries {
             await this.optionFor(failed, 'resume'),
             await this.optionFor(failed, 'fresh'),
         ];
-        const time = scheduledRetryTime(failed.receipt, this.host.now());
+        const time = this.retryTime(failed);
         const isOpen = options.some((option) => option.available);
         return {
             options,

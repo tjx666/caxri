@@ -1,6 +1,46 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { AntigravityUsageAnswer } from '../../agents/providers/antigravity/usage-command';
 import { fixture } from './chat-service-fixture';
+
+/**
+ * The `agy -p /usage` reading a used-up turn asks for. It answers unknown, as a fixture with no real CLI does, unless a
+ * test holds it to answer later.
+ */
+const usageReading = vi.hoisted(() => ({
+    held: undefined as PromiseWithResolvers<AntigravityUsageAnswer> | undefined,
+}));
+
+vi.mock('../../agents/providers/antigravity/usage-command', async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    readAntigravityUsage: () =>
+        usageReading.held?.promise ?? Promise.resolve({ status: 'unknown' as const }),
+}));
+
+afterEach(() => {
+    usageReading.held = undefined;
+});
+
+const RESETS_AT = Date.now() + 3_600_000;
+
+/**
+ * A reading with Gemini's 5-hour window used up.
+ */
+const USED_UP: AntigravityUsageAnswer = {
+    status: 'signedIn',
+    limit: {
+        observedAt: Date.now(),
+        windows: [
+            {
+                windowMinutes: 300,
+                usedPercent: 100,
+                resetsAt: RESETS_AT,
+                scope: 'session',
+                group: 'Gemini',
+            },
+        ],
+    },
+};
 
 describe('AgentChatService with a fake Antigravity ACP agent', () => {
     it('streams a turn and binds the session id the agent chose on its first turn', async () => {
@@ -231,6 +271,45 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
             phase: 'turnFailed',
             agentFailure: 'billing_error',
         });
+    });
+
+    it('ends a used-up turn before its quota reading answers, then names the window that ran out', async () => {
+        usageReading.held = Promise.withResolvers();
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'use the quota' });
+        const failed = await until((snapshot) => snapshot.turns.at(-1)?.status === 'failed');
+        // The reading is still held, so the turn ended without waiting on it.
+        expect(failed.items.at(-1)).toMatchObject({ usageLimit: { window: 'unknown' } });
+
+        usageReading.held.resolve(USED_UP);
+        const refined = await until((snapshot) => {
+            const notice = snapshot.items.at(-1);
+            return notice?.type === 'notice' && notice.usageLimit?.window === 'session';
+        });
+        expect(refined.items.at(-1)).toMatchObject({
+            type: 'notice',
+            kind: 'error',
+            message: expect.stringContaining('quota') as string,
+            usageLimit: { window: 'session', resetsAt: RESETS_AT },
+        });
+    });
+
+    it('leaves a used-up notice unknown when the Chat moved on before its reading answered', async () => {
+        usageReading.held = Promise.withResolvers();
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'use the quota' });
+        const failed = await until((snapshot) => snapshot.turns.at(-1)?.status === 'failed');
+        const turnId = failed.turns.at(-1)!.id;
+        await service.send(terminal.id, { text: 'hello again' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+
+        usageReading.held.resolve(USED_UP);
+        await usageReading.held.promise;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const notice = service
+            .read(terminal.id)
+            .items.find((item) => item.id === `${turnId}:error`);
+        expect(notice).toMatchObject({ usageLimit: { window: 'unknown' } });
     });
 
     it('resumes the bound session with the history session/load replays', async () => {

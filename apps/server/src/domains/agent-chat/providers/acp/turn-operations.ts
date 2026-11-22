@@ -137,6 +137,24 @@ export function finishedTurnOperations(
 }
 
 /**
+ * Puts the window and reset time a quota reading names on the usage-limit notice `turnId` failed with, which ended
+ * without one so the turn never waited on the reading (issue #4114). Nothing changes when the reading names none, or
+ * when a later turn started meanwhile: the Chat moved on, and a refined notice would plan a wait for an old turn.
+ */
+export function refinedUsageLimitOperations(
+    snapshot: AgentChatSnapshot,
+    turnId: string,
+    usageLimit: AgentChatUsageLimit,
+): AgentChatPatchOperation[] {
+    if (usageLimit.window === 'unknown' && usageLimit.resetsAt === undefined) return [];
+    if (snapshot.turns.at(-1)?.id !== turnId) return [];
+    const notice = snapshot.items.find((item) => item.id === `${turnId}:error`);
+    if (notice?.type !== 'notice' || !notice.usageLimit) return [];
+    const refined = { ...notice.usageLimit, ...usageLimit };
+    return [{ op: 'upsertItem', item: { ...notice, usageLimit: refined } }];
+}
+
+/**
  * The lifecycle event a turn's end reports. A used-up plan limit is the lifecycle's quota failure, as for a Claude Code
  * Chat.
  */
