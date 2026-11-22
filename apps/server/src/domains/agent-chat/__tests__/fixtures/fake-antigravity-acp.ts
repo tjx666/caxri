@@ -167,6 +167,37 @@ async function didRunCommand(command: string): Promise<boolean> {
     return isAllowed;
 }
 
+/**
+ * Like `agy` 1.5 moving a slow foreground command to the background: the prompt ends while the command still runs, and
+ * the command reports finished afterwards. A `daemon` command is started as one (`IsDaemon`), and a `forever` one never
+ * finishes; neither reports an end.
+ */
+function startBackgroundCommand(text: string): void {
+    const toolCallId = crypto.randomUUID();
+    update({
+        sessionUpdate: 'tool_call',
+        toolCallId,
+        name: 'run_command',
+        title: 'npm run build',
+        kind: 'execute',
+        status: 'in_progress',
+        rawInput: {
+            CommandLine: 'npm run build',
+            Cwd: process.cwd(),
+            IsDaemon: text.includes('daemon'),
+        },
+    });
+    if (text.includes('daemon') || text.includes('forever')) return;
+    setTimeout(() => {
+        update({
+            sessionUpdate: 'tool_call_update',
+            toolCallId,
+            status: 'completed',
+            content: [{ type: 'content', content: { type: 'text', text: 'built' } }],
+        });
+    }, 300);
+}
+
 function writePlan(): void {
     const toolCallId = crypto.randomUUID();
     const rawInput = {
@@ -217,6 +248,17 @@ async function prompt(text: string, images: number): Promise<Record<string, unkn
         });
         update({ sessionUpdate: 'tool_call_update', toolCallId, status: 'completed' });
         reply = 'Read it.';
+    } else if (text.includes('background')) {
+        startBackgroundCommand(text);
+        reply = 'Started the build.';
+    } else if (text.includes('stuck')) {
+        // A command that never reports its end while the prompt itself still runs until Stop.
+        startBackgroundCommand('forever');
+        while (!isCancelled()) {
+            // eslint-disable-next-line no-await-in-loop -- waits for the Stop the test sends
+            await delay(20);
+        }
+        return { stopReason: 'cancelled' };
     } else if (text.includes('slow')) {
         for (let index = 0; index < 200 && !isCancelled() && !isSuperseded(); index += 1) {
             update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '.' } });

@@ -64,6 +64,9 @@ class AntigravityChatSession extends AcpChatSession {
                 images: true,
                 proposedPlan: antigravityProposedPlan,
                 isUsageLimitError: isAntigravityUsageLimitError,
+                // A command `agy` started as a daemon (`IsDaemon`) runs on by design; a foreground one is the turn's work.
+                shouldHoldTurn: (call) =>
+                    call.kind === 'execute' && call.rawInput.IsDaemon !== true,
             },
             options.agentSessionId,
         );

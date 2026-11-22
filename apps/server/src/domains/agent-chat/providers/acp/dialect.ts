@@ -52,4 +52,9 @@ export interface AcpDialect {
      * Whether a failed prompt's error message is the agent refusing the turn because the plan's quota is used up.
      */
     isUsageLimitError?: (message: string) => boolean;
+    /**
+     * Whether a still-running tool call keeps the turn open after its prompt answered, for an agent that ends a prompt
+     * while a foreground command it moved to the background still runs; see `AcpRunningTools`.
+     */
+    shouldHoldTurn?: (call: AcpToolCall) => boolean;
 }

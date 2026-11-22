@@ -32,10 +32,10 @@ import { withCacheRewriteEstimate } from '../../chat-usage';
 import type { JsonRpcServerRequest } from '../../json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from '../../json-rpc-connection';
 import { queuedPromptUuid } from '../../queued-prompt-uuid';
-import { ChatShellToolSignals } from '../../worktree/shell-tool-signals';
 import type { AcpActiveTurn, AcpDialect } from './dialect';
 import type { AcpToolCall } from './items';
 import { AcpRequestBroker } from './requests';
+import { AcpRunningTools } from './running-tools';
 import { initializeAcpConnection, loadAcpSession, newAcpSession } from './session-open';
 import type { AcpPromptBlock, AcpTurnDetails } from './turn-operations';
 import {
@@ -72,7 +72,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
 
     private rejectedRequests = 0;
 
-    private readonly shellTools: ChatShellToolSignals;
+    private readonly runningTools: AcpRunningTools;
 
     protected connection: JsonRpcConnection | undefined;
 
@@ -97,14 +97,21 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
     ) {
         this.sessionId = sessionId;
         this.isSessionBound = Boolean(options.agentSessionId);
-        this.shellTools = new ChatShellToolSignals((event) => options.lifecycle(event));
+        this.runningTools = new AcpRunningTools(
+            (event) => options.lifecycle(event),
+            dialect.presentation,
+            dialect.shouldHoldTurn,
+        );
         this.updates = new AcpUpdates({
             apply: (operations) => options.apply(operations),
             activeTurnId: () => this.activeTurn?.id,
             presentation: dialect.presentation,
             ...(dialect.displayText && { displayText: dialect.displayText }),
             ...(dialect.configState && { configState: dialect.configState }),
-            onToolCall: (call) => this.onToolCall(call),
+            onToolCall: (call, isDeclined) => {
+                this.showProposedPlan(call);
+                this.runningTools.observe(call, !isDeclined && this.activeTurn !== undefined);
+            },
             onContextUsage: (used, size) => this.onContextUsage?.(used, size),
             onModeChanged: (modeId) => this.onModeChanged?.(modeId),
         });
@@ -115,17 +122,6 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             ...(dialect.questions && { questions: dialect.questions }),
             onDeclined: (key) => this.updates.decline(key),
         });
-    }
-
-    /**
-     * Feeds the Workbench Root's worktree attribution from shell tool calls; see {@link ChatShellToolSignals}.
-     */
-    private onToolCall(call: AcpToolCall): void {
-        this.showProposedPlan(call);
-        if (call.kind !== 'execute') return;
-        if (call.status === 'completed') this.shellTools.ended(call.id, 'finished');
-        else if (call.status === 'failed') this.shellTools.ended(call.id, 'failed');
-        else this.shellTools.started(call.id, this.dialect.presentation.shellCommand(call));
     }
 
     /**
@@ -212,7 +208,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         const turn = this.activeTurn;
         if (turn?.id !== turnId) return;
         this.activeTurn = undefined;
-        this.shellTools.clear();
+        this.runningTools.clear();
         this.updates.closeStreaming();
         const durationMs = Date.now() - turn.startedAt;
         const snapshot = this.options.read();
@@ -262,11 +258,12 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             return;
         }
         if (!this.isCurrentPrompt(turnId, prompt)) return;
-        this.finishTurn(
-            turnId,
-            stopReasonStatus(isRecord(result) ? result.stopReason : undefined),
-            { result },
-        );
+        const status = stopReasonStatus(isRecord(result) ? result.stopReason : undefined);
+        // A held end still belongs to this prompt only: a message steered in meanwhile carries the turn on.
+        this.runningTools.endTurn(status, (stopped) => {
+            if (this.isCurrentPrompt(turnId, prompt))
+                this.finishTurn(turnId, stopped ?? status, { result });
+        });
     }
 
     private onEnd(end: ChatProcessEnd): void {
@@ -275,7 +272,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         const turn = this.activeTurn;
         this.activeTurn = undefined;
         this.updates.dropStreaming();
-        this.shellTools.clear();
+        this.runningTools.clear();
         const unanswered = this.requests.drain();
         this.options.apply(endedSessionOperations(snapshot));
         this.requests.resolveAttention(unanswered);
@@ -579,6 +576,8 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         // ACP requires the client to answer the turn's pending permission requests `cancelled` once it cancels.
         this.requests.cancelTurn(connection, turn.id);
         connection.notify('session/cancel', { sessionId: this.sessionId });
+        // A turn held for its running commands has no prompt left to answer the cancel; it ends here.
+        this.runningTools.release('interrupted');
         // Only a turn that is still running is stuck; a later Stop or the turn ending on its own settles this one.
         if (!(await finished) && this.activeTurn === turn) await this.close();
     }

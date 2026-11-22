@@ -48,9 +48,10 @@ export interface AcpUpdatesHost {
      */
     configState?: (configOptions: unknown) => Partial<AgentChatSnapshot> | undefined;
     /**
-     * A live tool call changed, after its update was merged. A `session/load` replay reports none.
+     * A live tool call changed, after its update was merged; `isDeclined` says the user declined it. A `session/load`
+     * replay reports none.
      */
-    onToolCall?: (call: AcpToolCall) => void;
+    onToolCall?: (call: AcpToolCall, isDeclined: boolean) => void;
     /**
      * A `usage_update`: how many tokens the conversation's context holds (`used`) out of its window (`size`). A
      * `session/load` replay reports it too, so the reopened Chat shows the context it resumed with.
@@ -274,7 +275,7 @@ export class AcpUpdates {
                 ),
             },
         ]);
-        if (!this.replay) this.host.onToolCall?.(merged);
+        if (!this.replay) this.host.onToolCall?.(merged, this.declined.has(merged.id));
         return merged;
     }
 
