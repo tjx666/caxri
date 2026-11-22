@@ -1,4 +1,4 @@
-import type { TerminalRecord } from '@caxri/protocol';
+import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
 
 /**
  * Per-Terminal request ordering for the two read paths that can overlap: full `app.bootstrap` and targeted
@@ -47,7 +47,23 @@ export function acceptTerminalReads(
     return accepted;
 }
 
-export function replaceRequestedRecords<Record extends { id: string }>(
+/**
+ * Adds each requested Terminal's owning Session to a targeted read. Deleting a Session removes its Terminals in the
+ * same database step, while teardown emits per-Terminal events before the full refresh lands; reading only the Terminal
+ * dropped it and left its Session row behind, so the sidebar row flashed the shell icon before disappearing.
+ */
+export function withOwningSessionIds(
+    sessionIds: ReadonlySet<string>,
+    terminalIds: ReadonlySet<string>,
+    terminals: readonly TerminalRecord[],
+): Set<string> {
+    const owning = new Set(sessionIds);
+    for (const terminal of terminals)
+        if (terminalIds.has(terminal.id)) owning.add(terminal.sessionId);
+    return owning;
+}
+
+function replaceRequestedRecords<Record extends { id: string }>(
     current: readonly Record[],
     requestedIds: ReadonlySet<string>,
     updates: readonly Record[],
@@ -62,6 +78,26 @@ export function replaceRequestedRecords<Record extends { id: string }>(
         }),
         ...updates.filter((record) => !currentIds.has(record.id)),
     ];
+}
+
+/**
+ * Replaces the Sessions and accepted Terminals a targeted `app.records` read covered; a requested ID the read no longer
+ * returns was deleted.
+ */
+export function replaceRecordRead(
+    current: { sessions: readonly SessionRecord[]; terminals: readonly TerminalRecord[] },
+    sessionIds: ReadonlySet<string>,
+    acceptedTerminalIds: ReadonlySet<string>,
+    records: { sessions: readonly SessionRecord[]; terminals: readonly TerminalRecord[] },
+): { sessions: SessionRecord[]; terminals: TerminalRecord[] } {
+    return {
+        sessions: replaceRequestedRecords(current.sessions, sessionIds, records.sessions),
+        terminals: replaceRequestedRecords(
+            current.terminals,
+            acceptedTerminalIds,
+            records.terminals.filter((terminal) => acceptedTerminalIds.has(terminal.id)),
+        ),
+    };
 }
 
 /**

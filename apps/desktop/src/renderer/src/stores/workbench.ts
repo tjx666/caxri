@@ -57,7 +57,8 @@ import {
     applyFullTerminalSnapshot,
     beginTerminalRead,
     finishTerminalRead,
-    replaceRequestedRecords,
+    replaceRecordRead,
+    withOwningSessionIds,
 } from './workbench-terminal-reads';
 
 interface WorkbenchState {
@@ -366,16 +367,10 @@ function applyRecordSnapshot(
                 : acceptTerminalReads(terminalIds, terminalReadSequence);
         const next = {
             ...current.bootstrap,
-            sessions: replaceRequestedRecords(
-                current.bootstrap.sessions,
-                sessionIds,
-                withPendingSessionTitles(records.sessions),
-            ),
-            terminals: replaceRequestedRecords(
-                current.bootstrap.terminals,
-                acceptedTerminalIds,
-                records.terminals.filter((terminal) => acceptedTerminalIds.has(terminal.id)),
-            ),
+            ...replaceRecordRead(current.bootstrap, sessionIds, acceptedTerminalIds, {
+                sessions: withPendingSessionTitles(records.sessions),
+                terminals: records.terminals,
+            }),
         };
         return { bootstrap: mergeStructurally(current.bootstrap, next) };
     });
@@ -423,9 +418,14 @@ export function showSessionTitle(sessionId: string, title: string): void {
 
 function scheduleRecordRefresh(): Promise<void> {
     if (recordRefresh.inFlight) return recordRefresh.inFlight;
-    if (!useWorkbenchStore.getState().bootstrap) return refreshWorkbench();
-    const sessionIds = new Set(pendingSessionRecordIds);
+    const bootstrap = useWorkbenchStore.getState().bootstrap;
+    if (!bootstrap) return refreshWorkbench();
     const terminalIds = new Set(pendingTerminalRecordIds);
+    const sessionIds = withOwningSessionIds(
+        pendingSessionRecordIds,
+        terminalIds,
+        bootstrap.terminals,
+    );
     pendingSessionRecordIds.clear();
     pendingTerminalRecordIds.clear();
     recordRefresh.inFlight = runRecordRefresh(sessionIds, terminalIds);
