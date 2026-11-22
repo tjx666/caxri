@@ -150,7 +150,7 @@ export const DIRECTORY_DENSITY_OWNERS: readonly DirectoryDensityOwner[] = [
     { cap: 46, directory: 'scripts/mobile-android-case-definitions' },
     { cap: 15, directory: 'tools/oxlint/anti-slop/rules' },
     { cap: 40, directory: '.agents/skills/acceptance/scripts' },
-    { cap: 14, directory: '.agents/skills/debug/scripts' },
+    { cap: 10, directory: '.agents/skills/debug/scripts' },
     { cap: 12, directory: '.agents/skills/promo-images/scripts' },
     { cap: 14, directory: '.agents/skills/quality-check/scripts' },
     { cap: 17, directory: '.agents/skills/switch-worktree/scripts' },

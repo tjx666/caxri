@@ -105,6 +105,10 @@ owner decision: hand the plan, its cost, and the alternatives to Codex as a
   evaluation containing creation or continuation merely because its transport timed out.
 - Treat the result as debugging evidence. Automated coverage still uses deterministic fake fixtures;
   Acceptance still proves the product surface without invoking a host provider.
+- Launch a dev window for the probe with `fake-agent-development-environment.ts /tmp/<task>
+--provider <id> --real-executable <absolute CLI path> --dev`. It allows only that provider and
+  keeps the host HOME, where the CLI's sign-in lives; `CAXRI_E2E=1` alone shows every Agent as Not
+  installed.
 
 ## Runtime profile, shutdown, and visual proof
 
@@ -366,7 +370,9 @@ reports `document.visibilityState` `hidden`, even after `drive-app.ts` brings it
 its `requestAnimationFrame` callbacks never run. Behavior scheduled through rAF, such as focus
 handed back to the composer after a popup closes or an entry animation, therefore never happens
 there: a CDP read of `document.activeElement` or of the animated state proves nothing either way.
-Prove it in a Playwright E2E spec instead.
+Prove it in a Playwright E2E spec instead. Polled queries pause there too, so a surface fed by one
+(the status bar's usage chip) stays empty or stale: run `drive-app.ts refetch <method>` (such as
+`terminal.agentUsage`) instead of writing the query cache by hand.
 
 ## Production debugging controls
 

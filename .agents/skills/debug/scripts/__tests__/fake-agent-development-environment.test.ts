@@ -4,6 +4,7 @@ import {
     fakeAgentDevelopmentEnvironment,
     fakeAgentDevelopmentExports,
     parseFakeAgentDevelopmentArguments,
+    realAgentDevelopmentEnvironment,
 } from '../fake-agent-development-environment';
 
 describe('fakeAgentDevelopmentEnvironment', () => {
@@ -82,5 +83,52 @@ describe('parseFakeAgentDevelopmentArguments', () => {
                 '/tmp/task/script.json',
             ]),
         ).toThrow(/claude and codex/u);
+    });
+
+    it('takes an absolute real executable for the selected provider, but no script with it', () => {
+        expect(
+            parseFakeAgentDevelopmentArguments([
+                '/tmp/task',
+                '--provider',
+                'antigravity',
+                '--real-executable',
+                '/usr/local/bin/agy',
+            ]),
+        ).toEqual({
+            directory: '/tmp/task',
+            launchDev: false,
+            provider: 'antigravity',
+            realExecutable: '/usr/local/bin/agy',
+        });
+        expect(() =>
+            parseFakeAgentDevelopmentArguments(['/tmp/task', '--real-executable', 'agy']),
+        ).toThrow(/absolute/u);
+        expect(() =>
+            parseFakeAgentDevelopmentArguments([
+                '/tmp/task',
+                '--real-executable',
+                '/usr/local/bin/claude',
+                '--script',
+                '/tmp/task/script.json',
+            ]),
+        ).toThrow(/no script/u);
+    });
+});
+
+describe('realAgentDevelopmentEnvironment', () => {
+    it('allows only the selected provider, through its real executable, and keeps the host HOME', () => {
+        const entries = realAgentDevelopmentEnvironment(
+            'antigravity',
+            '/usr/local/bin/agy',
+            '/tmp/task/project',
+        );
+        expect(entries).toEqual([
+            ['CAXRI_E2E', '1'],
+            ['CAXRI_E2E_AGENT_MODE', 'fake'],
+            ['CAXRI_E2E_FAKE_ANTIGRAVITY_EXECUTABLE', '/usr/local/bin/agy'],
+            ['CAXRI_E2E_WINDOW_MODE', 'visible'],
+            ['CAXRI_TEST_ROOT_PATH', '/tmp/task/project'],
+        ]);
+        expect(entries.map(([key]) => key)).not.toContain('HOME');
     });
 });

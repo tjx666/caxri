@@ -32,6 +32,11 @@
  * the shell does nothing: the Agent process environment is an allowlist, so the path is baked into the fake's
  * launcher.
  *
+ * `--real-executable <absolute path>` is the debug skill's controlled real-Agent exception: the selected provider runs
+ * that real CLI, and every other Agent stays blocked. It exports no fake fixture state and keeps the host `HOME`,
+ * because a real CLI's sign-in lives there (Antigravity's under `~/.gemini`, which no variable relocates) and an
+ * isolated HOME shows it signed out. The dev profile stays in `<task>/profile`.
+ *
  * The exports also move `HOME` (with `ZDOTDIR` and the XDG directories) into the fixture: Session search and Usage read
  * every provider's history, and Antigravity's state under `~/.gemini` has no variable that relocates it, so the dev
  * window would otherwise show the host's real conversations. An isolated HOME hides the mise shims, so the pinned Node
@@ -45,7 +50,11 @@ import { parseArgs, promisify } from 'node:util';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
-import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
+import {
+    createE2EAgentEnvironment,
+    e2eAgentEnvironmentKeys,
+    e2eFakeExecutableEnvironmentKey,
+} from '@caxri/system';
 
 import {
     fakeAntigravityChatAgentMode,
@@ -104,22 +113,29 @@ export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]
     directory: string;
     launchDev: boolean;
     provider: FakeChatProvider;
+    realExecutable?: string;
     scriptPath?: string;
 } {
     const { positionals, values } = parseArgs({
         args: [...arguments_],
         allowPositionals: true,
         options: {
-            dev: { type: 'boolean' },
-            provider: { type: 'string' },
-            script: { type: 'string' },
+            'dev': { type: 'boolean' },
+            'provider': { type: 'string' },
+            'real-executable': { type: 'string' },
+            'script': { type: 'string' },
         },
     });
     const [directory] = positionals;
     if (!directory || positionals.length !== 1 || !isAbsolute(directory))
         throw new Error(
-            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok|antigravity] [--script <absolute path>] [--dev]',
+            'Usage: fake-agent-development-environment.ts <absolute task dir> [--provider claude|codex|grok|antigravity] [--script <absolute path> | --real-executable <absolute path>] [--dev]',
         );
+    const realExecutable = values['real-executable'];
+    if (realExecutable !== undefined && !isAbsolute(realExecutable))
+        throw new Error('--real-executable must be an absolute path');
+    if (realExecutable !== undefined && values.script !== undefined)
+        throw new Error('--script drives a fake Agent; a real executable takes no script');
     const provider = values.provider ?? 'claude';
     if (!PROVIDERS.includes(provider as FakeChatProvider))
         throw new Error(`--provider must be one of ${PROVIDERS.join(', ')}`);
@@ -132,8 +148,27 @@ export function parseFakeAgentDevelopmentArguments(arguments_: readonly string[]
         directory,
         launchDev: values.dev ?? false,
         provider: provider as FakeChatProvider,
+        ...(realExecutable && { realExecutable }),
         ...(scriptPath && { scriptPath }),
     };
+}
+
+/**
+ * The environment of a controlled real-Agent run: E2E mode with exactly one executable, the selected provider's real
+ * CLI, so Caxri blocks every other Agent instead of discovering them on the host.
+ */
+export function realAgentDevelopmentEnvironment(
+    provider: AgentProvider,
+    executable: string,
+    projectRoot: string,
+): Array<[string, string]> {
+    return [
+        ['CAXRI_E2E', '1'],
+        ['CAXRI_E2E_AGENT_MODE', 'fake'],
+        [e2eFakeExecutableEnvironmentKey(provider), executable],
+        ['CAXRI_E2E_WINDOW_MODE', 'visible'],
+        ['CAXRI_TEST_ROOT_PATH', projectRoot],
+    ];
 }
 
 const execFileAsync = promisify(execFile);
@@ -173,12 +208,18 @@ async function pinnedNodeExecutable(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-    const { directory, launchDev, provider, scriptPath } = parseFakeAgentDevelopmentArguments(
-        process.argv.slice(2),
-    );
+    const { directory, launchDev, provider, realExecutable, scriptPath } =
+        parseFakeAgentDevelopmentArguments(process.argv.slice(2));
     const userData = join(directory, 'user-data');
     const projectRoot = join(directory, 'project');
     await mkdir(projectRoot, { recursive: true });
+    if (realExecutable) {
+        const entries = realAgentDevelopmentEnvironment(provider, realExecutable, projectRoot);
+        if (!launchDev) process.stdout.write(`${fakeAgentDevelopmentExports(entries)}\n`);
+        else
+            process.exitCode = await launchDevelopmentInstance(entries, join(directory, 'profile'));
+        return;
+    }
     const controlDirectory = join(directory, 'control');
     await mkdir(controlDirectory, { recursive: true });
     await writeFile(join(controlDirectory, 'ai-naming'), '');

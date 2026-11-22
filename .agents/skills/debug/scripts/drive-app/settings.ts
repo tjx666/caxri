@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-import { CommandError } from '../../switch-worktree/scripts/process';
+import { CommandError } from '../../../switch-worktree/scripts/process';
 
 /**
  * Sends one typed request through the window's `caxri` bridge and throws its error, since the bridge resolves a failure

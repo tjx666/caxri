@@ -19,6 +19,9 @@
  *   that row would, and fails when the palette shows no such row (an unknown id, or one hidden in the current state).
  * - `idle [seconds]`: waits until the window's text stops changing, such as after an Agent reply. Ticking figures, such
  *   as a background task's elapsed time, do not count as change.
+ * - `refetch <method>`: refetches every mounted query that reads that Caxri method (such as `terminal.agentUsage`) and
+ *   fails when none does. A fake-provider dev window reports itself hidden, so its polled queries (the status bar's
+ *   usage chip) never tick on their own.
  * - `ready [seconds]`: waits until a dev instance just started with `switch-worktree dev` answers over CDP as this
  *   worktree's window and its Workbench reports the Runtime ready, instead of a fixed sleep.
  * - `theme <built-in id|absolute JSON path>`: replaces the active theme with a built-in palette (such as
@@ -52,15 +55,16 @@ import { chromium } from '@playwright/test';
 import { CommandError } from '../../switch-worktree/scripts/process';
 import type { CdpTarget } from './cdp-client';
 import { selectRendererTarget } from './cdp-client';
-import { IDLE_POLL_MS, waitForIdle } from './drive-app-idle';
-import { stubFolderDialog, stubMessageBox } from './drive-app-main-dialogs';
+import { IDLE_POLL_MS, waitForIdle } from './drive-app/idle';
+import { holdPress, splitHeldChord } from './drive-app/keys';
+import { stubFolderDialog, stubMessageBox } from './drive-app/main-dialogs';
 import {
     request,
     settingsSourceWithLanguage,
     settingsSourceWithTrustedFolders,
     updateSettings,
-} from './drive-app-settings';
-import { enterWorktree } from './drive-app-worktree';
+} from './drive-app/settings';
+import { enterWorktree } from './drive-app/worktree';
 import { browserEnvironment, resolveTarget } from './worktree-browser';
 
 const STEPS = [
@@ -72,6 +76,7 @@ const STEPS = [
     'command',
     'idle',
     'ready',
+    'refetch',
     'select-session',
     'new-session',
     'enter-worktree',
@@ -110,11 +115,6 @@ const DEFAULT_READY_SECONDS = 120;
 const OPEN_DIALOG_ATTEMPT_MS = 5_000;
 const OPEN_DIALOG_ATTEMPTS = 3;
 const OPEN_CHAT_TIMEOUT_MS = 30_000;
-/**
- * How long `hold-press` waits before its screenshot. A surface that opens while keys are held can reveal after a delay
- * (the Session MRU switcher waits 120ms), and a fake-provider dev window is hidden, so its timers run throttled.
- */
-const HOLD_SCREENSHOT_DELAY_MS = 1_000;
 
 export function parseDriveCommand(
     argv: string[],
@@ -152,6 +152,12 @@ export function parseDriveCommand(
     if (step === 'command' && !(commandIds as readonly string[]).includes(argument)) {
         throw new CommandError(
             `\`command\` takes a command id such as usage.open, not ${argument}`,
+            2,
+        );
+    }
+    if (step === 'refetch' && !/^[a-z][A-Za-z]*(?:\.[a-z][A-Za-z]*)+$/u.test(argument)) {
+        throw new CommandError(
+            `\`refetch\` takes a Caxri method such as terminal.agentUsage, not ${argument}`,
             2,
         );
     }
@@ -225,16 +231,6 @@ export function parseDriveCommand(
  */
 function isMainStep(step: string | undefined): boolean {
     return step === 'stub-folder-dialog' || step === 'stub-message-box';
-}
-
-/**
- * Splits a Playwright chord (`Control+Alt+Tab`) into the keys `hold-press` keeps down and the one it presses. A lone
- * `+` key (`Control++`) stays the pressed key.
- */
-export function splitHeldChord(chord: string): { modifiers: string[]; key: string } {
-    const parts = chord.endsWith('++') ? [...chord.slice(0, -2).split('+'), '+'] : chord.split('+');
-    const key = parts.pop() ?? '';
-    return { modifiers: parts.filter(Boolean), key };
 }
 
 /**
@@ -375,32 +371,31 @@ async function newSession(page: Page, kind: string): Promise<void> {
 }
 
 /**
- * Keeps the modifiers down across every press, which a single `keyboard.press('Control+Alt+Tab')` cannot: it releases
- * them after one press, so a switcher that stays open while they are held closes before the next Tab.
+ * Refetches the mounted queries keyed by `method` (`caxriQueryKey` puts the method first) through the Renderer's own
+ * query client, which Vite serves as a module in a dev window.
  */
-async function holdPress(page: Page, chord: string, times: number, screenshot?: string) {
-    const { modifiers, key } = splitHeldChord(chord);
-    // A CDP connection does not focus the window, and the shortcut only reaches a focused document.
-    await page.bringToFront();
-    for (const modifier of modifiers) {
-        // eslint-disable-next-line no-await-in-loop -- keys go down in order, as a hand presses them.
-        await page.keyboard.down(modifier);
-    }
-    try {
-        for (let press = 0; press < times; press += 1) {
-            // eslint-disable-next-line no-await-in-loop
-            await page.keyboard.press(key);
-        }
-        if (screenshot) {
-            await page.waitForTimeout(HOLD_SCREENSHOT_DELAY_MS);
-            await page.screenshot({ path: screenshot });
-        }
-    } finally {
-        for (const modifier of modifiers.toReversed()) {
-            // eslint-disable-next-line no-await-in-loop
-            await page.keyboard.up(modifier);
-        }
-    }
+async function refetchQueries(page: Page, method: string): Promise<void> {
+    const count = await page.evaluate(
+        async ({ name, module }) => {
+            interface MethodQueries {
+                queryKey: [string];
+                type: 'active';
+            }
+            const { queryClient } = (await import(/* @vite-ignore */ module)) as {
+                queryClient: {
+                    getQueryCache(): { findAll(filters: MethodQueries): unknown[] };
+                    refetchQueries(filters: MethodQueries): Promise<void>;
+                };
+            };
+            const filters: MethodQueries = { queryKey: [name], type: 'active' };
+            const matched = queryClient.getQueryCache().findAll(filters).length;
+            await queryClient.refetchQueries(filters);
+            return matched;
+            // The Renderer's module path, passed in so this Node-side project does not try to resolve it.
+        },
+        { name: method, module: '/src/queries/client.ts' },
+    );
+    if (count === 0) throw new CommandError(`No mounted query reads ${method}`, 1);
 }
 
 async function runStep(page: Page, command: DriveCommand): Promise<void> {
@@ -459,6 +454,8 @@ async function runStep(page: Page, command: DriveCommand): Promise<void> {
         case 'ready':
             // `main` already waited for the Workbench within the same deadline.
             return;
+        case 'refetch':
+            return refetchQueries(page, argument);
         case 'theme': {
             const source = isAbsolute(argument)
                 ? await readFile(argument, 'utf8')
