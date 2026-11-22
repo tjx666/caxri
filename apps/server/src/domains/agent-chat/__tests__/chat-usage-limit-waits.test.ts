@@ -1,4 +1,4 @@
-import type { AgentChatPatchOperation } from '@caxri/protocol';
+import type { AgentChatPatchOperation, UsageLimit } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChatUsageLimitWaits } from '../continuation/chat-usage-limit-waits';
@@ -11,7 +11,7 @@ import {
 const NOW = 1_800_000_000_000;
 const HOUR_MS = 3_600_000;
 
-function waits(options: { isGuarded?: boolean; isEnabled?: boolean } = {}) {
+function waits(options: { isGuarded?: boolean; isEnabled?: boolean; now?: () => number } = {}) {
     let stored: unknown;
     const write = vi.fn();
     const onChange = vi.fn();
@@ -28,7 +28,7 @@ function waits(options: { isGuarded?: boolean; isEnabled?: boolean } = {}) {
         settings: () => ({ 'agentChat.autoContinueAtUsageLimit': options.isEnabled ?? true }),
         isUsageGuarded: () => options.isGuarded ?? false,
         onChange,
-        now: () => NOW,
+        now: options.now ?? (() => NOW),
         random: () => 1,
     });
     return { subject, write, onChange, stored: () => stored };
@@ -268,6 +268,39 @@ describe('ChatUsageLimitWaits', () => {
         await subject.sweep();
         expect(continueAfterUsageLimit).toHaveBeenCalledOnce();
         expect(subject.stateOf('terminal-1', 'turn-1')).toEqual({ status: 'continued', at: NOW });
+    });
+
+    it('continues when a reset credit is spent while a due wait reads its limits', async () => {
+        const clock = { now: NOW };
+        const { subject } = waits({ now: () => clock.now });
+        const continueAfterUsageLimit = vi.fn(() => Promise.resolve());
+        const reading = Promise.withResolvers<{ windows: UsageLimit['windows'] }>();
+        const readPlanLimits = vi.fn(() => reading.promise);
+        const session = { continueAfterUsageLimit, readPlanLimits };
+        const state = {
+            followUps: { mustWait: () => false },
+            projection: { snapshot: { requests: [], items: [], queue: [] } },
+        };
+        subject.attach({
+            states: { get: () => {} } as never,
+            deliver: (_terminalId, deliver) => deliver(session as never, state as never),
+        });
+        subject.observeFailure('terminal-1', 'codex', notice('turn-1', NOW + HOUR_MS));
+        clock.now = NOW + HOUR_MS + 120_000;
+        const sweep = subject.sweep();
+        await vi.waitFor(() => expect(readPlanLimits).toHaveBeenCalled());
+
+        subject.limitsReset('terminal-1');
+        // Read before the credit landed, the reading still shows the 5-hour window used up.
+        const stale = {
+            usedPercent: 100,
+            resetsAt: clock.now + HOUR_MS,
+            scope: 'session' as const,
+        };
+        reading.resolve({ windows: [{ windowMinutes: 300, ...stale }] });
+        await sweep;
+        expect(continueAfterUsageLimit).toHaveBeenCalledOnce();
+        expect(subject.stateOf('terminal-1', 'turn-1')).toMatchObject({ status: 'continued' });
     });
 
     it('leaves a weekly-guard wait and a Chat with no wait alone when a reset credit is spent', () => {
