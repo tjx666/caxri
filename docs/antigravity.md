@@ -119,6 +119,11 @@ owns the provider-neutral mapping. Initial arguments are filtered rather than ap
 and `--add-dir` pass through, `--dangerously-skip-permissions` selects full access, and everything
 else is dropped because `agy acp` has no model flag.
 
+Chat needs `agy` 1.5.0 or later, the release that added `agy acp`. A start fails as
+`unsupported_version` ("update the CLI") when `initialize` reports an older `agentInfo.version`, or
+when the handshake fails and `agy --version` names an older release, which has no ACP server to
+answer it.
+
 - `agy acp` picks the conversation id in `session/new`. The Chat binds it when its first turn
   starts, so a Chat that never ran a turn has no conversation to resume. Resume uses
   `session/load`, which replays the history without turn ends, so replayed turns read as completed.
@@ -169,7 +174,9 @@ account as limited only while every group is used up.
 A running Chat reads it at most once a minute when the status bar asks (`AntigravityPlanLimits`),
 and afresh after a turn fails on the quota. The same command answers the sign-in marker: a signed-out
 CLI prints `status: ERROR` with `authentication failed or timed out` and exits, rather than waiting
-for a pasted code, because the command runs with stdin closed.
+for a pasted code, because the command runs with stdin closed. A signed-out Antigravity row in the
+new-Agent menus offers "Sign in…", which types `agy` into a new Shell Terminal: `agy` has no sign-in
+subcommand, and started interactively while signed out it runs its own browser sign-in.
 
 ## Verification boundaries
 

@@ -17,8 +17,20 @@ vi.mock('../../agents/providers/antigravity/usage-command', async (importOrigina
         usageReading.held?.promise ?? Promise.resolve({ status: 'unknown' as const }),
 }));
 
+/**
+ * What `agy --version` answers when a handshake failed; unknown unless a test sets it.
+ */
+const installedVersion = vi.hoisted(() => ({ value: undefined as string | undefined }));
+
+vi.mock('../../agents/discovery', async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    readVersion: () => Promise.resolve(installedVersion.value),
+}));
+
 afterEach(() => {
     usageReading.held = undefined;
+    installedVersion.value = undefined;
+    vi.unstubAllEnvs();
 });
 
 const RESETS_AT = Date.now() + 3_600_000;
@@ -389,5 +401,31 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         const snapshot = service.read(terminal.id);
         expect(snapshot.status).toBe('failed');
         expect(snapshot.failure?.reason).toBe('resume_failed');
+    });
+
+    it('asks for an update when an agy older than 1.5.0 has no ACP server', async () => {
+        vi.stubEnv('FAKE_ANTIGRAVITY_VERSION', '1.4.11');
+        installedVersion.value = 'agy 1.4.11';
+        const { until } = await fixture({ provider: 'antigravity' });
+        await expect(until((snapshot) => snapshot.status === 'failed')).resolves.toMatchObject({
+            failure: { reason: 'unsupported_version' },
+        });
+    });
+
+    it('keeps the handshake failure of an agy recent enough for Chat', async () => {
+        vi.stubEnv('FAKE_ANTIGRAVITY_VERSION', '1.4.11');
+        installedVersion.value = 'agy 1.5.14';
+        const { until } = await fixture({ provider: 'antigravity' });
+        await expect(until((snapshot) => snapshot.status === 'failed')).resolves.toMatchObject({
+            failure: { reason: 'handshake_failed' },
+        });
+    });
+
+    it('asks for an update when the ACP server reports a version older than 1.5.0', async () => {
+        vi.stubEnv('FAKE_ANTIGRAVITY_VERSION', '0.9.0');
+        const { until } = await fixture({ provider: 'antigravity' });
+        await expect(until((snapshot) => snapshot.status === 'failed')).resolves.toMatchObject({
+            failure: { reason: 'unsupported_version' },
+        });
     });
 });

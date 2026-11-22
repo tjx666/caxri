@@ -57,4 +57,9 @@ export interface AcpDialect {
      * while a foreground command it moved to the background still runs; see `AcpRunningTools`.
      */
     shouldHoldTurn?: (call: AcpToolCall) => boolean;
+    /**
+     * The oldest CLI version whose ACP server Chat supports. An older CLI fails the start as `unsupported_version`, so
+     * the user reads "update the CLI" instead of a failed handshake; see `initializeAcpConnection`.
+     */
+    minimumVersion?: string;
 }

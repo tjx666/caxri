@@ -316,14 +316,16 @@ describe('Agent readiness annotations', () => {
             'claude auth login',
         );
         expect(agentReadinessHint('codex', 'signInRequired', translate)).toContain('codex login');
+        expect(agentReadinessHint('antigravity', 'signInRequired', translate)).toContain('"agy"');
         expect(agentReadinessHint('claude', undefined, translate)).toBeUndefined();
     });
 });
 
 describe('agentSignInCommand', () => {
-    it('offers the command that signs a signed-out Claude Code or Codex in', () => {
+    it('offers the command that signs a signed-out Claude Code, Codex, or Antigravity in', () => {
         expect(agentSignInCommand('claude', 'signInRequired')).toBe('claude auth login');
         expect(agentSignInCommand('codex', 'signInRequired')).toBe('codex login');
+        expect(agentSignInCommand('antigravity', 'signInRequired')).toBe('agy');
     });
 
     it('offers nothing for an Agent that is signed in, missing, or has no known sign-in command', () => {

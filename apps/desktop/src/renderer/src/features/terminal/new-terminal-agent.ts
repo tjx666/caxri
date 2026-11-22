@@ -201,6 +201,8 @@ export function agentReadinessHint(
                 return t('terminal.new.signInHint.claude');
             case 'codex':
                 return t('terminal.new.signInHint.codex');
+            case 'antigravity':
+                return t('terminal.new.signInHint.antigravity');
             default:
                 return undefined;
         }
@@ -221,10 +223,12 @@ export function agentReadinessHint(
 }
 
 /**
- * The command that signs each Agent in, for the menus' "Sign in…" action. Only Claude Code and Codex report a sign-in
- * status (`sign-in-status.ts` on the Server), so only they can be shown signed out and only they need one.
+ * The command that signs each Agent in, for the menus' "Sign in…" action. Only the Agents whose CLI reports a sign-in
+ * status (`sign-in-status.ts` on the Server) can be shown signed out, so only they need one. `agy` has no sign-in
+ * subcommand: started interactively while signed out, it opens its own browser sign-in.
  */
 const AGENT_SIGN_IN_COMMANDS: Partial<Record<TerminalKind, string>> = {
+    antigravity: 'agy',
     claude: 'claude auth login',
     codex: 'codex login',
 };

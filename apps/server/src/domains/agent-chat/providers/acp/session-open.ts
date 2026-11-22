@@ -1,5 +1,7 @@
 import type { AgentChatPatchOperation } from '@caxri/protocol';
+import { coerce, lt } from 'semver';
 
+import { readVersion } from '../../../agents';
 import { isRecord } from '../../chat-items';
 import type { ChatProcessEnd } from '../../chat-provider';
 import { AgentChatStartError } from '../../chat-provider';
@@ -31,20 +33,36 @@ async function failAcpStart(
 }
 
 /**
- * `initialize`, returning the agent's result. `label` names the agent in errors. `spawnFailure` reports how the process
- * ended if it never started, which explains a failed handshake better than the handshake error does.
+ * Whether `version` (free text such as `agy 1.4.11`) names a release older than `minimum`; an unreadable version is not
+ * older, so a CLI with an unexpected version string still gets its chance.
+ */
+function isOlderThan(version: unknown, minimum: string): boolean {
+    const parsed = typeof version === 'string' ? coerce(version) : null;
+    return parsed !== null && lt(parsed, minimum);
+}
+
+/**
+ * `initialize`, returning the agent's result. `dialect` names the agent in errors and sets its oldest supported CLI.
+ * `spawnFailure` reports how the process ended if it never started, which explains a failed handshake better than the
+ * handshake error does. A failed handshake from a CLI older than the dialect's `minimumVersion` (one that has no ACP
+ * server yet) and a handshake whose `agentInfo.version` is older both fail as `unsupported_version`.
  */
 export async function initializeAcpConnection(
     connection: JsonRpcConnection,
-    label: string,
-    clientVersion: string,
+    dialect: Pick<AcpDialect, 'label' | 'minimumVersion' | 'provider'>,
+    options: { clientVersion: string; executable: string },
     spawnFailure: () => ChatProcessEnd | undefined,
 ): Promise<Json> {
+    const { label, minimumVersion } = dialect;
+    const tooOld = new AgentChatStartError(
+        'unsupported_version',
+        `This ${label} version does not support Chat`,
+    );
     let initialized: unknown;
     try {
         initialized = await connection.request(
             'initialize',
-            acpInitializeParameters(clientVersion),
+            acpInitializeParameters(options.clientVersion),
             HANDSHAKE_TIMEOUT_MS,
         );
     } catch {
@@ -56,19 +74,26 @@ export async function initializeAcpConnection(
                     ? new AgentChatStartError('executable_not_found', `${label} CLI was not found`)
                     : new AgentChatStartError('spawn_failed', `${label} could not be started`),
             );
+        if (
+            minimumVersion !== undefined &&
+            isOlderThan(await readVersion(dialect.provider, options.executable), minimumVersion)
+        )
+            return failAcpStart(connection, tooOld);
         return failAcpStart(
             connection,
             new AgentChatStartError('handshake_failed', `${label} did not complete its handshake`),
         );
     }
-    if (!isRecord(initialized) || initialized.protocolVersion !== ACP_PROTOCOL_VERSION)
-        return failAcpStart(
-            connection,
-            new AgentChatStartError(
-                'unsupported_version',
-                `This ${label} version does not support Chat`,
-            ),
-        );
+    if (
+        !isRecord(initialized) ||
+        initialized.protocolVersion !== ACP_PROTOCOL_VERSION ||
+        (minimumVersion !== undefined &&
+            isOlderThan(
+                isRecord(initialized.agentInfo) ? initialized.agentInfo.version : undefined,
+                minimumVersion,
+            ))
+    )
+        return failAcpStart(connection, tooOld);
     return initialized;
 }
 

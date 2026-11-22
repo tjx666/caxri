@@ -314,8 +314,8 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         this.connection = connection;
         const initialized = await initializeAcpConnection(
             connection,
-            this.dialect.label,
-            this.options.clientVersion,
+            this.dialect,
+            this.options,
             () => spawnFailure,
         );
         this.onInitialized?.(initialized);
