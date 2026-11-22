@@ -52,6 +52,10 @@ Validate the smallest observable behavior below the Electron desktop boundary.
 
 6. Keep fixtures content-free. Never copy real tokens, user code, Terminal output, Agent
    transcripts, production paths, or credentials into tests or artifacts.
+   A test that writes a real `StructuredLogger` into a temporary directory awaits `logger.flush()`
+   before removing it: the logger drains asynchronously and recreates a vanished log folder, so the
+   removal fails with `ENOTEMPTY` (a shared fixture such as `delegatedFixture` takes the flush
+   through its `beforeCleanup`).
 7. Leave the full `bun run test` suite to CI; it refuses to run locally unless the user sets
    `CAXRI_FULL_SUITE_AUTHORIZED=1` (see `quality-check`).
 
