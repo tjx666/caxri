@@ -67,6 +67,8 @@ class AntigravityChatSession extends AcpChatSession {
                 // A command `agy` started as a daemon (`IsDaemon`) runs on by design; a foreground one is the turn's work.
                 shouldHoldTurn: (call) =>
                     call.kind === 'execute' && call.rawInput.IsDaemon !== true,
+                // `agy acp` first shipped in 1.5.0 (its changelog); an older `agy` has no ACP server at all.
+                minimumVersion: '1.5.0',
             },
             options.agentSessionId,
         );

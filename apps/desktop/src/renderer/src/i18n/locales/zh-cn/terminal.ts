@@ -258,6 +258,8 @@ export const terminal: TranslatedNamespace<typeof source> = {
     'terminal.new.signInHint.claude':
         'Claude Code 尚未登录。请在 Terminal 中运行 "claude auth login"，或启动后使用 /login。',
     'terminal.new.signInHint.codex': 'Codex 尚未登录。请在 Terminal 中运行 "codex login"。',
+    'terminal.new.signInHint.antigravity':
+        'Antigravity 尚未登录。请在 Terminal 中运行 "agy"，按提示完成登录。',
     'terminal.new.installHint.claude':
         '未找到 Claude Code。请从 claude.com/claude-code 安装，或在“设置 > Agent”中指定它的位置。',
     'terminal.new.installHint.codex':

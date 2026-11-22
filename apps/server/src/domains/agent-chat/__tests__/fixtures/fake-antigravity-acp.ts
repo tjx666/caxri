@@ -287,13 +287,17 @@ async function handle(message: RpcMessage): Promise<unknown> {
     const parameters = message.params ?? {};
     switch (message.method) {
         case 'initialize': {
+            // `FAKE_ANTIGRAVITY_VERSION` plays an older `agy`: before 1.5.0 it has no `acp` server and quits.
+            const version = process.env.FAKE_ANTIGRAVITY_VERSION ?? '1.5.14-fake';
+            // eslint-disable-next-line unicorn/no-process-exit -- this fake is the CLI process, quitting as old `agy` does
+            if (version.startsWith('1.4.')) process.exit(2);
             return {
                 protocolVersion: 1,
                 agentCapabilities: {
                     loadSession: true,
                     promptCapabilities: { image: true, audio: true, embeddedContext: true },
                 },
-                agentInfo: { name: 'antigravity', version: '1.5.14-fake' },
+                agentInfo: { name: 'antigravity', version },
                 _meta: { antigravity: { systemPrompt: { append: true } } },
             };
         }

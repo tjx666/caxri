@@ -19,11 +19,12 @@ test('a signed-out Agent reads Signed out in the New Terminal menu and offers to
     await mkdir(root, { recursive: true });
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
-        providers: { claude: {}, codex: {} },
+        providers: { antigravity: {}, claude: {}, codex: {} },
     });
     // The fake Agents cannot answer a status command, so under the fake-Agent policy the Server reads this marker
-    // instead: Codex reports signed out, Claude Code reports signed in.
+    // instead: Codex and Antigravity report signed out, Claude Code reports signed in.
     await writeFile(`${agentMode.executables.codex}.sign-in`, 'signedOut\n');
+    await writeFile(`${agentMode.executables.antigravity}.sign-in`, 'signedOut\n');
     await writeFile(`${agentMode.executables.claude}.sign-in`, 'signedIn\n');
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
@@ -36,10 +37,21 @@ test('a signed-out Agent reads Signed out in the New Terminal menu and offers to
             'CodexSigned out',
             'Sign in…',
             'Grok BuildNot installed',
-            'AntigravityNot installed',
+            'AntigravitySigned out',
+            'Sign in…',
             'Shell',
             'Open Agents InTerminal',
         ]);
+        await terminalMenu.getByRole('menuitem', { name: /^Antigravity/u }).hover();
+        await expect(
+            page.getByText(
+                'Antigravity is signed out. Run "agy" in a Terminal and follow its sign-in prompt.',
+                { exact: true },
+            ),
+        ).toBeVisible();
+        await page.screenshot({
+            path: testInfo.outputPath('antigravity-sign-in-required-menu.png'),
+        });
         await terminalMenu.getByRole('menuitem', { name: /^Codex/u }).hover();
         await expect(
             page.getByText('Codex is signed out. Run "codex login" in a Terminal.', {
