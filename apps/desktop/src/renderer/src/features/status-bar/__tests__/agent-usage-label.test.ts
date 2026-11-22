@@ -12,6 +12,7 @@ import {
     agentUsageResetCreditsValue,
     agentUsageWarningReason,
     dailyCostSeries,
+    mostConstrainedWindows,
     windowsForModels,
 } from '../agent-usage-label';
 
@@ -412,5 +413,51 @@ describe('daily cost series', () => {
             { date: '2026-03-01', costUsd: 0 },
             { date: '2026-03-02', costUsd: 4 },
         ]);
+    });
+});
+
+describe('mostConstrainedWindows', () => {
+    it('keeps the windows with the least left, in their original order', () => {
+        const windows = [
+            { id: 'a', usedPercent: 10 },
+            { id: 'b', usedPercent: 60 },
+            { id: 'c', usedPercent: 30 },
+            { id: 'd', usedPercent: 90 },
+        ];
+        expect(mostConstrainedWindows(windows, 2).map((window) => window.id)).toEqual(['b', 'd']);
+    });
+
+    it('returns every window when there are no more than the cap, and breaks ties by order', () => {
+        const windows = [
+            { id: 'a', usedPercent: 50 },
+            { id: 'b', usedPercent: 50 },
+            { id: 'c', usedPercent: 50 },
+        ];
+        expect(mostConstrainedWindows(windows.slice(0, 2), 2)).toEqual(windows.slice(0, 2));
+        expect(mostConstrainedWindows(windows, 2).map((window) => window.id)).toEqual(['a', 'b']);
+    });
+});
+
+describe('agent usage chip with unmatched model groups', () => {
+    it('names at most two windows, the most constrained ones', () => {
+        const label = agentUsageLabel(
+            readout({
+                models: ['unknown-model'],
+                limit: {
+                    provider: 'antigravity',
+                    observedAt: NOW,
+                    windows: [
+                        { windowMinutes: 300, usedPercent: 5, group: 'Gemini' },
+                        { windowMinutes: 10_080, usedPercent: 60, group: 'Gemini' },
+                        { windowMinutes: 300, usedPercent: 10, group: 'Claude & GPT' },
+                        { windowMinutes: 10_080, usedPercent: 20, group: 'Claude & GPT' },
+                    ],
+                },
+            }),
+            NOW,
+            ALL_WINDOWS,
+            translate,
+        );
+        expect(label).toBe('1.2M · $3.40 · Gemini wk 40% left · Claude & GPT wk 80% left');
     });
 });

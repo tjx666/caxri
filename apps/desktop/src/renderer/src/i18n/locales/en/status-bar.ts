@@ -84,12 +84,13 @@ export const statusBar = {
     'statusBar.usage.limitLeft': '{{percent}}% left',
     'statusBar.usage.chipLimitWindow': '{{window}} {{percent}}% left',
     'statusBar.usage.paceNote': '{{window}} limit runs out before it resets at this rate.',
-    'statusBar.usage.resetCredits': 'Banked resets',
+    'statusBar.usage.resetCredits': 'Reset credits',
     'statusBar.usage.resetCreditsValue': '{{count}} · next {{expiry}}',
     'statusBar.usage.resetCreditsExpiringNote':
         'A banked reset {{expiry}}. Use it in Codex before then, or it is lost.',
     'statusBar.usage.limitsAsOf': 'Limits as of',
     'statusBar.usage.useResetCredit': 'Use reset credit',
+    'statusBar.usage.resettingCredit': 'Resetting…',
     'statusBar.usage.useResetCreditBlockedNote':
         'A reset credit can be used once a limit has 10% or less left.',
     'statusBar.usage.resetCreditConfirmTitle': 'Use a Codex reset credit?',

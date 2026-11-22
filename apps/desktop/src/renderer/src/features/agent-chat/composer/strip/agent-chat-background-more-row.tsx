@@ -1,4 +1,4 @@
-import { ChevronUp, Ellipsis, Square } from 'lucide-react';
+import { ChevronDown, ChevronUp, Square } from 'lucide-react';
 
 import { Button } from '../../../../components/ui/button';
 import { Spinner } from '../../../../components/ui/spinner';
@@ -48,7 +48,7 @@ function StopAllTasksButton({
 }
 
 /**
- * The quiet last line of a Background work list longer than its folded rows: `⋯ N more` folded, `Show less` unfolded,
+ * The quiet last line of a Background work list longer than its folded rows: `N more` folded, `Show less` unfolded,
  * muted text in the rows' grid (its glyph sits where a row's kind icon does) rather than a header, so the list never
  * reads as a titled section. Carries Stop all when two or more running tasks can be stopped.
  */
@@ -68,14 +68,14 @@ export function AgentChatBackgroundMoreRow({
     onToggle: () => void;
 }) {
     const { t } = useTranslation();
-    const Glyph = isExpanded ? ChevronUp : Ellipsis;
+    const Glyph = isExpanded ? ChevronUp : ChevronDown;
     return (
         <div className="flex h-7 min-w-0 items-center gap-1 text-[12px] leading-5">
             <button
                 aria-controls={listId}
                 aria-expanded={isExpanded}
                 data-agent-chat-background-more=""
-                className="flex h-full min-w-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+                className="flex h-full min-w-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={onToggle}
             >

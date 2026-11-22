@@ -118,6 +118,7 @@ export const agentChatChanges = {
     'agentChat.tasks.showLess': 'Show less',
     'agentChat.tasks.dismissTask': 'Dismiss {{title}}',
     'agentChat.tasks.dismissDetail': 'Dismiss; it stays in the conversation',
+    'agentChat.tasks.dismissDelegatedDetail': 'Dismiss; the Session stays in the sidebar',
     'agentChat.tasks.earlierHidden':
         'Earlier messages are not shown: Chat keeps only the recent part of a long subagent conversation.',
     'agentChat.tasks.emptyRunning': 'The subagent has not reported anything yet.',

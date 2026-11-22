@@ -9,15 +9,20 @@ import { useTranslation } from '../../../../i18n';
  * where the work still is, since the row leaves the strip.
  */
 export function AgentChatStripDismissButton({
+    detail,
     title,
     onDismiss,
 }: {
+    /**
+     * Where the work still is after it leaves the list; defaults to the conversation, where a task's record stays.
+     */
+    detail?: string;
     title: string;
     onDismiss: () => void;
 }) {
     const { t } = useTranslation();
     return (
-        <Tooltip content={t('agentChat.tasks.dismissDetail')}>
+        <Tooltip content={detail ?? t('agentChat.tasks.dismissDetail')}>
             <Button
                 aria-label={t('agentChat.tasks.dismissTask', { title })}
                 className="size-6 shrink-0 text-muted hover:text-foreground"

@@ -11,9 +11,11 @@ const footerButton =
 /**
  * The PrimarySidebar's footer row: Settings on the left, Archived Sessions as a glyph button on the right, as Maka's
  * sidebar pairs them. The two split the row in equal halves, so the whole row stays clickable and Archived is as easy
- * to hit as Settings (a 28px glyph chip was a small target at the far edge). Archived is a secondary destination, so it
- * shows no label and no count; its glyph sits at the right end of its half. The count is not something the user acts
- * on, so it lives only in the tooltip and the accessible name.
+ * to hit as Settings (a 28px glyph chip was a small target at the far edge). The Settings column never shrinks below
+ * its label (`minmax(max-content, 1fr)`): at the narrowest sidebar the equal split would cut it to "Setti…" while the
+ * icon-only Archived half kept room it does not need, so Archived takes whatever is left. Archived is a secondary
+ * destination, so it shows no label and no count; its glyph sits at the right end of its half. The count is not
+ * something the user acts on, so it lives only in the tooltip and the accessible name.
  *
  * It reads as one more row of the Session tree above it: the same 28px height, 16px glyph inset (the footer's 8px
  * padding plus the row's, matching the list's), 14px glyph, and `--state-hover` tint as a Session row, so its icon and
@@ -25,20 +27,20 @@ export function PrimarySidebarFooter({ archivedCount }: { archivedCount: number 
     const { t } = useTranslation();
     const archivedLabel = t('primarySidebar.footer.archivedAriaLabel', { count: archivedCount });
     return (
-        <div className="flex shrink-0 items-center gap-1 px-2 pt-1 pb-2">
+        <div className="grid shrink-0 grid-cols-[minmax(max-content,1fr)_minmax(0,1fr)] items-center gap-1 px-2 pt-1 pb-2">
             <CommandTooltip commandId="settings.open">
                 <button
-                    className={`${footerButton} min-w-0 flex-1 basis-0 gap-2 px-2 text-left`}
+                    className={`${footerButton} gap-2 px-2 text-left`}
                     type="button"
                     onClick={() => openSettings()}
                 >
                     <Settings aria-hidden="true" size={14} className="shrink-0" />
-                    <span className="min-w-0 truncate">{t('settings.page.heading')}</span>
+                    <span className="whitespace-nowrap">{t('settings.page.heading')}</span>
                 </button>
             </CommandTooltip>
             <Tooltip content={archivedLabel}>
                 <button
-                    className={`archived-sessions-entry ${footerButton} min-w-0 flex-1 basis-0 justify-end px-2`}
+                    className={`archived-sessions-entry ${footerButton} justify-end px-2`}
                     type="button"
                     aria-label={archivedLabel}
                     onClick={() => setArchivedSessionsOpen(true)}

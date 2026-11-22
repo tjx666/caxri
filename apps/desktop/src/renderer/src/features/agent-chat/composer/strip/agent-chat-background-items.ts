@@ -94,10 +94,10 @@ function taskKind(task: AgentChatTask): 'workflow' | 'subagent' | 'shell' {
 }
 
 /**
- * Every row of the Background work list, in display order: grouped by kind (`KIND_ORDER`), and within a kind the rows
- * that need the user first, each group keeping its source order (delegated rows in the order a person should look at
- * them, tasks in start order). A delegated failure or interruption the user dismissed leaves; one that waits on their
- * answer cannot be dismissed. Task failures arrive already filtered by `agentChatBackgroundWork`.
+ * Every row of the Background work list, in display order: the rows that need the user first across all kinds, then the
+ * rest, each part grouped by kind (`KIND_ORDER`) and keeping its source order (delegated rows in the order a person
+ * should look at them, tasks in start order). A delegated failure or interruption the user dismissed leaves; one that
+ * waits on their answer cannot be dismissed. Task failures arrive already filtered by `agentChatBackgroundWork`.
  */
 export function agentChatBackgroundItems({
     delegated,
@@ -124,7 +124,7 @@ export function agentChatBackgroundItems({
     for (const task of running)
         items.push({ id: task.id, kind: taskKind(task), requiresUser: false, task });
     const rank = (item: AgentChatBackgroundItem): number =>
-        KIND_ORDER.indexOf(item.kind) * 2 + (item.requiresUser ? 0 : 1);
+        (item.requiresUser ? 0 : KIND_ORDER.length) + KIND_ORDER.indexOf(item.kind);
     return items.toSorted((left, right) => rank(left) - rank(right));
 }
 

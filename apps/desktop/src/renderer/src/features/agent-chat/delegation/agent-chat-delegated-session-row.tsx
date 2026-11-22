@@ -98,7 +98,9 @@ function DelegatedSessionRowContent({
                 </span>
             )}
             {status && (
-                <span className={cn('min-w-0 shrink truncate', statusTone(glyph, requiresUser))}>
+                <span
+                    className={cn('max-w-[50%] shrink-0 truncate', statusTone(glyph, requiresUser))}
+                >
                     {status}
                 </span>
             )}
@@ -226,7 +228,11 @@ export function AgentChatDelegatedSessionRow({
                 <AgentChatStripRowSlot
                     action={
                         onDismiss ? (
-                            <AgentChatStripDismissButton title={title} onDismiss={onDismiss} />
+                            <AgentChatStripDismissButton
+                                detail={t('agentChat.tasks.dismissDelegatedDetail')}
+                                title={title}
+                                onDismiss={onDismiss}
+                            />
                         ) : undefined
                     }
                     glyph={<AgentChatDelegationGlyph glyph={copy.glyph} label={copy.headline} />}

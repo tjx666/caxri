@@ -265,7 +265,7 @@ test('a host folds its nested Sessions from its chevron or the arrow keys, count
             .getByRole('tree')
             .first()
             .screenshot({ path: testInfo.outputPath('sidebar-delegated-expanded-hover.png') });
-        await page.getByRole('button', { name: 'Collapse rows under Coordinator' }).click();
+        await page.getByRole('button', { name: 'Collapse Coordinator' }).click();
         await expect(group).toHaveCount(0);
         await expect(host).toHaveAttribute('aria-expanded', 'false');
         await expect(host).toBeFocused();

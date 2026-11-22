@@ -17,12 +17,19 @@ export const agentActivity = {
     'agentActivity.markDone': 'Mark as Done',
     'agentActivity.markSessionDone': 'Mark {{title}} as Done',
     'agentActivity.markAllDone.action': 'Mark All as Done',
-    'agentActivity.markAllDone.title': 'Mark All Sessions as Done?',
+    'agentActivity.markAllDone.title': 'Mark All as Done?',
     'agentActivity.markAllDone.messageOne':
-        '{{count}} Session in Needs attention moves to Idle. Its conversation and Agent are not affected.',
+        '{{count}} Session in Needs attention moves to Idle. Its conversation and Agent are not affected. If its Agent has new activity, it stays in Needs attention.',
     'agentActivity.markAllDone.messageOther':
-        '{{count}} Sessions in Needs attention move to Idle. Their conversations and Agents are not affected.',
-    'agentActivity.markAllDone.confirm': 'Mark as Done',
+        '{{count}} Sessions in Needs attention move to Idle. Their conversations and Agents are not affected. Sessions with new activity stay in Needs attention.',
+    'agentActivity.markAllDone.confirm': 'Mark {{count}} as Done',
+    'agentActivity.markAllDone.resolvedNone': 'No Sessions marked as Done',
+    'agentActivity.markAllDone.resolvedOne': 'Marked {{count}} Session as Done',
+    'agentActivity.markAllDone.resolvedOther': 'Marked {{count}} Sessions as Done',
+    'agentActivity.markAllDone.stayedOne':
+        '; {{count}} has new activity and stays in Needs attention',
+    'agentActivity.markAllDone.stayedOther':
+        '; {{count}} have new activity and stay in Needs attention',
     'agentActivity.markAllDone.failed': 'Unable to mark the Sessions as Done',
     'agentActivity.note.background': 'Waiting on background work',
 } as const;

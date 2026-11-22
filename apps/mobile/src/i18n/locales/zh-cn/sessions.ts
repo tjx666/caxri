@@ -236,6 +236,7 @@ export const sessions: TranslatedNamespace<typeof source> = {
     'sessions.list.expandHint': '展开这一组的会话。',
     'sessions.list.groupLabel': '{{label}}，{{count}} 个会话',
     'sessions.list.showMore': '再显示 {{count}} 个',
+    'sessions.list.showMoreIn': '{{label}}分组，再显示 {{count}} 个会话',
     'sessions.list.idle': '空闲',
     'sessions.list.loadFailed': '无法加载会话。',
     'sessions.list.pinned': '置顶',

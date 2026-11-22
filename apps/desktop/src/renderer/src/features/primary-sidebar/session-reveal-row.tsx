@@ -78,9 +78,12 @@ export function SessionRevealRow({
                 'session-reveal flex h-6 w-fit cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent text-xs whitespace-nowrap text-muted hover:bg-state-hover hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 /*
                  * A nested reveal row already sits inside the child list's indent and keeps the child rows' 24px rhythm
-                 * with no top margin, so the branch guide (`SessionChildGuide`) can count it as one row.
+                 * with no top margin, so the branch guide (`SessionChildGuide`) can count it as one row. Its 24px left
+                 * padding covers a nested row's inset, 12px mark, and gap, so the label sits on the child titles' edge.
                  */
-                level === 3 ? 'max-w-full px-1.5' : 'mt-0.5 ml-5.5 max-w-[calc(100%-22px)] px-2',
+                level === 3
+                    ? 'max-w-full pr-1.5 pl-6'
+                    : 'mt-0.5 ml-5.5 max-w-[calc(100%-22px)] px-2',
             )}
             role="treeitem"
             aria-label={ariaLabel}

@@ -185,7 +185,7 @@ test('a Codex Chat that used up its 5-hour limit spends a banked reset from the 
         await expect(usageChip).toContainText('5h 0% left');
         await usageChip.hover();
         const usageCard = page.locator('.tooltip-popup');
-        await expect(usageCard).toContainText(/Banked resets\s*2/u);
+        await expect(usageCard).toContainText(/Reset credits\s*2/u);
         // The fake app-server answers `account/rateLimitResetCredit/consume`; no test ever sends it to a real account.
         await usageCard.getByRole('button', { name: 'Use reset credit' }).click();
         const confirmation = page.getByRole('dialog', { name: 'Use a Codex reset credit?' });
@@ -206,7 +206,7 @@ test('a Codex Chat that used up its 5-hour limit spends a banked reset from the 
         await expect(usageChip).not.toContainText('5h 0% left');
         await page.mouse.move(1, 1);
         await usageChip.hover();
-        await expect(page.locator('.tooltip-popup')).toContainText(/Banked resets\s*1/u);
+        await expect(page.locator('.tooltip-popup')).toContainText(/Reset credits\s*1/u);
         await page.screenshot({ path: testInfo.outputPath('codex-reset-credit-spent.png') });
     } finally {
         await closeAppQuietly(running.app);

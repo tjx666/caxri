@@ -79,7 +79,7 @@ describe('delegatedBackgroundState', () => {
 });
 
 describe('agentChatBackgroundItems', () => {
-    it('groups delegated, workflow, subagent, then shell, with rows that need the user first in a kind', () => {
+    it('lists rows that need the user first across kinds, then groups the rest as delegated, workflow, subagent, shell', () => {
         const items = agentChatBackgroundItems({
             delegated: [
                 entry('running-child'),
@@ -93,18 +93,18 @@ describe('agentChatBackgroundItems', () => {
         });
         expect(ids(items)).toEqual([
             'delegation:asking-child',
+            'broken-shell',
             'delegation:running-child',
             'verify',
             'reviewer',
-            'broken-shell',
             'build',
         ]);
         expect(items.map(({ requiresUser }) => requiresUser)).toEqual([
             true,
-            false,
-            false,
-            false,
             true,
+            false,
+            false,
+            false,
             false,
         ]);
     });
@@ -148,7 +148,7 @@ describe('foldAgentChatBackgroundItems', () => {
 
     it('keeps every row that needs the user and fills the rest of three in display order', () => {
         const { hiddenCount, shown } = foldAgentChatBackgroundItems(items);
-        expect(ids(shown)).toEqual(['delegation:child', 'verify', 'broken']);
+        expect(ids(shown)).toEqual(['broken', 'delegation:child', 'verify']);
         expect(hiddenCount).toBe(3);
     });
 
