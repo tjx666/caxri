@@ -49,11 +49,11 @@ import { DelegationRedirects } from './redirect';
 import { collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { ExactResumeHost } from './resume';
 import {
+    admittedTaskInput,
     continueHandover,
-    followUpTask,
+    continueTask,
     handoverAdmission,
     handoverTarget,
-    resumeTask,
 } from './resume';
 import type { RetryAdmission } from './retry';
 import { assertRetryProvider, DelegationRetries } from './retry';
@@ -291,6 +291,7 @@ export class AgentDelegationService {
                 this.handBacks.assertFreshCreateAllowed(authority, input.sessionId);
             this.capacity.assertRoom(authority);
             const previous = previousId ? this.owned(previousId, authority) : undefined;
+            const taskInput = admittedTaskInput(input, previous, this.options);
             const { continueFromHandover } = input;
             const handoverRequest = continueFromHandover
                 ? ([
@@ -312,7 +313,7 @@ export class AgentDelegationService {
             });
             assertRetryProvider(retry, config.selection);
             const { frozenLaunch } = config;
-            if (!previous || input.resumeFrom)
+            if (!previous || taskInput.resumeFrom)
                 await this.options.verifyLaunch(frozenLaunch, config.selection.provider);
             // After the last await before the record exists, so input during `verifyLaunch` is fenced.
             retry?.guard();
@@ -322,7 +323,7 @@ export class AgentDelegationService {
                     id,
                     now: this.now(),
                     authority,
-                    input,
+                    input: taskInput,
                     fingerprint,
                     admission: config,
                     previous,
@@ -334,6 +335,7 @@ export class AgentDelegationService {
             // Before the announcement, so the ledger links the hand-over's task instead of recording a second one.
             if (continueFromHandover) this.options.botHandovers?.consume(continueFromHandover, id);
             logDelegationRequested(this.options.logger, record.receipt, input, {
+                resumesSuspended: taskInput !== input,
                 isBot: isCaxriBotCaller(this.options.database, authority),
                 parentDelegationId: previousId,
                 terminalId: authority.callerTerminalId,
@@ -349,14 +351,12 @@ export class AgentDelegationService {
                         { ...admitted, handoverId: continueFromHandover },
                     );
                 if (previous)
-                    return await (input.resumeFrom
-                        ? resumeTask(
-                              this.exactResumeHost(authority, retry),
-                              record,
-                              authority,
-                              previous,
-                          )
-                        : followUpTask(this.exactResumeHost(authority), record, previous));
+                    return await continueTask(
+                        this.exactResumeHost(authority, retry),
+                        record,
+                        authority,
+                        previous,
+                    );
                 const early = await startFreshTask(
                     this.exactResumeHost(authority, retry),
                     record,

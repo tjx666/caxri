@@ -107,6 +107,11 @@ export function logDelegationRequested(
     receipt: AgentDelegationReceipt,
     input: AgentDelegationCreate,
     caller: {
+        /**
+         * A follow-up admitted as an exact resume because its parent's Agent was suspended while idle; logged as mode
+         * `suspended_follow_up` so it stays distinguishable from an explicit `--resume`.
+         */
+        resumesSuspended?: boolean;
         isBot: boolean;
         parentDelegationId: string | undefined;
         terminalId: string | undefined;
@@ -128,7 +133,9 @@ export function logDelegationRequested(
                 : input.resumeFrom
                   ? 'resume'
                   : input.followUpOf
-                    ? 'follow_up'
+                    ? caller.resumesSuspended
+                        ? 'suspended_follow_up'
+                        : 'follow_up'
                     : 'new',
             parentDelegationId: caller.parentDelegationId ?? null,
             relation: caller.relation ?? 'none',

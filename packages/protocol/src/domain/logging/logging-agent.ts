@@ -155,7 +155,8 @@ export const agentLogEvents = {
 export const agentDelegationLogEvents = {
     admissionRejected: 'agent_delegation.admission_rejected',
     /**
-     * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, or resume; `newSession`),
+     * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, resume, hand-over, or
+     * `suspended_follow_up` for a follow-up resumed because its parent's Agent was suspended while idle; `newSession`),
      * whether Caxri Bot sent it, and the request's correlation ID, so a delegation can be traced back to the CLI call
      * that created it. `fields.relation` is how the Session was started (`delegated`, `handoff`, `consult`,
      * `independent`, or `none` for a Session with no creator relation: the owner's, or one Caxri Bot dispatched to),

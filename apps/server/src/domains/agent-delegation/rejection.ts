@@ -211,6 +211,29 @@ export function followUpRejection(
 }
 
 /**
+ * Whether a follow-up of `parent` runs as an exact resume instead. Idle suspension stops a settled task's Agent a few
+ * minutes after its turn, so its Terminal holds no live launch for {@link followUpRejection} to submit into, and every
+ * later follow-up would fail as `launch_replaced` although the native conversation is intact. A parent the user took
+ * over keeps the hand-back path, a Chat that is starting or stopping (live without a launch) is left alone, and a
+ * launch that was actually replaced, or a Terminal bound to another conversation, still fails as before.
+ */
+export function shouldResumeSuspendedFollowUp(
+    parent: StoredAgentDelegation,
+    target: Pick<
+        AgentDelegationServiceOptions,
+        'currentLaunchId' | 'database' | 'dispatch' | 'isChatLive'
+    >,
+): boolean {
+    const { terminalId } = parent.receipt;
+    if (!terminalId || !parent.launchId || !parent.providerSessionId) return false;
+    if (parent.hasHumanIntervention || parent.hasLostTarget) return false;
+    if (!target.dispatch.resume || !target.currentLaunchId) return false;
+    if (target.currentLaunchId(terminalId) !== undefined) return false;
+    if (target.isChatLive?.(terminalId)) return false;
+    return target.database.getTerminal(terminalId)?.agentSessionId === parent.providerSessionId;
+}
+
+/**
  * The first condition that keeps an exact resume from relaunching its parent's conversation, in admission order.
  */
 export function resumeRejection(

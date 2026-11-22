@@ -17,6 +17,7 @@ import {
     reportFollowUpRejection,
     reportResumeRejection,
     resumeRejection,
+    shouldResumeSuspendedFollowUp,
 } from './rejection';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { delegationTaskBody } from './task-body';
@@ -120,7 +121,7 @@ function releaseRefusedFollowUp(host: ExactResumeHost, id: string, parentId: str
  * A follow-up: continues a settled or idle task's live conversation in its own Terminal by submitting a new task
  * pointer to the exact launch, behind the chain claim that lets only one follow-up through.
  */
-export async function followUpTask(
+async function followUpTask(
     host: ExactResumeHost,
     record: StoredAgentDelegation,
     previous: StoredAgentDelegation,
@@ -176,7 +177,7 @@ export async function followUpTask(
 /**
  * `--resume-from`: continues a settled task's native conversation in its own Terminal.
  */
-export async function resumeTask(
+async function resumeTask(
     host: ExactResumeHost,
     record: StoredAgentDelegation,
     authority: DelegationAuthority,
@@ -236,6 +237,35 @@ export async function resumeTask(
         }
         throw error;
     }
+}
+
+/**
+ * The input a task is admitted with. A follow-up whose parent's Agent was suspended while idle becomes an exact resume
+ * of the same conversation instead of failing for want of a live launch; see `shouldResumeSuspendedFollowUp`. The
+ * caller's own request keeps its fingerprint, so a replay of the same request ID still matches.
+ */
+export function admittedTaskInput(
+    input: AgentDelegationCreate,
+    previous: StoredAgentDelegation | undefined,
+    options: AgentDelegationServiceOptions,
+): AgentDelegationCreate {
+    if (!previous || !input.followUpOf || !shouldResumeSuspendedFollowUp(previous, options))
+        return input;
+    return { ...input, followUpOf: undefined, resumeFrom: input.followUpOf };
+}
+
+/**
+ * Continues `previous` with an admitted task: an exact resume when its input names `resumeFrom`, a follow-up otherwise.
+ */
+export function continueTask(
+    host: ExactResumeHost,
+    record: StoredAgentDelegation,
+    authority: DelegationAuthority,
+    previous: StoredAgentDelegation,
+): Promise<AgentDelegationReceipt> {
+    return record.input.resumeFrom
+        ? resumeTask(host, record, authority, previous)
+        : followUpTask(host, record, previous);
 }
 
 /**
