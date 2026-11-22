@@ -93,17 +93,18 @@ function DelegatedHeaderMeta({
  * The "Delegated Sessions" section of the composer strip: one row per child Session this Chat's Agent delegated to,
  * consulted, or handed off to, under a header that counts them and states how many need input or failed. A completed
  * task stays in the list for a while after it completes (`splitDelegatedSessions`), then waits behind the header's
- * `Completed N` toggle, so the rows in view are the ones still worth looking at. Once every row waits there, the
- * section is its header alone (count, cost, and the toggle), with no fold chevron over an empty list. The clock that
- * folds a row only ticks while a recent completed row is in view. Mounts only when the feed has entries, and only for a
- * Chat on screen: a kept-alive Chat in the background reads no feed, so the progress events that patch it cost the
- * visible Chat alone (the hidden-Chat render budget).
+ * `Completed N` toggle, so the rows in view are the ones still worth looking at. Once every row waits there (nothing
+ * open, failed, or waiting on the user, and no result completed in the last ten minutes, which is every settled Chat
+ * after a restart), the section leaves the strip: a header that only says finished work exists cannot be dismissed and
+ * leads nowhere the sidebar's child Sessions do not. The next delegation brings it back. The clock that folds a row
+ * only ticks while a recent completed row is in view. Mounts only for a Chat on screen: a kept-alive Chat in the
+ * background reads no feed, so the progress events that patch it cost the visible Chat alone (the hidden-Chat render
+ * budget).
  */
 export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: string }) {
     const { t } = useTranslation();
     const { attempts, chainSessionIds, entries, isPartial, sessionId, total, viaBySessionId } =
         useChatDelegatedSessions(terminalId);
-    const cost = useDelegatedCost(sessionId, total > 0);
     const isSidebarShown = useChromeLayoutStore(isPrimarySidebarShown);
     const [isShowingCompleted, setShowingCompleted] = useState(false);
     const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, 'delegated');
@@ -111,11 +112,14 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
     const [needsClock, setNeedsClock] = useState(false);
     const now = useClockTick('minute', needsClock);
     const { folded, hasRecentCompleted, shown } = splitDelegatedSessions(entries, now);
+    const cost = useDelegatedCost(sessionId, shown.length > 0);
     // Adjusting state during render: the clock runs only while a shown row still has to fold on time.
     if (needsClock !== hasRecentCompleted) setNeedsClock(hasRecentCompleted);
-    // A later fold starts hidden again once the last folded row left, rather than appearing already expanded.
-    if (isShowingCompleted && folded.length === 0) setShowingCompleted(false);
-    if (entries.length === 0) return null;
+    // A later fold starts hidden again once the last folded row left or the section left the strip, rather than
+    // appearing already expanded.
+    if (isShowingCompleted && (folded.length === 0 || shown.length === 0))
+        setShowingCompleted(false);
+    if (shown.length === 0) return null;
     const summary = delegatedSessionsSummary(entries, total);
     const { asking, count, failed, needsInput, waiting } = delegatedSessionsHeaderParts(summary, t);
     const attention = [needsInput, failed, waiting].filter((part) => part !== undefined);
@@ -156,8 +160,6 @@ export function AgentChatDelegatedSessionsSection({ terminalId }: { terminalId: 
                     .filter(Boolean)
                     .join(', ')}
                 glyph={<Forward aria-hidden="true" className="size-3.5 shrink-0" />}
-                // Every row folded behind `Completed N`: the header alone, rather than an expanded chevron over nothing.
-                isEmpty={shown.length === 0 && !isShowingCompleted}
                 label={t('delegation.strip.label')}
                 meta={
                     <DelegatedHeaderMeta

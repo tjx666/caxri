@@ -1537,7 +1537,11 @@ and Benchmark windows show none of them: the host reports no Delegated Sessions 
 child title>` part. The header counts them in its needs-input and failed parts but keeps
   `delegated` as the direct-child count; when the Server could not read or list every deeper item
   it appends `and more`. Nothing was added to act on them: the rows are the existing rows (click
-  opens the Session), with no "next item" action, and a handoff subtree is not rolled up. The section mounts only
+  opens the Session), with no "next item" action, and a handoff subtree is not rolled up. A completed
+  row stays in the list for ten minutes, then folds behind the header's `Completed N` toggle. Once
+  every row folded (nothing open, failed, or waiting on the user, which is every settled Chat after
+  a restart), the whole section leaves the strip until the next delegation: a header over finished
+  work alone cannot be dismissed, and the sidebar already lists the child Sessions. The section mounts only
   while the Chat is shown, so a hidden Chat does not subscribe. A hidden kept-alive Chat also
   reads no record statuses, ticks no record clock, and follows no change of its origin row's
   takeover time (`DelegationLiveContext`); showing it reads the cached values again. A completed row also shows the
