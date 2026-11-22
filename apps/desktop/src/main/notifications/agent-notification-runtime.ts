@@ -2,7 +2,7 @@ import type { ServerEvent, SessionRecord } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import type { BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
 
 import type { DesktopServerConnection } from '../connection/server-connection';
 import { PRIMARY_WINDOW_KEY } from '../window-presence-registry';
@@ -84,6 +84,14 @@ export async function activateAgentNotificationSession(
 }
 
 /**
+ * True while any Caxri window (a workbench window or Caxri Bot) is the focused, visible, unminimized app window.
+ */
+function isCaxriWindowFocused(): boolean {
+    const window = BrowserWindow.getFocusedWindow();
+    return window !== null && !window.isDestroyed() && window.isVisible() && !window.isMinimized();
+}
+
+/**
  * Binds the pure attention coordinator to Electron and the exact Desktop Server lease. A click revalidates the Session
  * before changing durable selection, so stale system notifications cannot navigate to an archived or deleted Session.
  */
@@ -98,6 +106,7 @@ export function createDesktopAgentNotifications({
     return createAgentNotificationCoordinator({
         activateSession: (sessionId) =>
             activateAgentNotificationSession({ focusMainWindow, supervisor }, sessionId),
+        isAppFocused: isCaxriWindowFocused,
         isSessionVisible: isSessionShown,
         loadBootstrap: () => supervisor.request('app.bootstrap'),
         loadRecords: (parameters) => supervisor.request('app.records', parameters),

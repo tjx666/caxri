@@ -77,6 +77,7 @@ export function harness(initial: SessionRecord) {
     let current = initial;
     let selectedSessionId: string | undefined;
     let isVisible = false;
+    let isAppFocused = false;
     let settings = defaultAppSettings;
     let replySummary: () => Promise<string | undefined> = () => Promise.resolve(undefined);
     const shown: AgentSystemNotification[] = [];
@@ -85,6 +86,7 @@ export function harness(initial: SessionRecord) {
     const activateSession = vi.fn<() => Promise<void>>(() => Promise.resolve());
     const coordinator = createAgentNotificationCoordinator({
         activateSession,
+        isAppFocused: () => isAppFocused,
         isSessionVisible: (sessionId) => isVisible && selectedSessionId === sessionId,
         loadBootstrap: () => Promise.resolve(bootstrap(current, settings)),
         loadRecords: () =>
@@ -117,6 +119,9 @@ export function harness(initial: SessionRecord) {
         },
         setSettings(next: AppSettings): void {
             settings = next;
+        },
+        setAppFocused(isNextFocused: boolean): void {
+            isAppFocused = isNextFocused;
         },
         setVisible(isNextVisible: boolean): void {
             isVisible = isNextVisible;

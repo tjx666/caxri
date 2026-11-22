@@ -8,7 +8,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, DEFAULT_SESSION_TITLE } from '@caxri/protocol';
 
-import { translateMain } from '../locale';
+import { formatTurnDuration, translateMain } from '../locale';
 
 /**
  * The two identity fields are real Electron `NotificationConstructorOptions` on macOS and Windows, not Caxri-private
@@ -40,6 +40,10 @@ type AgentNotificationOutcome =
     | 'archived'
     | 'read'
     | 'visible'
+    /**
+     * A Caxri window is in the foreground: the sidebar already shows the attention, so a banner would only interrupt.
+     */
+    | 'appFocused'
     | 'disabled'
     | 'noProvider'
     | 'belowThreshold'
@@ -79,6 +83,12 @@ interface AgentNotificationCoordinatorOptions {
      * last refresh cannot suppress a banner for a Session nobody is looking at.
      */
     isSessionVisible(sessionId: string): boolean;
+    /**
+     * Whether any Caxri window is focused, visible, and not minimized right now. While it is, the sidebar's unread and
+     * attention markers already tell the user, so no Session raises a banner. Read live at each decision; omitted means
+     * never focused.
+     */
+    isAppFocused?(): boolean;
     loadBootstrap(): Promise<BootstrapState>;
     loadRecords(parameters: {
         sessionIds: string[];
@@ -115,28 +125,6 @@ const TURN_START_REASONS = new Set(['user_submission', 'agent_started']);
  * the coordinator queue, so it must stay short enough that a slow transcript never delays later attention.
  */
 const REPLY_SUMMARY_TIMEOUT_MS = 1_500;
-
-/**
- * A completed turn's length as the banner prints it, in the language Main resolves for `workbench.language` (`1h 5m` in
- * English, `1 小时 5 分` in Simplified Chinese). Zero-valued trailing units are dropped.
- */
-export function formatTurnDuration(durationMs: number): string {
-    const totalSeconds = Math.max(1, Math.round(durationMs / 1_000));
-    const hours = Math.floor(totalSeconds / 3_600);
-    const minutes = Math.floor((totalSeconds % 3_600) / 60);
-    if (hours > 0) {
-        return minutes > 0
-            ? translateMain('desktop.duration.hoursMinutes', { hours, minutes })
-            : translateMain('desktop.duration.hours', { hours });
-    }
-    const seconds = totalSeconds % 60;
-    if (minutes > 0) {
-        return seconds > 0
-            ? translateMain('desktop.duration.minutesSeconds', { minutes, seconds })
-            : translateMain('desktop.duration.minutes', { minutes });
-    }
-    return translateMain('desktop.duration.seconds', { seconds });
-}
 
 interface PendingBanner {
     decide(outcome: AgentNotificationOutcome, replySummary?: ReplySummaryOutcome): void;
@@ -278,6 +266,10 @@ export function createAgentNotificationCoordinator(
             decide('visible');
             return undefined;
         }
+        if (options.isAppFocused?.()) {
+            decide('appFocused');
+            return undefined;
+        }
         if (!settings?.['agents.notifications.enabled']) {
             closeNotification(session.id);
             decide('disabled');
@@ -409,6 +401,7 @@ export function createAgentNotificationCoordinator(
                 current?.attentionGeneration !== banner.session.attentionGeneration ||
                 !current.hasUnread ||
                 options.isSessionVisible(current.id) ||
+                options.isAppFocused?.() ||
                 !settings?.['agents.notifications.enabled']
             ) {
                 // The previous turn's banner is just as stale as the one being dropped.
