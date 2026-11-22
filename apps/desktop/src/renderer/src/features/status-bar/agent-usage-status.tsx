@@ -105,6 +105,7 @@ export function AgentUsageStatus({ terminalId }: { terminalId: string }) {
                           {row.value}
                           <ResetCreditAction
                               credits={spendableCredits}
+                              disabledReason={t('statusBar.usage.useResetCreditBlockedNote')}
                               isEnabled={isResetCreditUsable}
                               terminalId={terminalId}
                           />

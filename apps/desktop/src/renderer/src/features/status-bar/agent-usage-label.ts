@@ -77,16 +77,52 @@ export function windowsForModels<T extends { group?: string | undefined }>(
 }
 
 /**
- * The live limit windows the chip itself shows: {@link currentLimitWindows} filtered by the Setting. `auto` shows the
- * 5-hour window for {@link isFiveHourBoundPlan} plans and every other window otherwise, and falls back to every live
- * window when its pick has none, so a reading without a 5-hour window still shows its weekly one. In `auto`, a live
- * window at or over the warning threshold is added to the pick, so the chip text never hides the reason it warns.
+ * The most windows the chip text names. A provider that reports a window per model group (Antigravity) falls back to
+ * showing every group when no group matches the conversation's models, which made the chip as long as the account; the
+ * hover card still lists every window.
+ */
+const MAX_CHIP_WINDOWS = 2;
+
+/**
+ * The live limit windows the chip itself shows, at most {@link MAX_CHIP_WINDOWS} and the most constrained
+ * ones:{@link currentLimitWindows} filtered by the Setting. `auto` shows the 5-hour window for
+ * {@link isFiveHourBoundPlan} plans and every other window otherwise, and falls back to every live window when its pick
+ * has none, so a reading without a 5-hour window still shows its weekly one. In `auto`, a live window at or over the
+ * warning threshold is added to the pick, so the chip text never hides the reason it warns.
  */
 function agentUsageChipWindows(
     limit: UsageLimit | undefined,
     now: number,
-    { limitWindows }: AgentUsageChipOptions,
+    options: AgentUsageChipOptions,
     models: readonly string[] = [],
+): ReturnType<typeof currentLimitWindows> {
+    return mostConstrainedWindows(pickChipWindows(limit, now, options, models), MAX_CHIP_WINDOWS);
+}
+
+/**
+ * At most `max` windows, the ones with the least left (highest used share, so a nearly spent or warning window always
+ * survives), kept in their original display order. Ties keep the earlier window.
+ */
+export function mostConstrainedWindows<T extends { usedPercent: number }>(
+    windows: readonly T[],
+    max: number,
+): T[] {
+    if (windows.length <= max) return [...windows];
+    const keep = new Set(
+        windows
+            .map((window, index) => ({ window, index }))
+            .toSorted((a, b) => b.window.usedPercent - a.window.usedPercent || a.index - b.index)
+            .slice(0, max)
+            .map((entry) => entry.window),
+    );
+    return windows.filter((window) => keep.has(window));
+}
+
+function pickChipWindows(
+    limit: UsageLimit | undefined,
+    now: number,
+    { limitWindows }: AgentUsageChipOptions,
+    models: readonly string[],
 ): ReturnType<typeof currentLimitWindows> {
     const windows = windowsForModels(currentLimitWindows(limit, now), models);
     const isFiveHour = (window: (typeof windows)[number]) =>

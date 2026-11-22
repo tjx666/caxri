@@ -88,6 +88,7 @@ export const statusBar: TranslatedNamespace<typeof source> = {
         '有一张重置卡{{expiry}}。请在此之前到 Codex 中使用，否则会作废。',
     'statusBar.usage.limitsAsOf': '限额更新于',
     'statusBar.usage.useResetCredit': '使用重置卡',
+    'statusBar.usage.resettingCredit': '正在重置…',
     'statusBar.usage.useResetCreditBlockedNote': '任一限额剩余 10% 或更少时才能使用重置卡。',
     'statusBar.usage.resetCreditConfirmTitle': '使用一张 Codex 重置卡？',
     'statusBar.usage.resetCreditConfirmMessage':
