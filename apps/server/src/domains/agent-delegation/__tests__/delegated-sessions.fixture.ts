@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { parseServerOperationResult } from '@caxri/protocol';
 import { onTestFinished, vi } from 'vitest';
 
+import { removeTestDirectory } from '../../../__tests__/support/remove-test-directory';
 import type { AgentDispatchService } from '../../agent-dispatch';
 import { CaxriDatabase } from '../../db';
 import { createBackgroundSession, discardEmptySession } from '../../session';
@@ -26,7 +27,7 @@ export async function delegatedFixture(overrides: Partial<AgentDelegationService
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(async () => {
         database.close();
-        await rm(directory, { recursive: true, force: true });
+        await removeTestDirectory(directory);
     });
     await mkdir(join(directory, 'work'));
     await mkdir(join(directory, 'caller'));
