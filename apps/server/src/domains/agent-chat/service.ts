@@ -29,6 +29,7 @@ import { ChatEndpointLease } from './endpoint/lease';
 import { readChatTerminalHistory } from './history/read';
 import { resetChatChoice, switchChatChoice } from './model-choice/chat-choice';
 import { ChatPlanImplementations } from './plan/chat-plan-implement';
+import { readChatPlanLimits } from './providers/antigravity/standing-plan-limits';
 import * as queueActions from './queue/actions';
 import type { ChatRewindHost, ChatRewindRequest } from './rewind/chat-rewind';
 import { restoreChatFiles, rewindChat } from './rewind/chat-rewind';
@@ -353,11 +354,10 @@ export class AgentChatService {
     }
 
     /**
-     * Plan rate limits from this Chat's running process; never starts one.
+     * Plan rate limits from this Chat's running process, never starting one; see {@link readChatPlanLimits}.
      */
     async readPlanLimits(terminalId: string) {
-        const session = this.states.get(terminalId)?.session;
-        return session?.isOpen ? session.readPlanLimits?.() : undefined;
+        return readChatPlanLimits(this.options, this.states.get(terminalId)?.session, terminalId);
     }
 
     /**

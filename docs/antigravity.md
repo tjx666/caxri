@@ -190,7 +190,9 @@ and shows only the groups the conversation's models belong to, and `usageLimited
 account as limited only while every group is used up.
 
 A running Chat reads it at most once a minute when the status bar asks (`AntigravityPlanLimits`),
-and afresh after a turn fails on the quota. The same command answers the sign-in marker: a signed-out
+and afresh after a turn fails on the quota. An Antigravity Terminal without a running Chat (a PTY
+`agy`, or a stopped Chat) still shows the limits: one shared reader runs the same command at most
+once a minute, without starting a Chat (`providers/antigravity/standing-plan-limits.ts`). The same command answers the sign-in marker: a signed-out
 CLI prints `status: ERROR` with `authentication failed or timed out` and exits, rather than waiting
 for a pasted code, because the command runs with stdin closed. A signed-out Antigravity row in the
 new-Agent menus offers "Sign in…", which types `agy` into a new Shell Terminal: `agy` has no sign-in
