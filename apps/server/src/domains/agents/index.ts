@@ -149,6 +149,7 @@ export {
 } from './transcript';
 export { isCompressedTranscriptPath } from './transcript-compression';
 export {
+    condenseConversationMessages,
     readTranscriptConversation,
     type TranscriptConversation,
     type TranscriptConversationMessage,

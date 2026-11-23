@@ -169,3 +169,23 @@ export async function readTranscriptConversation(
         isTailOnly,
     };
 }
+
+/**
+ * Condenses visible messages a provider already decoded from its own store (Antigravity's per-conversation database),
+ * under the same retained-text and per-message bounds as {@link readTranscriptConversation}. The whole store is read, so
+ * the result is never tail-only.
+ *
+ * The result is conversation content. Callers must not log it, persist it in SQLite, or put it in a diagnostic.
+ */
+export function condenseConversationMessages(
+    messages: readonly TranscriptConversationMessage[],
+    maxRetainedChars: number,
+): TranscriptConversation {
+    const accumulator = new ConversationAccumulator(maxRetainedChars);
+    for (const message of messages) accumulator.add({ ...message, isChunk: false });
+    return {
+        messages: accumulator.messages,
+        omittedMessageCount: accumulator.omittedMessageCount,
+        isTailOnly: false,
+    };
+}
