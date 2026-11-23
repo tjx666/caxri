@@ -34,6 +34,14 @@ describe('staleLocaleValues', () => {
             "export const x = { 'a': 'Same text here', 'b': 'New wording', 'd': 'Added' };";
         expect(staleLocaleValues(before, after)).toEqual(['Old wording', 'Gone']);
     });
+
+    it('skips an old value another key in the same file still renders', () => {
+        const before =
+            "export const x = { 'single': 'Mark as Done', 'all': 'Mark as Done', 'gone': 'Mark as Done' };";
+        const after =
+            "export const x = { 'single': 'Mark as Done', 'all': 'Mark {{count}} as Done' };";
+        expect(staleLocaleValues(before, after)).toEqual([]);
+    });
 });
 
 describe('staleLocaleCopyWarnings', () => {

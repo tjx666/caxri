@@ -58,12 +58,16 @@ function extractLocaleEntries(source: string): Map<string, string> {
 }
 
 /**
- * Old copy that no longer exists verbatim: the value of every key that was edited or removed.
+ * Old copy that no longer exists verbatim: the value of every key that was edited or removed, unless another key in the
+ * same file still renders that exact value (rewording a bulk "Mark as Done" confirm while the single-row "Mark as Done"
+ * stays flagged 19 assertions of the unchanged copy). The check stays per file on purpose: a value another client's
+ * catalog keeps does not keep this client's assertions valid.
  */
 export function staleLocaleValues(before: string, after: string): string[] {
     const next = extractLocaleEntries(after);
+    const nextValues = new Set(next.values());
     return [...extractLocaleEntries(before)]
-        .filter(([key, value]) => next.get(key) !== value)
+        .filter(([key, value]) => next.get(key) !== value && !nextValues.has(value))
         .map(([, value]) => value);
 }
 
