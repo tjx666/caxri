@@ -4,6 +4,9 @@
  *
  * - `approve`: a `run_command` tool call that asks first; allowing it runs it, rejecting it leaves it unrun.
  * - `read`: a `view_file` tool call that runs without asking.
+ * - `background`: a command `agy` moved to the background (see `startBackgroundCommand`); with `late`, the prompt answers
+ *   `end_turn` 300 ms after its reply even when a Stop arrived meanwhile, as `agy` does for a prompt it had already
+ *   ended.
  * - `slow`: a long streamed reply that `session/cancel` can stop, or a later `session/prompt` ends with `end_turn` (how
  *   `agy` takes a message steered into a running turn).
  * - `plan`: in the `plan` session mode, a `write_file` of a plan artifact that requests the user's feedback.
@@ -383,8 +386,10 @@ async function prompt(text: string, images: number): Promise<Record<string, unkn
     update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: reply } });
     update({ sessionUpdate: 'usage_update', used: 850, size: 1_000_000 });
     persist();
+    const isLate = text.includes('background') && text.includes('late');
+    if (isLate) await delay(300);
     return {
-        stopReason: isCancelled() ? 'cancelled' : 'end_turn',
+        stopReason: !isLate && isCancelled() ? 'cancelled' : 'end_turn',
         usage: { totalTokens: 900, inputTokens: 800, outputTokens: 100 },
     };
 }
