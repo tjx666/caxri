@@ -16,12 +16,17 @@ import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 
 import type {
     AgentEnvironment,
+    TranscriptConversation,
     TranscriptConversationMessage,
     TranscriptScanFailureReason,
 } from '../agents';
 import {
+    antigravityConversationPath,
+    boundAgentIdentity,
+    condenseConversationMessages,
     defaultAgentEnvironment,
     locateAgentTranscript,
+    readAntigravityConversation,
     readTranscriptConversation,
 } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -165,6 +170,38 @@ export class SessionConversationReferenceService {
         throw error;
     }
 
+    /**
+     * Reads the bound Agent conversation's visible messages, or `undefined` when it cannot be located. Antigravity
+     * keeps each conversation in its own SQLite database rather than a line-oriented transcript, so it has no
+     * transcript path and is read through its database reader, as Session search does.
+     */
+    private async readConversation(
+        terminalId: string,
+        signal: AbortSignal | undefined,
+        onFailure: (reason: TranscriptScanFailureReason) => void,
+    ): Promise<TranscriptConversation | undefined> {
+        const identity = boundAgentIdentity(this.database, terminalId);
+        if (identity?.provider === 'antigravity') {
+            signal?.throwIfAborted();
+            const record = readAntigravityConversation(
+                antigravityConversationPath(this.environment, identity.agentSessionId),
+            );
+            return record && condenseConversationMessages(record.messages, MAX_RETAINED_CHARS);
+        }
+        const location = await locateAgentTranscript(
+            this.database,
+            terminalId,
+            this.environment,
+            signal,
+        );
+        if (!location) return;
+        return readTranscriptConversation(location, MAX_RETAINED_CHARS, {
+            onFailure,
+            // A cancelled request stops the scan at its next pass instead of reading up to 48 MiB nobody waits for.
+            signal,
+        });
+    }
+
     async prepare(sessionId: string, signal?: AbortSignal): Promise<SessionConversationReference> {
         const startedAt = performance.now();
         const session = this.database.getSession(sessionId);
@@ -184,13 +221,11 @@ export class SessionConversationReferenceService {
                 undefined,
                 new CaxriError('CONFLICT', 'This Session has no Agent conversation to reference.'),
             );
-        const location = await locateAgentTranscript(
-            this.database,
-            terminalId,
-            this.environment,
-            signal,
-        );
-        if (!location)
+        let scanFailure: TranscriptScanFailureReason | undefined;
+        const conversation = await this.readConversation(terminalId, signal, (reason) => {
+            scanFailure = reason;
+        });
+        if (!conversation)
             this.fail(
                 sessionId,
                 'transcriptMissing',
@@ -200,14 +235,6 @@ export class SessionConversationReferenceService {
                     "This Session's Agent conversation could not be found.",
                 ),
             );
-        let scanFailure: TranscriptScanFailureReason | undefined;
-        const conversation = await readTranscriptConversation(location, MAX_RETAINED_CHARS, {
-            onFailure: (reason) => {
-                scanFailure = reason;
-            },
-            // A cancelled request stops the scan at its next pass instead of reading up to 48 MiB nobody waits for.
-            signal,
-        });
         signal?.throwIfAborted();
         if (conversation.messages.length === 0)
             this.fail(

@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import type { StructuredLogger } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { writeAntigravityConversation } from '../../agents/providers/antigravity/__tests__/fixtures/conversation-database';
 import type { CaxriDatabase } from '../../db/index';
 import {
     formatConversationMarkdown,
@@ -142,6 +143,25 @@ describe('SessionConversationReferenceService', () => {
             'empty',
             'sessionMissing',
         ]);
+    });
+
+    it("reads an Antigravity Session's conversation from its database", async () => {
+        const conversationId = '0f0e0d0c-0b0a-4908-8706-050403020100';
+        terminal = { id: 't1', provider: 'antigravity', agentSessionId: conversationId, cwd };
+        await expect(service().prepare('s1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        await writeAntigravityConversation(home, {
+            id: conversationId,
+            turns: [
+                { prompt: 'Why is the bill high?', reply: 'Egress doubled last week.', at: 1 },
+                { prompt: 'Thanks', at: 3 },
+            ],
+        });
+        const reference = await service().prepare('s1');
+        expect(reference).toMatchObject({ messageCount: 3, omittedMessageCount: 0 });
+        const markdown = await readFile(reference.filePath, 'utf8');
+        expect(markdown).toContain('## User\n\nWhy is the bill high?');
+        expect(markdown).toContain('## Agent (Antigravity)\n\nEgress doubled last week.');
+        expect(markdown).toContain('## User\n\nThanks');
     });
 
     it('refuses to write through a symlink planted in place of the directory', async () => {
