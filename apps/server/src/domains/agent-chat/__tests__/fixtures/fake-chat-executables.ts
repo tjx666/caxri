@@ -98,11 +98,16 @@ import(${JSON.stringify(pathToFileURL(FAKE_GROK_ACP).href)});
 }
 
 /**
- * A fake `agy` whose `acp` is the ACP fixture. Conversations persist under `stateDirectory`.
+ * A fake `agy` whose `acp` is the ACP fixture. Conversations persist under `stateDirectory`, and in `agy`'s own
+ * database layout under `conversationHome` when given, the isolated home Server Core copies them from for "Edit from
+ * here" and "Fork from here".
  */
-export function fakeAntigravityChatExecutableSource(options: { stateDirectory: string }): string {
+export function fakeAntigravityChatExecutableSource(options: {
+    stateDirectory: string;
+    conversationHome?: string;
+}): string {
     return `#!${process.execPath}
 process.env.FAKE_ANTIGRAVITY_STATE_DIR = ${JSON.stringify(options.stateDirectory)};
-import(${JSON.stringify(pathToFileURL(FAKE_ANTIGRAVITY_ACP).href)});
+${options.conversationHome ? `process.env.FAKE_ANTIGRAVITY_HOME = ${JSON.stringify(options.conversationHome)};\n` : ''}import(${JSON.stringify(pathToFileURL(FAKE_ANTIGRAVITY_ACP).href)});
 `;
 }
