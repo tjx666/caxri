@@ -12,7 +12,8 @@
  * - Image blocks: a reply counting them.
  * - Anything else: a thought and a reply quoting the message, naming the current model and thinking level.
  *
- * Every finished prompt reports its context with a `usage_update`.
+ * Every finished prompt reports its context with a `usage_update`. Run as `models` instead, it prints the model list
+ * `agy models` does and exits.
  *
  * The agent picks the session id in `session/new`, as Antigravity does, and reports its model and thinking level only
  * through `configOptions`, which `session/set_config_option` changes. Sessions persist to `FAKE_ANTIGRAVITY_STATE_DIR`
@@ -360,8 +361,29 @@ async function handle(message: RpcMessage): Promise<unknown> {
     }
 }
 
-const lines = readline.createInterface({ input: process.stdin });
-lines.on('line', (line) => {
+/**
+ * `agy models`: a progress line, then one `<id>\t<name>` row per model and thinking level, as `agy` 1.5.14 prints them.
+ */
+function printModels(): void {
+    const rows = MODELS.flatMap(({ value, name }) =>
+        LEVELS.map(
+            (level) =>
+                `${value}-${level}\t${name} (${level.charAt(0).toUpperCase()}${level.slice(1)})`,
+        ),
+    );
+    process.stdout.write(`Fetching models...\n${rows.join('\n')}\n`);
+}
+
+if (process.argv[2] === 'models') printModels();
+else serve();
+
+function serve(): void {
+    const lines = readline.createInterface({ input: process.stdin });
+    lines.on('line', onLine);
+    lines.on('close', () => persist());
+}
+
+function onLine(line: string): void {
     if (!line.trim()) return;
     const message = JSON.parse(line) as RpcMessage;
     if (message.method === undefined && message.id !== undefined) {
@@ -379,7 +401,7 @@ lines.on('line', (line) => {
     }
     if (message.id === undefined) return;
     void reply(message.id, message);
-});
+}
 
 async function reply(id: number | string, message: RpcMessage): Promise<void> {
     try {
@@ -394,4 +416,3 @@ async function reply(id: number | string, message: RpcMessage): Promise<void> {
         });
     }
 }
-lines.on('close', () => persist());

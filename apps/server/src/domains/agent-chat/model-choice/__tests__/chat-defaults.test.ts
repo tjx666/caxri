@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentChatModel } from '@caxri/protocol';
+import type { AgentChatDefaultsProvider, AgentChatModel } from '@caxri/protocol';
 import { defaultAgentProviderSettings } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -19,7 +19,7 @@ const claudeModels: AgentChatModel[] = [
 
 async function setup(
     options: {
-        args?: Partial<Record<'claude' | 'codex', string[]>>;
+        args?: Partial<Record<AgentChatDefaultsProvider, string[]>>;
         environment?: NodeJS.ProcessEnv;
         codex?: CodexDefaultsReading;
     } = {},

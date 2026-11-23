@@ -74,6 +74,16 @@ describe('chatDefaultEffortOptions', () => {
         ]);
         expect(chatDefaultEffortOptions({ ...claude, models: [] })).toBeUndefined();
     });
+
+    it('offers Antigravity no effort until a model is chosen, since its level is part of the model', () => {
+        const antigravity = { ...claude, provider: 'antigravity' as const };
+        expect(chatDefaultEffortOptions(antigravity)).toEqual([]);
+        expect(chatDefaultEffortOptions({ ...antigravity, model: 'opus' })).toContain('max');
+        expect(chatDefaultModelChange({ ...antigravity, effort: 'high' }, null)).toEqual({
+            model: null,
+            effort: null,
+        });
+    });
 });
 
 describe('chatDefaultModelChange', () => {

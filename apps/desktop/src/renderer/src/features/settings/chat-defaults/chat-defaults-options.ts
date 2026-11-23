@@ -54,10 +54,10 @@ type EffortDefaults = Pick<
  * which applies to one session only and is never saved. `undefined` when no listed model says.
  */
 function listedEfforts(defaults: Omit<EffortDefaults, 'effort'>): string[] | undefined {
-    const listed = findAgentChatModel(
-        defaults.models,
-        chatDefaultModelValue(defaults) ?? defaults.builtInModel,
-    );
+    const model = chatDefaultModelValue(defaults);
+    // Antigravity saves the thinking level inside the model's name, so it has no effort default without a model.
+    if (model === undefined && defaults.provider === 'antigravity') return [];
+    const listed = findAgentChatModel(defaults.models, model ?? defaults.builtInModel);
     return listed?.efforts.filter((effort) => defaults.provider !== 'claude' || effort !== 'max');
 }
 

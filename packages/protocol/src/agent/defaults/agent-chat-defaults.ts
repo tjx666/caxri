@@ -5,9 +5,9 @@ import { agentChatEffortSchema, agentChatModelSchema } from '../agent-chat-model
 
 /**
  * The Agents whose global model default Caxri reads from and writes to the Agent's own config file: Claude Code's user
- * `settings.json` and Codex's `config.toml`.
+ * `settings.json`, Codex's `config.toml`, and Antigravity's `settings.json`.
  */
-export const agentChatDefaultsProviders = ['claude', 'codex'] as const;
+export const agentChatDefaultsProviders = ['claude', 'codex', 'antigravity'] as const;
 
 export type AgentChatDefaultsProvider = (typeof agentChatDefaultsProviders)[number];
 

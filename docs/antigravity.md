@@ -130,6 +130,13 @@ answer it.
 - The model and thinking level are the `model` and `thought_level` config options, changed through
   `session/set_config_option`. `agy acp` also lists every model and level pair as a model; Caxri
   shows the config options instead.
+- The global default is the `model` key of `~/.gemini/antigravity-cli/settings.json`, which `agy`'s
+  own `/model` writes as a name from `agy models` with the level inside it
+  (`Gemini 3.8 Flash (High)`; a model listed once, such as `Claude Sonnet 4.6 (Thinking)`, has no
+  level). Settings › Agents › Default model reads and writes that key against the models a Chat
+  listed last, and checks the name against `agy models` before saving. `agy acp` ignores the key
+  (agy 1.5.14), so a Chat applies the default itself once it starts, then its own choice on top;
+  see `model-choice/antigravity-defaults.ts`.
 - Tool calls carry Antigravity's own tool name (`view_file`, `run_command`, ...) and PascalCase
   input; `providers/antigravity/items.ts` maps them to the names every Chat surface uses. A rejected
   command goes back to `in_progress`, so only the Chat's record of the user's answer marks it
