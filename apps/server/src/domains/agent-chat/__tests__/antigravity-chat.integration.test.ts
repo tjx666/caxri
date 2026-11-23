@@ -180,6 +180,31 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         });
     });
 
+    it('starts a Chat with no choice of its own on the global default, which agy acp ignores', async () => {
+        const resolve = vi.fn(() =>
+            Promise.resolve({ model: 'gemini-fake-pro', effort: 'medium' }),
+        );
+        const { service, terminal, until } = await fixture({
+            provider: 'antigravity',
+            defaults: { observeModels: () => {}, resolve },
+        });
+        const ready = await until(
+            (snapshot) => snapshot.status === 'ready' && snapshot.model === 'gemini-fake-pro',
+        );
+        expect(ready).toMatchObject({ effort: 'medium' });
+        expect(ready).not.toHaveProperty('customChoice');
+        expect(resolve).toHaveBeenCalledWith('antigravity');
+
+        // A choice of the Chat's own wins over the default on the next start.
+        await service.configure(terminal.id, { model: 'gemini-fake-flash' });
+        await service.restart(terminal.id);
+        expect(
+            await until(
+                (snapshot) => snapshot.status === 'ready' && snapshot.customChoice === true,
+            ),
+        ).toMatchObject({ model: 'gemini-fake-flash', effort: 'medium' });
+    });
+
     it('interrupts a running turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'antigravity' });
         await service.send(terminal.id, { text: 'slow please' });

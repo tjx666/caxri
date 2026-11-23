@@ -2017,11 +2017,11 @@ A running turn keeps the model it started with.
 A Chat's model, effort, and ultracode come from three layers, highest first, resolved key by key.
 Fast mode has only the first: without a Chat choice it is off.
 
-| Layer                | Lives in                                                                                                                        | Changed by                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| The Chat's choice    | `terminals.chat_model`, `chat_effort`, `chat_ultracode`, `chat_fast` (null while unset)                                         | The composer's model picker                            |
-| Launch settings      | Settings > Agents > Initial arguments; for Claude Code also `ANTHROPIC_MODEL` and `CLAUDE_CODE_EFFORT_LEVEL` in its environment | Settings, the shell environment                        |
-| The Agent's own file | Claude Code's `settings.json` (under `CLAUDE_CONFIG_DIR` when set), Codex's `config.toml` (under `CODEX_HOME`)                  | Settings > Agents > Default model, the Agent's own TUI |
+| Layer                | Lives in                                                                                                                                      | Changed by                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| The Chat's choice    | `terminals.chat_model`, `chat_effort`, `chat_ultracode`, `chat_fast` (null while unset)                                                       | The composer's model picker                            |
+| Launch settings      | Settings > Agents > Initial arguments; for Claude Code also `ANTHROPIC_MODEL` and `CLAUDE_CODE_EFFORT_LEVEL` in its environment               | Settings, the shell environment                        |
+| The Agent's own file | Claude Code's `settings.json` (under `CLAUDE_CONFIG_DIR` when set), Codex's `config.toml` (under `CODEX_HOME`), Antigravity's `settings.json` | Settings > Agents > Default model, the Agent's own TUI |
 
 - **The picker changes only its Chat.** `agentChat.configure` applies the switch to the running
   provider and stores the keys the user picked; a key the switch moved on its own (a new model
@@ -2051,9 +2051,11 @@ Fast mode has only the first: without a Chat choice it is off.
   `config/batchWrite`. Claude Code persists no `max` effort, so Settings never offers it. Claude Code
   lists models only inside a running Chat, so the models each Agent's Chats listed last are cached
   in the `agentChatModels` `app_state` cell for Settings; Codex lists them through the one-shot
-  app-server that reads its config. A Project has no default of its own.
-- **Logs.** `agent_chat.choice_applied` records each restore and reset (`trigger` `start` or
-  `reset`; `outcome` `applied`, `unchanged`, `deferred`, or `failed`; the key names and the
+  app-server that reads its config. Antigravity keeps one model name with the thinking level inside
+  it, and `agy acp` ignores it, so its Chat applies the default at every start before the stored
+  choice (see [Antigravity](antigravity.md#chat)). A Project has no default of its own.
+- **Logs.** `agent_chat.choice_applied` records each restore and reset (`trigger` `start`,
+  `reset`, or `default` for Antigravity's start default; `outcome` `applied`, `unchanged`, `deferred`, or `failed`; the key names and the
   dropped keys, never their values). `agent_chat.defaults_written` records a Settings write with
   its key names.
 

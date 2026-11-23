@@ -82,10 +82,12 @@ export const agentChatLogEvents = {
     defaultsWritten: 'agent_chat.defaults_written',
     /**
      * A Chat's model choice applied to its provider: its own choice when the provider starts (`trigger: 'start'`), or
-     * the global default after the picker's reset (`trigger: 'reset'`). Carries a closed `outcome` (`applied`,
-     * `unchanged` when the provider already matched, `deferred` when the provider listed no models so the choice waits
-     * for the next start, `failed`), the provider, the comma-joined `keys` it sent, and the comma-joined `dropped` keys
-     * the provider no longer accepts (a retired model, an effort the model lost). Never carries the values.
+     * the global default after the picker's reset (`trigger: 'reset'`), or the global default when a Chat with no
+     * choice of its own starts on an Agent that ignores its config file's default (`trigger: 'default'`). Carries a
+     * closed `outcome` (`applied`, `unchanged` when the provider already matched, `deferred` when the provider listed
+     * no models so the choice waits for the next start, `failed`), the provider, the comma-joined `keys` it sent, and
+     * the comma-joined `dropped` keys the provider no longer accepts (a retired model, an effort the model lost). Never
+     * carries the values.
      */
     choiceApplied: 'agent_chat.choice_applied',
     /**

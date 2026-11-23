@@ -7,15 +7,20 @@ import type {
     AgentChatModel,
     AgentLaunchSettings,
 } from '@caxri/protocol';
-import { agentChatModelSchema, CaxriError } from '@caxri/protocol';
+import { agentChatDefaultsProviders, agentChatModelSchema, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 
 import type { AgentEnvironment } from '../../agents';
-import { agentCommandEnvironment, resolveCodexHome } from '../../agents';
+import { agentCommandEnvironment, antigravitySettingsPath, resolveCodexHome } from '../../agents';
 import type { CaxriDatabase } from '../../db';
 import type { TerminalManagerOptions } from '../../terminal';
 import { resolveTerminalExecutable } from '../../terminal';
+import {
+    listAntigravityModelNames,
+    readAntigravityFileDefaults,
+    writeAntigravityFileDefaults,
+} from './antigravity-defaults';
 import {
     claudeDefaultOverrides,
     claudeLaunchDefaults,
@@ -76,13 +81,13 @@ interface ProviderReading {
 
 /**
  * The global model, effort, and ultracode default of each Agent, which a new Chat and a Chat reset with the picker's ↺
- * start from. The Agent's own config file is the source of truth (Claude Code's `settings.json`, Codex's
- * `config.toml`), so a default set in the Agent's own TUI and one set in Caxri's Settings are the same value; Caxri
- * keeps no copy. The launch arguments in Settings (and, for Claude Code, its environment variables) outrank the file,
- * and are reported as overrides so Settings can say why a saved default does not apply.
+ * start from. The Agent's own config file is the source of truth (Claude Code's `settings.json`, Codex's `config.toml`,
+ * Antigravity's `settings.json`), so a default set in the Agent's own TUI and one set in Caxri's Settings are the same
+ * value; Caxri keeps no copy. The launch arguments in Settings (and, for Claude Code, its environment variables)
+ * outrank the file, and are reported as overrides so Settings can say why a saved default does not apply.
  *
- * Claude Code has no model listing outside a running Chat, so the models a Chat listed last are cached in app state for
- * Settings; Codex lists them through the same one-shot app-server that reads its config.
+ * Claude Code and Antigravity list no Chat model identifiers outside a running Chat, so the models a Chat listed last
+ * are cached in app state for Settings; Codex lists them through the same one-shot app-server that reads its config.
  */
 export class AgentChatDefaultsService {
     constructor(private readonly options: AgentChatDefaultsOptions) {}
@@ -97,6 +102,17 @@ export class AgentChatDefaultsService {
             return {
                 file: await readClaudeFileDefaults(path, models),
                 launch: claudeLaunchDefaults(args),
+                environment,
+                models,
+                path,
+            };
+        }
+        if (provider === 'antigravity') {
+            const path = antigravitySettingsPath(this.options.agentEnvironment);
+            const models = this.cachedModels('antigravity');
+            return {
+                file: await readAntigravityFileDefaults(path, models),
+                launch: {},
                 environment,
                 models,
                 path,
@@ -126,15 +142,18 @@ export class AgentChatDefaultsService {
     }
 
     private async codexContext(): Promise<CodexDefaultsContext> {
-        const launch = this.options.launchSettings('codex');
         return {
-            executable: await resolveTerminalExecutable(
-                'codex',
-                launch,
-                this.options.resolveExecutable,
-            ),
+            executable: await this.executable('codex'),
             environment: this.options.agentEnvironment,
         };
+    }
+
+    private executable(provider: 'antigravity' | 'codex'): Promise<string> {
+        return resolveTerminalExecutable(
+            provider,
+            this.options.launchSettings(provider),
+            this.options.resolveExecutable,
+        );
     }
 
     private cachedModels(provider: AgentChatDefaultsProvider): AgentChatModel[] {
@@ -143,10 +162,10 @@ export class AgentChatDefaultsService {
 
     async read(provider: AgentChatDefaultsProvider): Promise<AgentChatDefaults> {
         const reading = await this.readProvider(provider);
-        const overrides =
-            provider === 'claude'
-                ? claudeDefaultOverrides(reading.launch, reading.environment)
-                : codexDefaultOverrides(reading.launch);
+        let overrides: AgentChatDefaults['overrides'] = [];
+        if (provider === 'claude')
+            overrides = claudeDefaultOverrides(reading.launch, reading.environment);
+        else if (provider === 'codex') overrides = codexDefaultOverrides(reading.launch);
         const builtInModel =
             provider === 'claude'
                 ? reading.models.find((model) => model.id === 'default')?.id
@@ -176,6 +195,13 @@ export class AgentChatDefaultsService {
                 await writeClaudeFileDefaults(
                     claudeSettingsPath(this.options.agentEnvironment),
                     this.cachedModels('claude'),
+                    change,
+                );
+            else if (provider === 'antigravity')
+                await writeAntigravityFileDefaults(
+                    antigravitySettingsPath(this.options.agentEnvironment),
+                    this.cachedModels('antigravity'),
+                    await listAntigravityModelNames(await this.executable('antigravity')),
                     change,
                 );
             else
@@ -218,12 +244,18 @@ export class AgentChatDefaultsService {
      * listing equal to the cached one writes nothing.
      */
     observeModels(provider: string, models: readonly AgentChatModel[] | undefined): void {
-        if ((provider !== 'claude' && provider !== 'codex') || !models?.length) return;
+        const defaultsProvider = agentChatDefaultsProviders.find(
+            (candidate) => candidate === provider,
+        );
+        if (!defaultsProvider || !models?.length) return;
         const cached = this.options.database.getAppState('agentChatModels') ?? {};
         // Parsed like the stored copy, so a listing equal to it compares equal whatever its key order.
         const next = agentChatModelSchema.array().parse(models.slice(0, 50));
-        if (isDeepStrictEqual(cached[provider], next)) return;
-        this.options.database.setAppState('agentChatModels', { ...cached, [provider]: next });
+        if (isDeepStrictEqual(cached[defaultsProvider], next)) return;
+        this.options.database.setAppState('agentChatModels', {
+            ...cached,
+            [defaultsProvider]: next,
+        });
     }
 }
 
