@@ -253,6 +253,23 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         expect(done.status).toBe('ready');
     });
 
+    it('stops a turn whose prompt answers after the Stop and leaves its command running', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'run the build in the background forever, late' });
+        await until((snapshot) =>
+            snapshot.items.some(
+                (item) => item.type === 'agentMessage' && item.text === 'Started the build.',
+            ),
+        );
+        const stopped = Date.now();
+        // The prompt has not answered yet, so no turn is held when Stop arrives.
+        await service.interrupt(terminal.id);
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        // Not the 10 s fallback that stops the agent process.
+        expect(Date.now() - stopped).toBeLessThan(5_000);
+        expect(done.status).toBe('ready');
+    });
+
     it('stops a turn at once when the cancelled prompt leaves its command running', async () => {
         const { service, terminal, until } = await fixture({ provider: 'antigravity' });
         await service.send(terminal.id, { text: 'run something stuck' });

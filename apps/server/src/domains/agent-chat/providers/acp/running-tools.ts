@@ -31,6 +31,13 @@ export class AcpRunningTools {
      */
     private held: ((status?: TurnStatus) => void) | undefined;
 
+    /**
+     * Stop arrived before the prompt answered, so no turn was held yet. `agy` answers `end_turn` for a prompt it had
+     * already ended when the cancel came, and holding that turn for its still-running command would leave it open until
+     * the interrupt fallback stops the agent process.
+     */
+    private isStopPending = false;
+
     constructor(
         lifecycle: AgentChatSessionHost['lifecycle'],
         private readonly presentation: AcpToolPresentation,
@@ -61,14 +68,17 @@ export class AcpRunningTools {
      * `interrupted` ends at once: Stop asked for that, and a cancelled command may never report its end.
      */
     endTurn(status: TurnStatus, finish: (status?: TurnStatus) => void): void {
-        if (status === 'interrupted' || this.holding.size === 0) finish();
+        if (this.isStopPending) finish('interrupted');
+        else if (status === 'interrupted' || this.holding.size === 0) finish();
         else this.held = finish;
     }
 
     /**
-     * Ends a held turn now with `status`, as a Stop does; nothing happens when no turn is held.
+     * Ends a held turn now with `status`, as a Stop does. A Stop with no turn held yet ends the turn as interrupted
+     * once its prompt answers.
      */
     release(status?: TurnStatus): void {
+        if (status === 'interrupted' && !this.held) this.isStopPending = true;
         const held = this.held;
         this.held = undefined;
         held?.(status);
@@ -81,5 +91,6 @@ export class AcpRunningTools {
         this.shellTools.clear();
         this.holding.clear();
         this.held = undefined;
+        this.isStopPending = false;
     }
 }
