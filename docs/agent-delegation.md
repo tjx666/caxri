@@ -235,7 +235,7 @@ because only it holds the conversation; the next Agent cannot read it.
   the same hand-off, queued while a turn runs; the URL lets the Agent read the issue itself.
 
 An Agent learns this without the `caxri-cli` skill installed. Caxri adds one short pointer to the
-context of every ordinary Claude and Codex Agent: it says the Agent runs inside Caxri and, when the
+context of every ordinary Claude and Codex Agent and every Antigravity Agent Chat: it says the Agent runs inside Caxri and, when the
 user asks to start or hand off work in another Session or Project, tells it to read
 `"$CAXRI_CLI" skills get caxri-cli --full` and follow this flow
 (`packages/protocol/src/configuration/agent-session-instructions.ts`). Two settings under
@@ -250,7 +250,9 @@ provider session, so `/clear` (Codex `/new`) delivers it again, and so does the 
 compaction the provider reports (Codex today; Claude's Terminal hooks report no compaction yet). A
 Claude Agent Chat appends it to Claude Code's system prompt; a Codex Agent Chat joins it after the
 user's own `developer_instructions`, read with `config/read`, and adds nothing when Codex cannot
-report them. Grok is not covered yet, and Caxri Bot keeps its own workspace instructions.
+report them. An Antigravity Agent Chat appends it to `agy`'s system prompt through `session/new` and
+`session/load` `_meta.antigravity.systemPrompt.append`, when `initialize` advertises that capability. Grok is not
+covered yet, and Caxri Bot keeps its own workspace instructions.
 
 Unless the setting is cleared, Caxri appends one line naming its interface language (the
 `workbench.language` setting, or the system language Desktop last reported for "Follow system") and

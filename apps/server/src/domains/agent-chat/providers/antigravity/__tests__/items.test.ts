@@ -9,6 +9,7 @@ import {
     antigravityModels,
     antigravityPermission,
     antigravityProposedPlan,
+    antigravitySystemPromptMeta,
     antigravityToolPresentation,
     antigravityUsage,
     isAntigravityUsageLimitError,
@@ -236,5 +237,31 @@ describe('AcpUpdates replay for Antigravity', () => {
                 operation.op === 'state' ? (operation.state.turns ?? []) : [],
             );
         expect(turns.map((turn) => turn.status)).toEqual(['completed', 'completed']);
+    });
+});
+
+describe('antigravitySystemPromptMeta', () => {
+    const advertised = {
+        agentCapabilities: {
+            _meta: { antigravity: { tier: true, systemPrompt: { append: true } } },
+        },
+    };
+
+    it('appends the instructions when agy advertises system prompt appending', () => {
+        expect(antigravitySystemPromptMeta(advertised, 'Reply in haiku.')).toEqual({
+            antigravity: { systemPrompt: { append: 'Reply in haiku.' } },
+        });
+    });
+
+    it.each([
+        ['no instructions', advertised, undefined],
+        ['no advertised capability', { agentCapabilities: {} }, 'Reply in haiku.'],
+        [
+            'the capability turned off',
+            { agentCapabilities: { _meta: { antigravity: { systemPrompt: { append: false } } } } },
+            'Reply in haiku.',
+        ],
+    ])('adds nothing with %s', (_case, initialized, instructions) => {
+        expect(antigravitySystemPromptMeta(initialized, instructions)).toBeUndefined();
     });
 });

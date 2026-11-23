@@ -127,6 +127,10 @@ answer it.
 - `agy acp` picks the conversation id in `session/new`. The Chat binds it when its first turn
   starts, so a Chat that never ran a turn has no conversation to resume. Resume uses
   `session/load`, which replays the history without turn ends, so replayed turns read as completed.
+- Caxri's Session instructions (see [Agent delegation](agent-delegation.md)) reach `agy` as
+  `_meta.antigravity.systemPrompt.append` on both `session/new` and `session/load`, once
+  `initialize` advertises `agentCapabilities._meta.antigravity.systemPrompt.append`. A real `agy`
+  1.5.14 probe advertised it and followed the appended text.
 - The model and thinking level are the `model` and `thought_level` config options, changed through
   `session/set_config_option`. `agy acp` also lists every model and level pair as a model; Caxri
   shows the config options instead.

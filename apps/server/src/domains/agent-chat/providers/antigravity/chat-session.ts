@@ -31,6 +31,7 @@ import {
     antigravityModels,
     antigravityPermission,
     antigravityProposedPlan,
+    antigravitySystemPromptMeta,
     antigravityToolPresentation,
     antigravityUsage,
     isAntigravityUsageLimitError,
@@ -58,6 +59,11 @@ class AntigravityChatSession extends AcpChatSession {
      * The latest `usage_update`, which the turn's usage reports in place of the prompt result's token total.
      */
     private context: { used: number; size: number } | undefined;
+
+    /**
+     * The `_meta` that appends Caxri's instructions to `agy`'s system prompt, set once `initialize` advertised it.
+     */
+    private sessionMeta: Record<string, unknown> | undefined;
 
     constructor(options: AgentChatSessionHost) {
         super(
@@ -193,6 +199,15 @@ class AntigravityChatSession extends AcpChatSession {
             ...(this.launchedPermission && { permissionMode: this.launchedPermission }),
             planMode: this.launchedPlanMode,
         });
+    }
+
+    protected onInitialized(initialized: Record<string, unknown>): void {
+        this.sessionMeta = antigravitySystemPromptMeta(initialized, this.options.instructions);
+    }
+
+    protected sessionParameters(): Record<string, unknown> {
+        const parameters = super.sessionParameters();
+        return this.sessionMeta ? { ...parameters, _meta: this.sessionMeta } : parameters;
     }
 
     protected openingState(opened: unknown): Partial<AgentChatSnapshot> {
