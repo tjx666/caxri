@@ -108,6 +108,8 @@ export function fakeAntigravityChatAgentMode(directory: string, userData: string
             antigravity: {
                 executableSource: fakeAntigravityChatExecutableSource({
                     stateDirectory: join(directory, 'antigravity-sessions'),
+                    // The isolated home every fake Agent runs under, where Server Core finds the conversations.
+                    conversationHome: join(userData, 'e2e-agents', 'home'),
                 }),
             },
         },

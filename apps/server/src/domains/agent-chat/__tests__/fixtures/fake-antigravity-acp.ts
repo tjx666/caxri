@@ -117,12 +117,10 @@ function update(sessionUpdate: Record<string, unknown>, shouldRecord = true): vo
 
 /**
  * The home whose `.gemini/antigravity-cli/conversations` gets a copy of each conversation in `agy`'s own database
- * layout, which Server Core copies and cuts for "Edit from here" and "Fork from here": `FAKE_ANTIGRAVITY_HOME`, or in
- * an E2E run the isolated `HOME`. Without either, nothing is written there, so a test never touches a real home.
+ * layout, which Server Core copies and cuts for "Edit from here" and "Fork from here": `FAKE_ANTIGRAVITY_HOME`. Without
+ * it nothing is written there, so a test never touches a real home.
  */
-const conversationHome =
-    process.env.FAKE_ANTIGRAVITY_HOME ??
-    (process.env.CAXRI_E2E === '1' ? process.env.HOME : undefined);
+const conversationHome = process.env.FAKE_ANTIGRAVITY_HOME;
 
 function conversationPath(sessionId: string): string | undefined {
     return conversationHome
