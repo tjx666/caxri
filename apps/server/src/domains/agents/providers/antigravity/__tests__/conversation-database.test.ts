@@ -14,7 +14,8 @@ import {
     readAntigravityConversationUsage,
 } from '../conversation-database';
 import { decodeWireFields } from '../protobuf-wire';
-import { encodeMessage, writeAntigravityConversation } from './fixtures/conversation-database';
+import { writeAntigravityConversation } from './fixtures/conversation-database';
+import { encodeMessage } from './fixtures/protobuf-encode';
 
 const ID = '0d5a5fdf-001d-44f8-b06c-ece668b72852';
 const PROJECT = '/workspace/demo-app';

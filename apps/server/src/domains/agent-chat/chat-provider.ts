@@ -19,7 +19,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 
-import type { AgentLifecycleSignal, ReportedAgentSkill } from '../agents';
+import type { AgentEnvironment, AgentLifecycleSignal, ReportedAgentSkill } from '../agents';
 import type { McpServerReport } from './chat-mcp-servers';
 import type { ProviderGroupRegistration } from './provider-process-groups';
 
@@ -182,6 +182,11 @@ export interface AgentChatSessionHost {
     cwd: string;
     executable: string;
     environment: NodeJS.ProcessEnv;
+    /**
+     * Where the provider keeps its own state, for a driver that copies its records itself (Antigravity's rewind and
+     * fork). Absent in a headless Benchmark turn, which never rewinds or forks.
+     */
+    agentEnvironment?: AgentEnvironment;
     /**
      * The provider's TUI launch settings; each driver translates the options that have a structured equivalent.
      */
@@ -396,9 +401,14 @@ export interface ChatRestorePreview {
 /**
  * How the restart after a rewind reopens the conversation. Absent: resume the bound Agent Session as usual (the
  * provider already rewound its record). `resumeAt`: resume it ending at that point of the record. `fresh`: the rewind
- * removed every turn, so the restart begins a new Agent Session.
+ * removed every turn, so the restart begins a new Agent Session. `switchTo`: the provider cannot cut its record in
+ * place, so it copied the kept turns into a new Agent Session (Antigravity), which the Chat binds and resumes; the
+ * original conversation stays as it was.
  */
-export type ChatResumePoint = { kind: 'resumeAt'; at: string } | { kind: 'fresh' };
+export type ChatResumePoint =
+    | { kind: 'resumeAt'; at: string }
+    | { kind: 'fresh' }
+    | { kind: 'switchTo'; agentSessionId: string };
 
 /**
  * One answered side question, resent with each follow-up so the provider sees the side thread so far.

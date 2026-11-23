@@ -299,6 +299,28 @@ export function readAntigravityConversationUsage(
     });
 }
 
+/**
+ * Every user step's index and text, oldest first, for matching the record against a Chat before copying part of it.
+ * Unlike the visible messages, a step with no text (an image-only prompt) is kept, since it is still one prompt.
+ */
+export function readAntigravityUserStepTexts(
+    path: string,
+): Array<{ idx: number; text: string }> | undefined {
+    return withDatabase(path, (database) =>
+        (
+            database
+                .prepare(
+                    `SELECT idx, step_payload FROM steps WHERE step_type = ${STEP_TYPE_USER_INPUT}
+                    ORDER BY idx LIMIT ${MAX_STEPS}`,
+                )
+                .all() as Array<{ idx: number; step_payload: unknown }>
+        ).map((row) => {
+            const payload = blob(row.step_payload);
+            return { idx: row.idx, text: payload ? userStepText(payload) : '' };
+        }),
+    );
+}
+
 export interface AntigravityConversationHead {
     source?: number;
     /**

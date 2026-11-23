@@ -11,7 +11,7 @@ import {
     readAntigravityConversationHead,
     readAntigravityConversationUsage,
 } from '../conversation-database';
-import { encodeMessage } from './fixtures/conversation-database';
+import { encodeMessage } from './fixtures/protobuf-encode';
 
 /**
  * Times every Antigravity reader on a synthetic conversation at the 50,000-step read cap (#3408). Opt-in through `bun

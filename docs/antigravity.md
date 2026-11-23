@@ -164,9 +164,16 @@ answer it.
 model.`, or `RESOURCE_EXHAUSTED`) fails the turn with a usage-limit notice naming the window and
   reset from a fresh `/usage` reading (see [Plan limits](#plan-limits)), which Continue in another
   Agent and auto-continue use.
-- Rewind, fork, and file restore are unavailable: `agy acp` offers no way to truncate or copy a
-  conversation. Edit is hidden and Fork Session is disabled with its reason; Continue in another
-  Agent still works.
+- Edit from here and Fork from here copy the conversation, since `agy acp` cannot truncate or copy
+  one: `copyAntigravityConversation` snapshots `conversations/<id>.db` with `VACUUM INTO`, cuts the
+  copy just before the message, and gives it a new id. An edit then switches the Chat to the copy,
+  so the original conversation stays whole in agy's own history. The copy drops every
+  `gen_metadata` and `executor_metadata` row: they hold per-call usage and executor state, not
+  history, and kept rows would count the original's usage twice. A real `agy` 1.5.14 probe
+  resumed such a copy with exactly the kept turns and none of the cut ones. Before cutting, the
+  record's newest user steps must match the Chat's user messages from the edited one on, steered
+  ones included, or the action is refused and nothing changes. File restore stays unavailable:
+  agy keeps no file checkpoints.
 
 ## Plan limits
 

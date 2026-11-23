@@ -151,6 +151,7 @@ async function startChat(
                 cwd,
                 executable,
                 environment,
+                agentEnvironment: options.agentEnvironment,
                 launch,
                 isRealAgentE2E,
                 permission: database.getChatPermission(terminalId) ?? { planMode: false },

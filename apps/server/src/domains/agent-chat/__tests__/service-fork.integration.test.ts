@@ -12,7 +12,7 @@ import type { CreateForkSession } from '../chat-fork';
 import { forkClaudeSession } from '../rewind/claude-rewind';
 import { fixture } from './chat-service-fixture';
 
-type Provider = 'claude' | 'codex' | 'grok';
+type Provider = 'antigravity' | 'claude' | 'codex' | 'grok';
 
 function userTexts(snapshot: AgentChatSnapshot): string[] {
     return snapshot.items.flatMap((item) => (item.type === 'userMessage' ? [item.text] : []));
@@ -78,7 +78,7 @@ async function claudeTranscriptPath(configDirectory: string): Promise<string> {
 }
 
 describe('AgentChatService fork', () => {
-    it.each<Provider>(['claude', 'codex', 'grok'])(
+    it.each<Provider>(['antigravity', 'claude', 'codex', 'grok'])(
         'forks a %s conversation before an earlier message into a new Chat',
         async (provider) => {
             const { service, terminal, messageId, createSession } = await threeTurns(provider);
@@ -95,7 +95,7 @@ describe('AgentChatService fork', () => {
         },
     );
 
-    it.each<Provider>(['claude', 'codex', 'grok'])(
+    it.each<Provider>(['antigravity', 'claude', 'codex', 'grok'])(
         'forks a whole %s conversation, through its latest turn, into a new Chat',
         async (provider) => {
             const { service, terminal, createSession, logWrite } = await threeTurns(provider);

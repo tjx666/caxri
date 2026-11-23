@@ -108,7 +108,8 @@ export interface AgentProviderCatalogEntry {
         /**
          * Whether an Agent Chat with this provider offers "Edit from here" and "Fork from here": the provider can drop
          * the turns after a point of its own record or copy the record into a new conversation. Caxri never rebuilds a
-         * provider's record itself.
+         * provider's record from its own projection; at most it copies the provider's own record and cuts the copy
+         * (Antigravity).
          */
         chatRewind: boolean;
         /**
@@ -157,7 +158,7 @@ export interface AgentProviderCatalogEntry {
     resumeArgs: readonly [string, ...string[]];
 }
 
-export const agentProviderCatalog = {
+export const agentProviderCatalog: Record<AgentProvider, AgentProviderCatalogEntry> = {
     claude: {
         autonomyArgs: ['--dangerously-skip-permissions'],
         capabilities: {
@@ -258,10 +259,10 @@ export const agentProviderCatalog = {
              */
             chatImages: true,
             /**
-             * `agy acp` offers `session/load`, `resume`, `close`, and `list` but no way to truncate or copy a
-             * conversation.
+             * `agy acp` cannot truncate or copy a conversation, so Server Core copies its conversation database up to
+             * the cut into a new conversation (`copyAntigravityConversation`) and leaves the original whole.
              */
-            chatRewind: false,
+            chatRewind: true,
             chatRewindFiles: false,
             chatSideQuestion: false,
             messaging: false,
@@ -274,7 +275,7 @@ export const agentProviderCatalog = {
         requiresLifecycleHooks: true,
         resumeArgs: ['--conversation'],
     },
-} satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
+};
 
 /**
  * POSIX shell words that need no quoting; anything else is single-quoted.
