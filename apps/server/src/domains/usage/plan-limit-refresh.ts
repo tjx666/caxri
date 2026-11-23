@@ -15,7 +15,8 @@ const ASKED_PROVIDERS: ReadonlySet<AgentProvider> = new Set(['claude', 'antigrav
  * `observe`, which hears only a reading newer than the last. The Chat session owns how often it actually asks its
  * process and keeps the reading current from the turn's own events in between (see `ClaudePlanLimits`). A Terminal with
  * no running Chat (a PTY Agent, a stopped Chat) answers nothing and is asked again on the next poll, so switching to a
- * Chat shows its plan within one poll.
+ * Chat shows its plan within one poll; an Antigravity Terminal is the exception and reads `/usage` directly
+ * (`readChatPlanLimits`).
  */
 export class PlanLimitRefresh {
     private readonly observedAt = new Map<AgentProvider, number>();

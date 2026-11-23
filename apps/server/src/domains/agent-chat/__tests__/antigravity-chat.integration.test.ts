@@ -456,6 +456,18 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         ]);
     });
 
+    it("reads the account's plan limits from /usage once the Chat stopped, without restarting it", async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'hi there' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        await service.close(terminal.id);
+        usageReading.held = Promise.withResolvers();
+        usageReading.held.resolve(USED_UP);
+
+        await expect(service.readPlanLimits(terminal.id)).resolves.toEqual(USED_UP.limit);
+        expect(service.states.get(terminal.id)?.session?.isOpen).not.toBe(true);
+    });
+
     it('fails visibly instead of starting a new session when the conversation is gone', async () => {
         const { database, service, terminal } = await fixture({ provider: 'antigravity' });
         database.rebindAgentSession(terminal.id, 'antigravity', crypto.randomUUID());

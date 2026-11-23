@@ -16,7 +16,8 @@
  * - Anything else: a thought and a reply quoting the message, naming the current model and thinking level.
  *
  * Every finished prompt reports its context with a `usage_update`. Run as `models` instead, it prints the model list
- * `agy models` does and exits.
+ * `agy models` does and exits; run as `-p /usage`, it prints a signed-in `/usage` answer with Gemini's 5-hour window
+ * 40% used and exits.
  *
  * The agent picks the session id in `session/new`, as Antigravity does, and reports its model and thinking level only
  * through `configOptions`, which `session/set_config_option` changes. Sessions persist to `FAKE_ANTIGRAVITY_STATE_DIR`
@@ -37,7 +38,10 @@ import process from 'node:process';
 import readline from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 
-import { encodeMessage } from '../../../agents/providers/antigravity/__tests__/fixtures/protobuf-encode.ts';
+import {
+    encodeMessage,
+    varint,
+} from '../../../agents/providers/antigravity/__tests__/fixtures/protobuf-encode.ts';
 
 interface RpcMessage {
     id?: number | string;
@@ -182,14 +186,42 @@ function writeConversation(sessionId: string): void {
             .prepare('INSERT INTO trajectory_meta VALUES (?, ?, 4, 17)')
             .run(crypto.randomUUID(), sessionId);
         const step = database.prepare(
-            'INSERT INTO steps (idx, step_type, status, step_payload, fake_updates) VALUES (?, 14, 3, ?, ?)',
+            'INSERT INTO steps (idx, step_type, status, metadata, step_payload, fake_updates) VALUES (?, 14, 3, ?, ?, ?)',
         );
+        const generation = database.prepare(
+            'INSERT INTO gen_metadata (idx, data, size) VALUES (?, ?, ?)',
+        );
+        // Each step's time, which dates its usage; a rewrite dates every step now, which a fake can afford.
+        const metadata = encodeMessage([[1, [[1, Math.floor(Date.now() / 1000)]]]]);
         for (const [index, recorded] of promptsOf(state.updates).entries())
             step.run(
                 index,
+                metadata,
                 encodeMessage([[19, [[1, recorded.text]]]]),
                 JSON.stringify(recorded.updates),
             );
+        // Each prompt's token usage, as the `session/prompt` result reports it, so Usage and the status bar read this
+        // conversation as they read a real one.
+        for (const index of promptsOf(state.updates).keys()) {
+            const usage = encodeMessage([
+                [
+                    1,
+                    [
+                        [
+                            4,
+                            [
+                                [1, 1318],
+                                [2, 800],
+                                [3, 100],
+                            ],
+                        ],
+                        [19, state.model],
+                    ],
+                ],
+                [2, Uint8Array.from(varint(index))],
+            ]);
+            generation.run(index, usage, usage.length);
+        }
     } finally {
         database.close();
     }
@@ -488,7 +520,19 @@ function printModels(): void {
     process.stdout.write(`Fetching models...\n${rows.join('\n')}\n`);
 }
 
+/**
+ * `agy -p /usage --output-format json`: the shape `agy` 1.5.14 prints for a signed-in account.
+ */
+function printUsage(): void {
+    const resetTime = new Date(Date.now() + 3 * 3_600_000).toISOString();
+    const buckets = [{ window: '5h', remaining_fraction: 0.6, reset_time: resetTime }];
+    process.stdout.write(
+        `${JSON.stringify({ status: 'SUCCESS', command: { name: 'usage', data: { groups: [{ name: 'Gemini Models', buckets }] } } })}\n`,
+    );
+}
+
 if (process.argv[2] === 'models') printModels();
+else if (process.argv[2] === '-p' && process.argv[3] === '/usage') printUsage();
 else serve();
 
 function serve(): void {
