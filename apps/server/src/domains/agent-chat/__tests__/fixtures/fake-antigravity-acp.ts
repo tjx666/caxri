@@ -223,10 +223,10 @@ function persist(): void {
     writeConversation(state.sessionId);
 }
 
-function recordOpen(method: string): void {
+function recordOpen(method: string, meta: unknown): void {
     fs.appendFileSync(
         path.join(stateDirectory, 'session-opens.jsonl'),
-        `${JSON.stringify({ method, args: process.argv.slice(2) })}\n`,
+        `${JSON.stringify({ method, args: process.argv.slice(2), meta })}\n`,
     );
 }
 
@@ -407,13 +407,14 @@ async function handle(message: RpcMessage): Promise<unknown> {
                 agentCapabilities: {
                     loadSession: true,
                     promptCapabilities: { image: true, audio: true, embeddedContext: true },
+                    // Where agy 1.5.14 advertises appending to its system prompt.
+                    _meta: { antigravity: { tier: true, systemPrompt: { append: true } } },
                 },
                 agentInfo: { name: 'antigravity', version },
-                _meta: { antigravity: { systemPrompt: { append: true } } },
             };
         }
         case 'session/new': {
-            recordOpen('session/new');
+            recordOpen('session/new', parameters._meta);
             state.sessionId = crypto.randomUUID();
             state.updates = [];
             persist();
@@ -434,7 +435,7 @@ async function handle(message: RpcMessage): Promise<unknown> {
             return {};
         }
         case 'session/load': {
-            recordOpen('session/load');
+            recordOpen('session/load', parameters._meta);
             const sessionId = String(parameters.sessionId);
             const updates = fs.existsSync(sessionPath(sessionId))
                 ? (JSON.parse(fs.readFileSync(sessionPath(sessionId), 'utf8')) as Array<

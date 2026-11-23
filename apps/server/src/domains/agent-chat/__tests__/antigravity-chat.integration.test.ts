@@ -436,6 +436,26 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         ]);
     });
 
+    it("appends Caxri's instructions to agy's system prompt on every open", async () => {
+        const { service, terminal, until, sessionOpens } = await fixture({
+            provider: 'antigravity',
+            endpoint: {
+                activate: () => Promise.resolve(),
+                environment: () => Promise.resolve({ CAXRI_CLI: '/profile/bin/caxri' }),
+                retire: () => Promise.resolve(),
+            },
+            sessionInstructions: () => ({ includeBuiltIn: false, custom: 'Reply in haiku.' }),
+        });
+        await service.send(terminal.id, { text: 'remember me' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        await service.restart(terminal.id);
+        const meta = { antigravity: { systemPrompt: { append: 'Reply in haiku.' } } };
+        expect(await sessionOpens()).toMatchObject([
+            { method: 'session/new', meta },
+            { method: 'session/load', meta },
+        ]);
+    });
+
     it('fails visibly instead of starting a new session when the conversation is gone', async () => {
         const { database, service, terminal } = await fixture({ provider: 'antigravity' });
         database.rebindAgentSession(terminal.id, 'antigravity', crypto.randomUUID());

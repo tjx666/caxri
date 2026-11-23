@@ -186,3 +186,23 @@ export function antigravityProposedPlan(call: AcpToolCall): string | undefined {
 export function isAntigravityUsageLimitError(message: string): boolean {
     return /exhausted your quota|quota exhausted|resource_exhausted/iu.test(message);
 }
+
+/**
+ * The `_meta` that appends `instructions` to Antigravity's system prompt on `session/new` and `session/load`, when the
+ * `initialize` result advertises `agentCapabilities._meta.antigravity.systemPrompt.append`. Verified on agy 1.5.14,
+ * which then follows the appended text. Without that capability, or without instructions, the sessions open unchanged.
+ */
+export function antigravitySystemPromptMeta(
+    initialized: Record<string, unknown>,
+    instructions: string | undefined,
+): Record<string, unknown> | undefined {
+    if (!instructions) return undefined;
+    const capabilities = isRecord(initialized.agentCapabilities)
+        ? initialized.agentCapabilities
+        : undefined;
+    const meta = capabilities && isRecord(capabilities._meta) ? capabilities._meta : undefined;
+    const antigravity = meta?.antigravity;
+    const systemPrompt = isRecord(antigravity) ? antigravity.systemPrompt : undefined;
+    if (!isRecord(systemPrompt) || systemPrompt.append !== true) return undefined;
+    return { antigravity: { systemPrompt: { append: instructions } } };
+}
