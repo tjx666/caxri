@@ -141,6 +141,8 @@ export async function fixture(
                     ...(options.codexSkills && { FAKE_CODEX_SKILLS: 'list' }),
                     FAKE_GROK_STATE_DIR: grokStateDirectory,
                     FAKE_ANTIGRAVITY_STATE_DIR: antigravityStateDirectory,
+                    // The fixture's Agent home, where Server Core looks for `agy`'s conversation databases.
+                    FAKE_ANTIGRAVITY_HOME: directory,
                     CLAUDE_CONFIG_DIR: claudeConfigDirectory,
                     FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
                 }),

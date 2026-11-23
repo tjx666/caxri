@@ -24,6 +24,7 @@ import type {
     ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatResumePoint,
     ChatRewindTarget,
     ChatTaskHistory,
 } from '../../chat-provider';
@@ -561,7 +562,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
      * Rewinding needs a provider extension; a dialect without one refuses, and the catalog's `capabilities.chatRewind`
      * keeps the action hidden.
      */
-    abstract rewind(target: ChatRewindTarget): Promise<undefined>;
+    abstract rewind(target: ChatRewindTarget): Promise<ChatResumePoint | undefined>;
 
     abstract fork(target: ChatForkTarget | undefined): Promise<ChatFork>;
 

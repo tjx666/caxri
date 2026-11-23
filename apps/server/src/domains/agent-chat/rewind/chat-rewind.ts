@@ -183,6 +183,9 @@ export async function rewindChat(
         chatStateStore(host.options.database).setResumeAt(terminalId, resumePoint.at);
     // Every turn is gone: the next start opens a new Agent Session instead of resuming the emptied one.
     if (resumePoint?.kind === 'fresh') host.options.coordinator.prepareTerminalStart(terminalId);
+    // The provider copied the kept turns into a new Agent Session: the restart resumes that one.
+    if (resumePoint?.kind === 'switchTo')
+        host.options.database.rebindAgentSession(terminalId, provider, resumePoint.agentSessionId);
     try {
         await host.restart(terminalId);
         if (version)

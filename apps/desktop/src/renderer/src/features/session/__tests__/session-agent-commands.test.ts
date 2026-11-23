@@ -49,6 +49,9 @@ vi.mock('../../../stores/workbench', () => ({
     useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
 }));
 
+import type { AgentProviderCatalogEntry } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
+
 import {
     chatConversationBlocker,
     copyAgentSessionId,
@@ -236,7 +239,16 @@ describe('sessionForkBlocker', () => {
             surface: 'chat',
             agentSessionId: 'c-1',
         } as const;
-        expect(sessionForkBlocker(terminal)).toBe('unsupported');
-        expect(chatConversationBlocker(terminal)).toBeUndefined();
+        expect(sessionForkBlocker(terminal)).toBeUndefined();
+        // Every shipped provider forks today; a provider without `chatRewind` is the case left to guard.
+        const entry: AgentProviderCatalogEntry = agentProviderCatalog.antigravity;
+        const { capabilities } = entry;
+        entry.capabilities = { ...capabilities, chatRewind: false };
+        try {
+            expect(sessionForkBlocker(terminal)).toBe('unsupported');
+            expect(chatConversationBlocker(terminal)).toBeUndefined();
+        } finally {
+            entry.capabilities = capabilities;
+        }
     });
 });

@@ -53,6 +53,10 @@ export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';
 export {
+    type AntigravityConversationCut,
+    copyAntigravityConversation,
+} from './providers/antigravity/conversation-copy';
+export {
     type AntigravityConversation,
     antigravityConversationStamp,
     readAntigravityConversation,

@@ -1,4 +1,9 @@
-import { parseAgentChatAppCommand, withAgentChatBuiltInActions } from '@caxri/protocol';
+import type { AgentProviderCatalogEntry } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    parseAgentChatAppCommand,
+    withAgentChatBuiltInActions,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { translate } from '../../../../i18n';
@@ -199,18 +204,29 @@ describe('Goal mode', () => {
 
         it('reports a provider limit for /fork and /btw on a Chat whose provider lacks them', () => {
             const chat = { agentSessionId: 'a', provider: 'antigravity', surface: 'chat' } as const;
-            const unavailable = agentChatAppCommandUnavailable(
-                {
-                    ...everything,
-                    canOpenSideChat: false,
-                    canFork: false,
-                    agentName: 'Antigravity',
-                    causes: agentChatAppCommandCauses(chat),
-                },
-                translate,
-            );
-            expect(unavailable.get('/fork')).toBe('Not supported by Antigravity');
-            expect(unavailable.get('/btw')).toBe('Not supported by Antigravity');
+            const check = () =>
+                agentChatAppCommandUnavailable(
+                    {
+                        ...everything,
+                        canOpenSideChat: false,
+                        canFork: false,
+                        agentName: 'Antigravity',
+                        causes: agentChatAppCommandCauses(chat),
+                    },
+                    translate,
+                );
+            expect(check().get('/fork')).toBe('Available after the first message in this Chat');
+            expect(check().get('/btw')).toBe('Not supported by Antigravity');
+            // Every shipped provider forks today; a provider without `chatRewind` is the case left to guard.
+            const entry: AgentProviderCatalogEntry = agentProviderCatalog.antigravity;
+            const { capabilities } = entry;
+            entry.capabilities = { ...capabilities, chatRewind: false };
+            try {
+                expect(check().get('/fork')).toBe('Not supported by Antigravity');
+                expect(check().get('/btw')).toBe('Not supported by Antigravity');
+            } finally {
+                entry.capabilities = capabilities;
+            }
         });
 
         it('tags Caxri-run invocations, including /new-session', () => {

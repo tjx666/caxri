@@ -7,10 +7,18 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import { readAntigravityUsage } from '../../../agents';
+import type { AntigravityConversationCut } from '../../../agents';
+import { copyAntigravityConversation, readAntigravityUsage } from '../../../agents';
 import { isRecord } from '../../chat-items';
 import { chatPermissionState, supportedChatPermission } from '../../chat-permissions';
-import type { AgentChatDriver, AgentChatSessionHost, ChatFork } from '../../chat-provider';
+import type {
+    AgentChatDriver,
+    AgentChatSessionHost,
+    ChatFork,
+    ChatForkTarget,
+    ChatResumePoint,
+    ChatRewindTarget,
+} from '../../chat-provider';
 import type { JsonRpcConnection } from '../../json-rpc-connection';
 import { JsonRpcRequestError } from '../../json-rpc-connection';
 import { antigravityChatSettings } from '../../launch-settings';
@@ -33,8 +41,8 @@ import { AntigravityPlanLimits, antigravityUsageLimit } from './plan-limits';
  * One live `agy acp` process: standard ACP with the model and its thinking level as config options, and session modes
  * for the permission level and plan mode, switched in place. Full access is the `--dangerously-skip-permissions` launch
  * flag, so a switch into or out of it restarts the process. A message sent mid-turn is a new `session/prompt`, which
- * `agy acp` takes as steering. `agy acp` picks the conversation's id in `session/new` and cannot rewind. See
- * `docs/antigravity.md`.
+ * `agy acp` takes as steering. `agy acp` picks the conversation's id in `session/new` and cannot cut or copy a
+ * conversation, so rewind and fork copy its database (`copyAntigravityConversation`). See `docs/antigravity.md`.
  */
 class AntigravityChatSession extends AcpChatSession {
     private readonly planLimits: AntigravityPlanLimits;
@@ -125,6 +133,32 @@ class AntigravityChatSession extends AcpChatSession {
             if (!(error instanceof JsonRpcRequestError)) throw error;
             throw new CaxriError('UNAVAILABLE', 'Antigravity could not switch its permission mode');
         }
+    }
+
+    /**
+     * Copies the bound conversation, ending just before `target` when given (see `copyAntigravityConversation`). The
+     * cut is checked against every user message the Chat shows from `target` on, steered ones included, since `agy`
+     * records each as its own prompt.
+     */
+    private copy(target: ChatForkTarget | undefined) {
+        const { agentEnvironment } = this.options;
+        if (!agentEnvironment)
+            throw new CaxriError('CONFLICT', 'This Antigravity conversation has no record to copy');
+        // The live conversation, which a Chat's first turn picks after the session was created.
+        const agentSessionId = this.requireSessionId();
+        let cut: AntigravityConversationCut | undefined;
+        if (target) {
+            const { items } = this.options.read();
+            const start = items.findIndex((item) => item.id === target.itemId);
+            if (start === -1)
+                throw new CaxriError('NOT_FOUND', 'That message is no longer in this Chat');
+            cut = {
+                userTexts: items
+                    .slice(start)
+                    .flatMap((item) => (item.type === 'userMessage' ? [item.text] : [])),
+            };
+        }
+        return copyAntigravityConversation(agentEnvironment, agentSessionId, cut);
     }
 
     protected launchArguments(): {
@@ -263,14 +297,21 @@ class AntigravityChatSession extends AcpChatSession {
             );
     }
 
-    rewind(): Promise<undefined> {
-        return Promise.reject(
-            new CaxriError('CONFLICT', 'Antigravity cannot rewind a conversation'),
-        );
+    /**
+     * `agy acp` cannot cut a conversation, so the kept turns are copied into a new one the Chat switches to, and the
+     * original stays whole (an earlier version keeps the replaced turns, as for every provider).
+     */
+    async rewind(target: ChatRewindTarget): Promise<ChatResumePoint> {
+        const copied = await this.copy(target);
+        return copied.kind === 'empty'
+            ? { kind: 'fresh' }
+            : { kind: 'switchTo', agentSessionId: copied.conversationId };
     }
 
-    fork(): Promise<ChatFork> {
-        return Promise.reject(new CaxriError('CONFLICT', 'Antigravity cannot fork a conversation'));
+    async fork(target: ChatForkTarget | undefined): Promise<ChatFork> {
+        const copied = await this.copy(target);
+        // Nothing comes before the message: the new Chat starts a conversation of its own.
+        return { agentSessionId: copied.kind === 'empty' ? undefined : copied.conversationId };
     }
 }
 

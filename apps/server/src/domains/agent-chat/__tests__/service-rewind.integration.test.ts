@@ -8,7 +8,7 @@ import type { CaxriDatabase } from '../../db';
 import { listChatVersions, readChatVersion } from '../rewind/chat-versions';
 import { fixture } from './chat-service-fixture';
 
-type Provider = 'claude' | 'codex' | 'grok';
+type Provider = 'antigravity' | 'claude' | 'codex' | 'grok';
 
 function userTexts(snapshot: AgentChatSnapshot): string[] {
     return snapshot.items.flatMap((item) => (item.type === 'userMessage' ? [item.text] : []));
@@ -63,7 +63,7 @@ function loggedFields(logWrite: Mock<StructuredLogger['write']>, event: string) 
 }
 
 describe('AgentChatService rewind', () => {
-    it.each<Provider>(['claude', 'codex', 'grok'])(
+    it.each<Provider>(['antigravity', 'claude', 'codex', 'grok'])(
         'edits a %s conversation from an earlier message',
         async (provider) => {
             const { service, terminal, until, secondId, logWrite, database } =
@@ -157,6 +157,67 @@ describe('AgentChatService rewind', () => {
             (snapshot) => snapshot.turns.length === 2 && !snapshot.activeTurnId,
         );
         expect(userTexts(edited)).toEqual(['slow first', 'steered in', 'second, rewritten']);
+    });
+
+    it('edits an Antigravity conversation in a copy, leaving the original conversation whole', async () => {
+        const { service, terminal, until, secondId, database } = await threeTurns('antigravity');
+        const original = database.getTerminal(terminal.id)?.agentSessionId;
+        await service.rewind(terminal.id, {
+            itemId: secondId,
+            restoreFiles: false,
+            message: { text: 'second, rewritten' },
+        });
+        await until((snapshot) => isSettled(snapshot, 2));
+        const copy = database.getTerminal(terminal.id)?.agentSessionId;
+        expect(copy).toBeTypeOf('string');
+        expect(copy).not.toBe(original);
+
+        // Binding the original conversation again shows every turn it had.
+        if (!original) throw new Error('The Chat had no conversation');
+        database.rebindAgentSession(terminal.id, 'antigravity', original);
+        await service.restart(terminal.id);
+        expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
+    });
+
+    it('edits an Antigravity conversation after a message steered into a turn', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'slow first' });
+        await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
+        );
+        await service.send(terminal.id, { text: 'steered in' }, 'steer');
+        await until((snapshot) => !snapshot.activeTurnId);
+        await service.send(terminal.id, { text: 'second' });
+        await until((snapshot) => userTexts(snapshot).includes('second') && !snapshot.activeTurnId);
+        const second = service
+            .read(terminal.id)
+            .items.find((item) => item.type === 'userMessage' && item.text === 'second');
+        if (!second) throw new Error('The second message is missing');
+        await service.rewind(terminal.id, {
+            itemId: second.id,
+            restoreFiles: false,
+            message: { text: 'second, rewritten' },
+        });
+        const edited = await until(
+            (snapshot) =>
+                userTexts(snapshot).includes('second, rewritten') && !snapshot.activeTurnId,
+        );
+        expect(userTexts(edited)).toEqual(['slow first', 'steered in', 'second, rewritten']);
+    });
+
+    it('starts a new Antigravity conversation when the first message is edited', async () => {
+        const { service, terminal, until, client, coordinator, database } =
+            await threeTurns('antigravity');
+        const original = database.getTerminal(terminal.id)?.agentSessionId;
+        await service.rewind(terminal.id, {
+            itemId: client().items[0].id,
+            restoreFiles: false,
+            message: { text: 'from scratch' },
+        });
+        // Nothing is kept, so nothing is copied: the Chat stays on its conversation until the start clears it.
+        expect(coordinator.prepareTerminalStart).toHaveBeenCalledWith(terminal.id);
+        expect(database.getTerminal(terminal.id)?.agentSessionId).toBe(original);
+        await until((snapshot) => userTexts(snapshot).includes('from scratch'));
     });
 
     it('restores Claude files through the prompt checkpoint', async () => {

@@ -5,42 +5,15 @@ import { pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
 
 import { antigravityConversationPath, antigravityStateDirectory } from '../../paths';
+import type { ProtobufField } from './protobuf-encode';
+import { encodeMessage, varint } from './protobuf-encode';
 
 /**
  * Writes synthetic Antigravity state with the schema and protobuf field numbers `agy` 1.4.11 uses (see
  * `conversation-database.ts`), so tests never read a real conversation.
  */
 
-type Field = readonly [number, number | string | Uint8Array | readonly Field[]];
-
-function varint(value: number): number[] {
-    const bytes: number[] = [];
-    let rest = value;
-    while (rest >= 0x80) {
-        bytes.push((rest % 0x80) | 0x80);
-        rest = Math.floor(rest / 0x80);
-    }
-    bytes.push(rest);
-    return bytes;
-}
-
-export function encodeMessage(fields: readonly Field[]): Uint8Array {
-    const bytes: number[] = [];
-    for (const [number, value] of fields) {
-        if (typeof value === 'number') {
-            bytes.push(...varint(number * 8), ...varint(value));
-            continue;
-        }
-        const payload =
-            typeof value === 'string'
-                ? new TextEncoder().encode(value)
-                : value instanceof Uint8Array
-                  ? value
-                  : encodeMessage(value);
-        bytes.push(...varint(number * 8 + 2), ...varint(payload.length), ...payload);
-    }
-    return Uint8Array.from(bytes);
-}
+type Field = ProtobufField;
 
 interface SyntheticTurn {
     prompt: string;
@@ -84,6 +57,7 @@ export async function writeAntigravityConversation(
                 permissions blob, task_details blob, render_info blob, step_payload blob,
                 step_format integer NOT NULL DEFAULT 0, PRIMARY KEY (idx));
             CREATE TABLE gen_metadata (idx integer, data blob, size integer NOT NULL DEFAULT 0, PRIMARY KEY (idx));
+            CREATE TABLE executor_metadata (idx integer, data blob, PRIMARY KEY (idx));
         `);
         database
             .prepare('INSERT INTO trajectory_meta VALUES (?, ?, 4, ?)')

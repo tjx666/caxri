@@ -759,6 +759,7 @@ ordinary draft with the held-back draft lost.
 | Codex       | `thread/revert { beforeTurnId }`, then a resume reads the remaining turns               | Not supported: `thread/revert` leaves files alone                          |
 | Claude Code | Restart with `resumeSessionAt` (`--resume-session-at`) at the record before the message | `rewindFiles(messageUuid)` after a dry run, with `enableFileCheckpointing` |
 | Grok Build  | `_x.ai/rewind/execute { mode: 'conversation_only' }`                                    | The same call with `mode: 'all'`                                           |
+| Antigravity | Copy of the conversation database cut before the message, which the Chat switches to    | Not supported: agy keeps no file checkpoints                               |
 
 Claude Code's transcript is append-only: a conversation resumed at an earlier record continues from
 there and leaves the old continuation in the file. History replay (`claude-history.ts`) follows the
@@ -776,7 +777,10 @@ with the reason. Grok Build names a prompt by its index in the whole session, wh
 not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` and checks that the
 point's preview matches the message before rewinding. An `_x.ai/interject` adds no point of its
 own (verified on Grok Build 1.0.62: one interjection and two prompts list two points), so a steered
-message does not shift the count. Mobile does not offer the action.
+message does not shift the count. Antigravity's `agy acp` cannot cut a conversation, so its
+session copies the conversation database up to the message under a new id and answers the
+`switchTo` resume point, which rebinds the Chat to the copy before the restart; the original stays
+whole (see [Antigravity](antigravity.md)). Mobile does not offer the action.
 
 ### Earlier versions
 
@@ -869,6 +873,7 @@ Codex's sidebar menu uses.
 | Codex       | `thread/fork { beforeTurnId }` (experimental), then `thread/unsubscribe`, since the new Chat resumes it elsewhere   |
 | Claude Code | The Agent SDK's `forkSession({ upToMessageId })` at the record a rewind would resume at, over the Chat's own folder |
 | Grok Build  | `_x.ai/session/fork { targetPromptIndex }`, the index a rewind takes; the new Chat opens it with `session/load`     |
+| Antigravity | The same database copy an edit makes, cut before the message; the new Chat opens it with `session/load`             |
 
 The Agent SDK resolves Claude's settings folder from Server Core's environment, once per process,
 while each Chat runs Claude Code with its own environment, so `forkClaudeSession` hands

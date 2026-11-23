@@ -18,7 +18,9 @@
  * The agent picks the session id in `session/new`, as Antigravity does, and reports its model and thinking level only
  * through `configOptions`, which `session/set_config_option` changes. Sessions persist to `FAKE_ANTIGRAVITY_STATE_DIR`
  * (or the OS temp directory) as their update list, so `session/load` replays real history; each session open appends
- * its method and the process arguments to `session-opens.jsonl` there.
+ * its method and the process arguments to `session-opens.jsonl` there. Each conversation is also written as `agy`'s own
+ * database (see `writeConversation`), and `session/load` of a conversation with no update list (a copy Server Core made
+ * for "Edit from here" or "Fork from here") replays the prompts that database kept.
  *
  * Mirrors the shapes `agy` 1.5.14 emitted in a content-free protocol probe: image `promptCapabilities`, the
  * `default`/`accept-edits`/`auto`/`plan` session modes, tool calls named by Antigravity's own identifiers in a
@@ -30,6 +32,9 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
+import { DatabaseSync } from 'node:sqlite';
+
+import { encodeMessage } from '../../../agents/providers/antigravity/__tests__/fixtures/protobuf-encode.ts';
 
 interface RpcMessage {
     id?: number | string;
@@ -110,9 +115,111 @@ function update(sessionUpdate: Record<string, unknown>, shouldRecord = true): vo
     });
 }
 
+/**
+ * The home whose `.gemini/antigravity-cli/conversations` gets a copy of each conversation in `agy`'s own database
+ * layout, which Server Core copies and cuts for "Edit from here" and "Fork from here": `FAKE_ANTIGRAVITY_HOME`, or in
+ * an E2E run the isolated `HOME`. Without either, nothing is written there, so a test never touches a real home.
+ */
+const conversationHome =
+    process.env.FAKE_ANTIGRAVITY_HOME ??
+    (process.env.CAXRI_E2E === '1' ? process.env.HOME : undefined);
+
+function conversationPath(sessionId: string): string | undefined {
+    return conversationHome
+        ? path.join(
+              conversationHome,
+              '.gemini',
+              'antigravity-cli',
+              'conversations',
+              `${sessionId}.db`,
+          )
+        : undefined;
+}
+
+/**
+ * The update list split into prompts: each `user_message_chunk` starts one, as each prompt is one user step in `agy`.
+ */
+function promptsOf(
+    updates: ReadonlyArray<Record<string, unknown>>,
+): Array<{ text: string; updates: Array<Record<string, unknown>> }> {
+    const prompts: Array<{ text: string; updates: Array<Record<string, unknown>> }> = [];
+    for (const recorded of updates) {
+        if (recorded.sessionUpdate === 'user_message_chunk') {
+            const content = recorded.content as { text?: string } | undefined;
+            prompts.push({ text: content?.text ?? '', updates: [] });
+        }
+        // Updates before the first prompt have no step to belong to; `agy` records none.
+        prompts.at(-1)?.updates.push(recorded);
+    }
+    return prompts;
+}
+
+/**
+ * Writes the conversation as `agy` 1.5.14's database: its tables, one user step per prompt with the prompt in
+ * `gemini_coder.Step.user_input.query`, and a fake-only `fake_updates` column holding the prompt's updates, so a cut
+ * copy replays exactly the prompts it kept.
+ */
+function writeConversation(sessionId: string): void {
+    const target = conversationPath(sessionId);
+    if (!target) return;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const partial = `${target}.fake-partial`;
+    fs.rmSync(partial, { force: true });
+    const database = new DatabaseSync(partial);
+    try {
+        database.exec(`
+            CREATE TABLE trajectory_meta (trajectory_id text, cascade_id text, trajectory_type integer,
+                source integer, PRIMARY KEY (trajectory_id));
+            CREATE TABLE steps (idx integer, step_type integer NOT NULL DEFAULT 0, status integer NOT NULL DEFAULT 0,
+                has_subtrajectory numeric NOT NULL DEFAULT false, metadata blob, error_details blob,
+                permissions blob, task_details blob, render_info blob, step_payload blob,
+                step_format integer NOT NULL DEFAULT 0, fake_updates text, PRIMARY KEY (idx));
+            CREATE TABLE gen_metadata (idx integer, data blob, size integer NOT NULL DEFAULT 0, PRIMARY KEY (idx));
+            CREATE TABLE executor_metadata (idx integer, data blob, PRIMARY KEY (idx));
+        `);
+        database
+            .prepare('INSERT INTO trajectory_meta VALUES (?, ?, 4, 17)')
+            .run(crypto.randomUUID(), sessionId);
+        const step = database.prepare(
+            'INSERT INTO steps (idx, step_type, status, step_payload, fake_updates) VALUES (?, 14, 3, ?, ?)',
+        );
+        for (const [index, recorded] of promptsOf(state.updates).entries())
+            step.run(
+                index,
+                encodeMessage([[19, [[1, recorded.text]]]]),
+                JSON.stringify(recorded.updates),
+            );
+    } finally {
+        database.close();
+    }
+    fs.renameSync(partial, target);
+}
+
+/**
+ * The updates of a conversation only the database holds: one Server Core copied, which has no update list yet.
+ */
+function readConversation(sessionId: string): Array<Record<string, unknown>> | undefined {
+    const source = conversationPath(sessionId);
+    if (!source || !fs.existsSync(source)) return undefined;
+    const database = new DatabaseSync(source, { readOnly: true });
+    try {
+        const rows = database
+            .prepare('SELECT fake_updates FROM steps ORDER BY idx')
+            .all() as Array<{
+            fake_updates: string;
+        }>;
+        return rows.flatMap(
+            (row) => JSON.parse(row.fake_updates) as Array<Record<string, unknown>>,
+        );
+    } finally {
+        database.close();
+    }
+}
+
 function persist(): void {
-    if (state.sessionId)
-        fs.writeFileSync(sessionPath(state.sessionId), JSON.stringify(state.updates));
+    if (!state.sessionId) return;
+    fs.writeFileSync(sessionPath(state.sessionId), JSON.stringify(state.updates));
+    writeConversation(state.sessionId);
 }
 
 function recordOpen(method: string): void {
@@ -326,11 +433,14 @@ async function handle(message: RpcMessage): Promise<unknown> {
         case 'session/load': {
             recordOpen('session/load');
             const sessionId = String(parameters.sessionId);
-            if (!fs.existsSync(sessionPath(sessionId))) throw new Error('Conversation not found');
+            const updates = fs.existsSync(sessionPath(sessionId))
+                ? (JSON.parse(fs.readFileSync(sessionPath(sessionId), 'utf8')) as Array<
+                      Record<string, unknown>
+                  >)
+                : readConversation(sessionId);
+            if (!updates) throw new Error('Conversation not found');
             state.sessionId = sessionId;
-            state.updates = JSON.parse(fs.readFileSync(sessionPath(sessionId), 'utf8')) as Array<
-                Record<string, unknown>
-            >;
+            state.updates = updates;
             for (const recorded of state.updates) update(recorded, false);
             return { configOptions: configOptions() };
         }
