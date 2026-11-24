@@ -36,6 +36,9 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.binaryFile': '二进制文件无法在编辑器中打开。',
     'toasts.failure.pullRequestHeadMoved': '这个 Pull Request 有新的提交，请确认后重新合并。',
     'toasts.failure.githubUnreachable': '无法连接 GitHub，请检查网络后重试。',
+    'toasts.failure.githubRateLimited': '已达到 GitHub API 限额，请等额度恢复后重试。',
+    'toasts.failure.githubSignedOut': 'GitHub CLI 未登录，请运行 gh auth login 后重试。',
+    'toasts.failure.githubCliMissing': '未找到 GitHub CLI（gh），请先安装。',
     'toasts.muteFailed': '无法静音通知',
 
     'toasts.action.copyDetails': '复制详细信息',

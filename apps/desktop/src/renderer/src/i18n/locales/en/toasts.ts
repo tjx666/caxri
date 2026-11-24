@@ -37,6 +37,11 @@ export const toasts = {
     'toasts.failure.pullRequestHeadMoved':
         'The pull request has new commits. Review them, then merge again.',
     'toasts.failure.githubUnreachable': "Couldn't reach GitHub. Check the network, then try again.",
+    'toasts.failure.githubRateLimited':
+        'The GitHub API rate limit was reached. Try again after it resets.',
+    'toasts.failure.githubSignedOut':
+        'GitHub CLI is not signed in. Run gh auth login, then try again.',
+    'toasts.failure.githubCliMissing': 'GitHub CLI (gh) is not installed or not on PATH.',
     'toasts.muteFailed': 'Unable to mute notifications',
 
     // stores/toast-actions.ts: follow-up buttons
