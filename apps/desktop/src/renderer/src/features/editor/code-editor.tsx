@@ -118,6 +118,14 @@ export function CodeEditor({
      */
     const onBlurReference = useRef(onBlur);
     const programmaticChangeReference = useRef(false);
+    /**
+     * The latest controlled value, read in `onMount`. The wrapper creates the editor asynchronously, so `onMount` can
+     * run after renders that changed `value` while the `[path, value]` effect still had no editor to apply them to.
+     */
+    const valueReference = useRef(value);
+    useLayoutEffect(() => {
+        valueReference.current = value;
+    }, [value]);
     const statusKeyReference = useRef(statusKey);
     const detectedLanguage = languageCandidates
         ? (detectedEditorLanguage(languageCandidates, monaco.languages.getLanguages()) ??
@@ -255,6 +263,17 @@ export function CodeEditor({
                 onMount={(editor: Parameters<OnMount>[0]) => {
                     editorReference.current = editor;
                     setMountedEditor(editor);
+                    /**
+                     * A remount reuses the model `retainEditorModel` kept, and `@monaco-editor/react` applies `value`
+                     * only when it creates a model. A file rewritten on disk while its tab was in the background would
+                     * otherwise show the retained text (issue #4171); an edit keeps the undo history.
+                     */
+                    synchronizeControlledEditorModel(
+                        editor,
+                        monaco.Uri.parse(path).toString(),
+                        valueReference.current,
+                        programmaticChangeReference,
+                    );
                     cursorSubscriptionReference.current?.dispose();
                     cursorSubscriptionReference.current = editor.onDidChangeCursorSelection(() =>
                         publishEditorStatus(editor, statusKeyReference.current),
