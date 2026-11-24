@@ -41,14 +41,15 @@ database in the Renderer profile on Desktop.
 
 ## What each client keeps
 
-| Client  | Data                                     | Bound                                       | Cleared when                                                     |
-| ------- | ---------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
-| Phone   | Saved Session list, Conversations, Chats | 50 items each, 20 Conversations and Chats   | Forgetting the computer, a revoked device, or a new pairing      |
-| Phone   | Unsent composer drafts                   | 50 drafts, 1,000,000 characters             | Same as above; a sent or cleared draft is removed                |
-| Desktop | Unsaved Editor buffers (hot exit)        | 50 buffers per environment                  | Save, revert, close without saving, Session deletion, Don't Save |
-| Desktop | Recent files for `Cmd+P`                 | 200 paths per Workbench Root                | Never cleared; a file that no longer opens is dropped            |
-| Desktop | Agent Chat drafts and attachments        | Owned by `agent-chat-drafts.ts` and its IDB | Their own rules; not yet on the device store                     |
-| Desktop | Host names, icons, Reconnect on Launch   | 128 machines, in Main's `userData/ssh`      | Never cleared; a changed name or icon replaces the old one       |
+| Client  | Data                                                 | Bound                                       | Cleared when                                                     |
+| ------- | ---------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| Phone   | Saved Session list, Conversations, Chats             | 50 items each, 20 Conversations and Chats   | Forgetting the computer, a revoked device, or a new pairing      |
+| Phone   | Unsent composer drafts                               | 50 drafts, 1,000,000 characters             | Same as above; a sent or cleared draft is removed                |
+| Desktop | Unsaved Editor buffers (hot exit)                    | 50 buffers per environment                  | Save, revert, close without saving, Session deletion, Don't Save |
+| Desktop | Recent files for `Cmd+P`                             | 200 paths per Workbench Root                | Never cleared; a file that no longer opens is dropped            |
+| Desktop | Dismissed delegated rows of the Background work list | 500 newest ids                              | Never cleared; the oldest drop out                               |
+| Desktop | Agent Chat drafts and attachments                    | Owned by `agent-chat-drafts.ts` and its IDB | Their own rules; not yet on the device store                     |
+| Desktop | Host names, icons, Reconnect on Launch               | 128 machines, in Main's `userData/ssh`      | Never cleared; a changed name or icon replaces the old one       |
 
 The phone's read cache and drafts are described in [mobile design](mobile/design.md#read-cache).
 

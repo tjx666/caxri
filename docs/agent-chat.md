@@ -569,11 +569,17 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   current phase's progress, an ended one done/total, and a run that ended with a failed member stays
   in the failure area. A shell tab shows the command and its
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
-  in the composer strip's Background work list, one headerless list shared with the Sessions the Chat delegated to
-  (`agent-chat-background-items.ts`): rows group by kind (delegated Sessions, workflow runs, subagents, background
-  shells) and, within a kind, put the ones that need the user first. Folded, the list shows every row that needs the
-  user plus up to three in all, and a muted `N more` line unfolds the rest without moving a row already in view; that
-  line also carries `Stop all`, shown while the pointer or focus is in the list. Each row opens on click, and its status
+  in the composer strip's Background work list, one collapsible section shared with the Sessions the Chat delegated to
+  (`agent-chat-background-items.ts`): rows that need the user come first, then the rest, each part grouped by kind
+  (delegated Sessions, workflow runs, subagents, background shells). Its header (`Background work`, then
+  `N need you · M running`) folds and unfolds the whole list, rows that need the user included, and keeps saying
+  what matters while folded; the fold is per Chat for the window's lifetime (`agentChatStripFolds`). Unfolded, every
+  row shows and the strip's height cap scrolls them. A delegated interruption that settled before the window opened
+  (its Terminal or a restart cut it short in an earlier run) takes no row: the header's right edge counts them
+  (`N interrupted earlier`), which shows their rows on click, and its `Clear` dismisses them all, so a restart never
+  refills the list with the tasks it cut short. A real failure keeps its row and its retry actions however old it is.
+  `Clear` and `Stop all` (two or more running tasks can be stopped) appear while the pointer or focus is on the
+  header. Each row opens on click, and its status
   glyph gives way to Stop while it runs or to Dismiss for a failure. The list is live status, not a log: a finished
   task leaves at once, and the list leaves once the last task ends and its failures were dismissed, since the Agent reports the result in the conversation
   (`agentChatTaskStrip` in `packages/protocol/src/agent/agent-chat-tasks.ts`, whose `agentChatTaskStripView` the
@@ -1038,7 +1044,9 @@ Request`, `agentChat.focusWaitingRequest`, bound to Cmd+Alt+W, unfolds it and mo
   is a collapsible section in the strip above the row, folded or unfolded per Chat for the window's lifetime
   (`agentChatStripFolds`). A failure from the latest turn stays in the Background work list until the user dismisses
   it with its row's X (`agentChatSeenTaskFailures`, per window), and only failures that ended
-  during the latest turn count, so reopening a Chat never resurfaces old ones. Only the activity summary and the strip's
+  during the latest turn count, so reopening a Chat never resurfaces old ones. A dismissed delegated row stays dismissed
+  across restarts and windows (`caxri.agentChatDismissedDelegations.v1` in `localStorage`, the newest 500), because
+  the delegation feed keeps its failures and interruptions. Only the activity summary and the strip's
   `N running · M failed` counts are polite live regions, so the ticking time is never announced.
   Send's tooltip reads `Send` (or `Queue` during a turn) with an Enter keycap; Cmd+Enter's Steer
   keeps its own text.

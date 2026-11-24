@@ -114,8 +114,15 @@ export const agentChatChanges = {
     'agentChat.tasks.backgroundWork': 'Background work',
     'agentChat.tasks.runningCount': '{{count}} running',
     'agentChat.tasks.failedCount': '{{count}} failed',
-    'agentChat.tasks.moreCount': '{{count}} more',
-    'agentChat.tasks.showLess': 'Show less',
+    'agentChat.tasks.needsYouOne': '{{count}} needs you',
+    'agentChat.tasks.needsYouOther': '{{count}} need you',
+    'agentChat.tasks.interruptedEarlier': '{{count}} interrupted earlier',
+    'agentChat.tasks.showInterruptedEarlier':
+        'Show the delegations interrupted before this window opened',
+    'agentChat.tasks.hideInterruptedEarlier':
+        'Hide the delegations interrupted before this window opened',
+    'agentChat.tasks.clear': 'Clear',
+    'agentChat.tasks.clearInterruptedEarlier': 'Clear the delegations interrupted earlier',
     'agentChat.tasks.dismissTask': 'Dismiss {{title}}',
     'agentChat.tasks.dismissDetail': 'Dismiss; it stays in the conversation',
     'agentChat.tasks.dismissDelegatedDetail': 'Dismiss; the Session stays in the sidebar',

@@ -3,8 +3,9 @@
  * inspected in a dev instance. Only a Server-side Agent can create a delegated Session, so the rows come from the same
  * seeds the E2E specs use (`e2e/support/server-database/delegated-chat-seed.ts`): its `children` phase (a failed, an
  * unreadable, a not-yet-recorded and a consult child), its `deep` phase (a completed child with a failed grandchild),
- * and its `attention` phase (a child with an unread finished result and one with an unread question, for the sidebar's
- * nested status glyphs).
+ * its `attention` phase (a child with an unread finished result and one with an unread question, for the sidebar's
+ * nested status glyphs), and its `interrupted` phase (two children an earlier run left interrupted, which the strip
+ * counts in its header).
  *
  * The app must not be running on the profile: `open-chat` first, `switch-worktree stop`, run this, then start `dev`
  * again on the same profile.
@@ -21,6 +22,7 @@ import type {
     AttentionDelegatedChatSeed,
     DeepDelegatedChatSeed,
     DelegatedChatSeed,
+    InterruptedDelegatedChatSeed,
 } from '../../../../e2e/support/server-database/delegated-chat-seed';
 import { CommandError } from '../../switch-worktree/scripts/process';
 
@@ -68,7 +70,13 @@ async function main(): Promise<void> {
         ...input,
         phase: 'attention',
     });
-    process.stdout.write(`${JSON.stringify({ host, children, deep, attention }, null, 2)}\n`);
+    const interrupted = await runServerDatabase<InterruptedDelegatedChatSeed>(
+        'delegated-chat-seed',
+        { ...input, phase: 'interrupted' },
+    );
+    process.stdout.write(
+        `${JSON.stringify({ host, children, deep, attention, interrupted }, null, 2)}\n`,
+    );
 }
 
 if (import.meta.main) {

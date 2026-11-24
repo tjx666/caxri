@@ -129,46 +129,37 @@ test('a Codex Chat stops all of its running background work at once', async ({},
         await message.fill('run it in the background');
         await message.press('Enter');
         await expect(chat.getByText('The dev server is running in the background.')).toBeVisible();
-        // Two or three tasks fit the folded list, so each keeps its own Stop and there is no `N more` line to carry
-        // Stop all.
+        // Two running tasks: each keeps its own Stop, and the header adds Stop all.
         const strip = chat.getByRole('region', { name: 'Background work' });
-        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(2);
-        await expect(strip.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+        const stopAll = strip.getByRole('button', { name: 'Stop all' });
+        await expect(stopAll).toHaveCount(1);
+        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(3);
 
         const runShell = async (count: number) => {
             await message.fill('run it in the background');
             await message.press('Enter');
-            await expect(strip.getByRole('listitem')).toHaveCount(Math.min(count, 3));
+            await expect(strip.getByRole('listitem')).toHaveCount(count);
         };
         await runShell(3);
         await runShell(4);
-        // Four tasks fold to three rows behind a quiet `1 more` line, which carries Stop all.
-        const more = strip.locator('[data-agent-chat-background-more]');
-        await expect(more).toHaveText('1 more');
-        const stopAll = strip.getByRole('button', { name: 'Stop all' });
-        await expect(stopAll).toBeVisible();
-        // Three row Stops plus Stop all.
-        await expect(strip.getByRole('button', { name: /^Stop / })).toHaveCount(4);
+        // Every row shows unfolded; the header counts them and keeps Stop all.
+        const fold = strip.locator('[data-agent-chat-strip-fold]');
+        await expect(fold).toContainText('4 running');
         await page.screenshot({ path: testInfo.outputPath('codex-stop-all.png') });
 
-        /**
-         * Unfolding only adds the fourth row below the ones in view.
-         */
-        const titles = () => strip.getByRole('listitem').allTextContents();
-        const folded = await titles();
-        await more.click();
-        await expect(more).toHaveText('Show less');
+        // The header folds the whole list and still says what runs.
+        await fold.click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await expect(strip.getByRole('listitem')).toHaveCount(0);
+        await expect(fold).toContainText('4 running');
+        await page.screenshot({ path: testInfo.outputPath('codex-background-folded.png') });
+        await fold.click();
         await expect(strip.getByRole('listitem')).toHaveCount(4);
-        expect((await titles()).slice(0, 3)).toEqual(folded);
-        await page.screenshot({ path: testInfo.outputPath('codex-background-expanded.png') });
 
-        // A stopped task leaves the list; back at three, the `N more` line and Stop all go with it.
+        // A stopped task leaves the list.
         await strip.getByRole('button', { name: /^Stop Inspect the fixtures/u }).click();
         await expect(strip.getByRole('listitem')).toHaveCount(3);
-        await expect(more).toHaveCount(0);
-        await expect(stopAll).toHaveCount(0);
 
-        await runShell(4);
         await stopAll.click();
         await expect(chat.getByRole('button', { name: /^Stop / })).toHaveCount(0);
         await expect(strip).toHaveCount(0);
