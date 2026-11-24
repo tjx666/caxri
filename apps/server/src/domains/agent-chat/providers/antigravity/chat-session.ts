@@ -9,7 +9,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { AntigravityConversationCut } from '../../../agents';
 import { copyAntigravityConversation, readAntigravityUsage } from '../../../agents';
-import { isRecord } from '../../chat-items';
+import { clip, isRecord, stringField } from '../../chat-items';
 import { chatPermissionState, supportedChatPermission } from '../../chat-permissions';
 import type {
     AgentChatDriver,
@@ -19,7 +19,7 @@ import type {
     ChatResumePoint,
     ChatRewindTarget,
 } from '../../chat-provider';
-import type { JsonRpcConnection } from '../../json-rpc-connection';
+import type { JsonRpcConnection, JsonRpcServerRequest } from '../../json-rpc-connection';
 import { JsonRpcRequestError } from '../../json-rpc-connection';
 import { antigravityChatSettings } from '../../launch-settings';
 import type { AcpActiveTurn } from '../acp/dialect';
@@ -37,6 +37,7 @@ import {
     isAntigravityUsageLimitError,
 } from './items';
 import { AntigravityPlanLimits, antigravityUsageLimit } from './plan-limits';
+import { antigravityQuestions, mapAntigravityQuestion } from './questions';
 
 /**
  * One live `agy acp` process: standard ACP with the model and its thinking level as config options, and session modes
@@ -72,6 +73,9 @@ class AntigravityChatSession extends AcpChatSession {
                 provider: 'antigravity',
                 label: 'Antigravity',
                 presentation: antigravityToolPresentation,
+                questions: antigravityQuestions,
+                // Without it, `agy` never sends its `ask_question` questions (agy 1.5.16), and the turn ends unanswered.
+                clientCapabilities: { elicitation: { form: {} } },
                 configState: antigravityConfigState,
                 // `agy acp` replays no turn ends, so every replayed turn finished.
                 settledReplayTurns: 'completed',
@@ -268,6 +272,30 @@ class AntigravityChatSession extends AcpChatSession {
         } catch {
             // A failed `/usage` read, or a Chat closed meanwhile, leaves the limit without its window.
         }
+    }
+
+    /**
+     * `agy acp` asks its `ask_question` questions as a form elicitation keyed by the tool call. A form with no question
+     * Caxri can show, or another elicitation mode, is declined, so the agent goes on instead of waiting.
+     */
+    protected onExtensionRequest(
+        connection: JsonRpcConnection,
+        request: JsonRpcServerRequest,
+    ): boolean {
+        if (request.method !== 'elicitation/create') return false;
+        const parameters = request.params;
+        const key = clip(stringField(parameters.toolCallId) ?? `question:${request.id}`, 200);
+        const schema = parameters.requestedSchema;
+        if (
+            parameters.mode !== 'form' ||
+            mapAntigravityQuestion(key, schema).questions.length === 0
+        ) {
+            this.options.onProtocolRejected('unsupportedRequest', request.method);
+            connection.respond(request.id, { action: 'decline' });
+            return true;
+        }
+        this.requests.askQuestion(connection, request.id, key, schema, this.activeTurn?.id);
+        return true;
     }
 
     protected steer(

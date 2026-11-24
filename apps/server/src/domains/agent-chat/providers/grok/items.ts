@@ -187,6 +187,11 @@ export function mapGrokQuestion(
 }
 
 /**
+ * A cancelled `_x.ai/ask_user_question`, whose outcome sits at the top level, unlike `session/request_permission`'s.
+ */
+export const GROK_QUESTION_CANCELLED = { outcome: 'cancelled' };
+
+/**
  * The `_x.ai/ask_user_question` response for the Client's positional answers: answers keyed by question text, a list
  * for a multi-select question and one string otherwise. No answer at all is a cancelled question, so the turn goes on
  * without the user's choice.
@@ -204,7 +209,7 @@ export function grokQuestionAnswers(
     });
     return entries.length > 0
         ? { outcome: 'accepted', answers: Object.fromEntries(entries) }
-        : { outcome: 'cancelled' };
+        : GROK_QUESTION_CANCELLED;
 }
 
 /**

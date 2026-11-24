@@ -10,18 +10,10 @@ import { acpPermissionOutcome, mapAcpPermission } from './items';
 type Json = Record<string, unknown>;
 
 const CANCELLED = { outcome: { outcome: 'cancelled' } };
-/**
- * Grok Build's `_x.ai/ask_user_question` answers its outcome at the top level, unlike `session/request_permission`.
- */
-const QUESTION_CANCELLED = { outcome: 'cancelled' };
 
 type PendingRequest =
     | { kind: 'permission'; transportId: number | string; options: unknown; turnId?: string }
     | { kind: 'question'; transportId: number | string; questions: unknown; turnId?: string };
-
-function cancelledResponse(pending: PendingRequest) {
-    return pending.kind === 'question' ? QUESTION_CANCELLED : CANCELLED;
-}
 
 /**
  * A provider's question extension: how its request reads as a question card and how the Client's answers go back.
@@ -29,6 +21,11 @@ function cancelledResponse(pending: PendingRequest) {
 export interface AcpQuestionDialect {
     request: (key: string, questions: unknown) => Extract<AgentChatRequest, { kind: 'question' }>;
     answers: (questions: unknown, answers: Readonly<Record<string, readonly string[]>>) => Json;
+    /**
+     * The response that cancels a question, so the turn goes on without the user's choice. Each extension shapes it
+     * differently: Grok Build's `{ outcome: 'cancelled' }`, an ACP elicitation's `{ action: 'cancel' }`.
+     */
+    cancelled: Json;
 }
 
 interface AcpRequestOwner {
@@ -55,6 +52,12 @@ export class AcpRequestBroker {
 
     constructor(private readonly owner: AcpRequestOwner) {}
 
+    private cancelledResponse(pending: PendingRequest): Json {
+        return pending.kind === 'question' && this.owner.questions
+            ? this.owner.questions.cancelled
+            : CANCELLED;
+    }
+
     private hold(
         connection: JsonRpcConnection,
         pending: PendingRequest,
@@ -67,7 +70,7 @@ export class AcpRequestBroker {
         const previous = this.pending.get(key);
         // A repeated request for the same tool call replaces the earlier one, which must still get an answer.
         if (previous && previous.transportId !== pending.transportId)
-            connection.respond(previous.transportId, cancelledResponse(previous));
+            connection.respond(previous.transportId, this.cancelledResponse(previous));
         const isNew = !previous;
         this.pending.set(key, pending);
         const { requests } = host.read();
@@ -153,7 +156,7 @@ export class AcpRequestBroker {
     cancelTurn(connection: JsonRpcConnection, turnId: string): void {
         for (const [key, pending] of this.pending)
             if (pending.turnId === turnId) {
-                connection.respond(pending.transportId, cancelledResponse(pending));
+                connection.respond(pending.transportId, this.cancelledResponse(pending));
                 if (pending.kind === 'permission') this.owner.onDeclined(key);
                 this.settle(key);
             }
@@ -166,7 +169,8 @@ export class AcpRequestBroker {
             const answers = questionAnswers(response);
             connection.respond(
                 pending.transportId,
-                this.owner.questions?.answers(pending.questions, answers) ?? QUESTION_CANCELLED,
+                this.owner.questions?.answers(pending.questions, answers) ??
+                    this.cancelledResponse(pending),
             );
             const { host } = this.owner;
             const answered = agentChatAnsweredNotice(

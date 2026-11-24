@@ -154,6 +154,14 @@ answer it.
   [Permission level and plan mode](agent-chat.md#permission-level-and-plan-mode). In plan mode the plan arrives as a
   `write_file` artifact with `ArtifactMetadata.RequestFeedback`, which the Chat shows as a proposed
   plan with Start Building.
+- Questions from `agy`'s `ask_question` tool arrive as an ACP form elicitation (`elicitation/create`,
+  `mode: 'form'`), which `agy` sends only after `initialize` advertises `elicitation.form`; without
+  it the tool call stays `pending` and the turn ends unanswered (agy 1.5.16). Each `qN` property is
+  a question: a `string` with `oneOf` choices, or an `array` whose `items.anyOf` makes it
+  multi-select, with a free-text `qN_other`. The Chat shows it as a question card keyed by the tool
+  call, turns the leading `(Recommended)` title into the card's recommended choice, and answers
+  `{ action: 'accept', content }` with each picked choice's `const` and typed text in `qN_other`;
+  a skipped card answers `{ action: 'cancel' }`. See `providers/antigravity/questions.ts`.
 - Images are ACP `image` content blocks; the user message keeps only the Client's thumbnails.
 - A message sent while a turn runs is a second `session/prompt`: `agy acp` ends the running request
   with `end_turn` and carries on with the new message in the same turn, so the Chat ignores the
@@ -204,4 +212,6 @@ Automated tests use repository-owned fakes
 (`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-antigravity-acp.ts`) and isolated
 homes; they never invoke the host `agy`. The ACP shapes, hook payloads, and state layout were
 checked once with a content-free local probe of `agy` 1.4.11, and the session modes, image
-prompts, steering, `usage_update`, plan artifact, and `/usage` answer with `agy` 1.5.14.
+prompts, steering, `usage_update`, plan artifact, and `/usage` answer with `agy` 1.5.14. The
+question form, its answer, and its free-text answer were checked with `agy` 1.5.16 on a synthetic
+prompt.
