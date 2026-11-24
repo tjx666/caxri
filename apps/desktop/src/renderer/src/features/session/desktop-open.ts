@@ -7,6 +7,10 @@ export interface DesktopOpenRequest {
      */
     focusEditor?: boolean;
     /**
+     * Opens the file's rendered preview instead of its source, forwarded unchanged from `desktop.openFile`.
+     */
+    showPreview?: boolean;
+    /**
      * `directory` means `path` names a directory to reveal in the Files explorer instead of a file to open. Absent for
      * a file.
      */
@@ -20,7 +24,11 @@ export interface DesktopOpenQueueActions {
     openFile(
         sessionId: string,
         path: string,
-        options?: { focusEditor?: boolean; location?: EditorNavigationTarget },
+        options?: {
+            focusEditor?: boolean;
+            location?: EditorNavigationTarget;
+            showPreview?: boolean;
+        },
     ): Promise<unknown>;
     /**
      * Shows the Files explorer of `sessionId` with the directory selected and expanded. Runs after the Session is
@@ -51,6 +59,7 @@ export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
                 await actions.openFile(request.sessionId, request.path, {
                     ...(request.location && { location: request.location }),
                     ...(request.focusEditor && { focusEditor: true }),
+                    ...(request.showPreview && { showPreview: true }),
                 });
             })();
             /**

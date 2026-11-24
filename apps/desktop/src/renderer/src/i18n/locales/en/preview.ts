@@ -10,6 +10,10 @@ export const preview = {
     'preview.revealInFinder': 'Reveal in Finder',
     'preview.openSource': 'Open Source',
     'preview.openPreviewToSide': 'Open Preview to the Side',
+    'preview.openInBrowser': 'Open in Browser',
+
+    // HTML.
+    'preview.html.frameLabel': 'Page preview: {{name}}',
 
     // Markdown and Mermaid.
     'preview.markdown.copyCodeBlock': 'Copy code block',

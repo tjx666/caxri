@@ -1,8 +1,10 @@
-import { Eye, FileCode } from 'lucide-react';
+import { Eye, FileCode, Globe } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import type { HtmlPageTarget } from './html/commands';
+import { openHtmlPageInBrowser } from './html/commands';
 import type { PreviewTabSwitch } from './preview-commands';
 import { openFilePreviewToSide, openPreviewSource } from './preview-commands';
 
@@ -36,6 +38,30 @@ export function PreviewTabAction({ tabSwitch }: { tabSwitch: PreviewTabSwitch })
                 ) : (
                     <Eye aria-hidden="true" size={14} />
                 )}
+            </Button>
+        </Tooltip>
+    );
+}
+
+/**
+ * Opens an HTML page in the system browser from its source or preview tab, for what the frame cannot do (DevTools, a
+ * shareable window, the user's extensions). The tab menu's Open with Default App reaches the same launch; this puts it
+ * one click away on the tabs where it is the common next step.
+ */
+export function HtmlBrowserTabAction({ target }: { target: HtmlPageTarget }) {
+    const { t } = useTranslation();
+    const label = t('preview.openInBrowser');
+    return (
+        <Tooltip content={label}>
+            <Button
+                size="icon"
+                variant="ghost"
+                aria-label={label}
+                onClick={() => {
+                    void openHtmlPageInBrowser(target);
+                }}
+            >
+                <Globe aria-hidden="true" size={14} />
             </Button>
         </Tooltip>
     );

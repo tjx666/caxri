@@ -62,6 +62,7 @@ export function createDesktopActions({
                     path: target.path,
                     ...(target.location && { location: target.location }),
                     ...(target.focusEditor && { focusEditor: target.focusEditor }),
+                    ...(target.showPreview && { showPreview: target.showPreview }),
                 },
             }),
         openInEditor: async (path, editorCommand) => {

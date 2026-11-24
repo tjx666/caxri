@@ -20,6 +20,7 @@ import { cacheDocument } from '../editor/document-commands';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../editor/document-load-recovery';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { HtmlPreview } from './html/html-preview';
 import { ImagePreview } from './image-preview';
 import { MarkdownPreview } from './markdown-preview';
 import { MermaidPreview } from './mermaid-preview';
@@ -153,6 +154,14 @@ export function PreviewSurface({ paneId, tab }: { paneId: string; tab: FilePrevi
         </TextPreviewSurface>
     );
     switch (previewer.id) {
+        case 'html':
+            return (
+                <HtmlPreview
+                    sessionId={session.id}
+                    path={tab.path}
+                    workbenchRootProjectId={session.workbenchRootProjectId}
+                />
+            );
         case 'image': {
             const external = parseExternalEditorTab(tab.path);
             /**

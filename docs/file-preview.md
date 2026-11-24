@@ -6,7 +6,8 @@ status: current
 # File preview
 
 Caxri can render a Project file instead of editing it: Markdown as formatted text, `.svg` as an
-image, `.pdf` as pages, `.csv` / `.tsv` as a table, and `.mmd` / `.mermaid` as a diagram. A preview is a virtual editor tab, so it opens, splits, persists, and restores exactly like
+image, `.pdf` as pages, `.csv` / `.tsv` as a table, `.mmd` / `.mermaid` as a diagram, and `.html` /
+`.htm` as the page a browser would show. A preview is a virtual editor tab, so it opens, splits, persists, and restores exactly like
 a source tab, and the same file can sit open as source in one pane and as a preview in another.
 
 This document covers the shipped behavior, the contracts a new format has to satisfy, and the
@@ -21,6 +22,7 @@ binary bytes come from, and how the PDF engine loads its data inside a `file://`
 | Open it beside the source            | **Editor: Open Preview to the Side**, or the eye icon at the right of the tab rail   |
 | Open it from a tab or the explorer   | Right-click the editor tab or the file in Files → **Open Preview**                   |
 | Go from a preview back to its source | The file icon at the right of the tab rail, or right-click the tab → **Open Source** |
+| Open an HTML page in the browser     | The globe icon at the right of the tab rail, or right-click a Chat link to the page  |
 | Copy a fenced code block             | Hover the block, click the copy button                                               |
 | Jump to a heading                    | Click an in-page link                                                                |
 | Follow a link to another document    | Click it: Caxri opens that file as a new editor tab                                  |
@@ -32,7 +34,7 @@ and the folders below it: a link that climbs out (`../`) or reaches outside thro
 is refused, and a linked file opens as another external document. An external `.svg` has no
 preview, because the image view loads its asset through Project file reads.
 
-Double-clicking a Markdown, SVG, CSV/TSV, or Mermaid file in the explorer still opens the source.
+Double-clicking a Markdown, SVG, CSV/TSV, Mermaid, or HTML file in the explorer still opens the source.
 Those formats are readable as text, so the preview stays an explicit command; VS Code makes the
 same call with `priority.textEditor: 'option'`. A PDF has no useful text form, so it registers
 `defaultView: 'preview'`: every open path (Files, Quick Open, a Terminal link) lands on its preview
@@ -41,6 +43,9 @@ is the file's only view, its tab is titled with the bare file name; a preview of
 keeps the `Preview:` prefix so it stays distinct from the source tab beside it. On a preview tab
 the rail action and the tab menu offer **Open Source** instead of opening another preview; a PDF
 has no source, so it offers neither.
+An HTML page is the one text format a link opens on its preview: clicking it in an Agent Chat message
+or a Terminal lands on the rendered page, because a report an Agent just wrote is something to read, not
+edit. Files and Quick Open still open its source.
 Moving a file or folder to the Trash closes its preview tabs along with its source tabs.
 
 Edits re-render live. The preview follows the source editor's scroll position one way: scrolling
@@ -74,6 +79,7 @@ Smart typography is deliberately off, so what you typed is what you see.
 | PDF                | Preview  | `files.readAsset` (`application/pdf`) | 32 MiB                                 |
 | CSV / TSV          | Source   | Editor buffer                         | First 50,000 data rows and 256 columns |
 | `.mmd`, `.mermaid` | Source   | Editor buffer                         | One diagram per file                   |
+| HTML               | Source   | `caxri-html:` scheme (Main)           | None; the page loads what it links     |
 
 ### PDF
 
@@ -153,6 +159,29 @@ with the parser's message below it, until the source parses again; a diagram tha
 shows the message alone. The diagram is a `figure`, not an `img`, so the message is readable by a
 screen reader. The source is deferred, so typing re-lays out the diagram at low priority, and a
 diagram wider than the pane scrolls rather than losing its left edge.
+
+### HTML
+
+The page renders in a sandboxed frame that Main serves through its own `caxri-html:` scheme
+([`protocol.ts`](../apps/desktop/src/main/html-preview/protocol.ts)), so relative stylesheets,
+scripts, images, and fonts load the way they do from a local web server, and the page's scripts run.
+A data URL or `srcdoc` frame cannot do this: it inherits the Workbench's `script-src 'self'` CSP and
+has no base URL for relative paths. Each served folder (a grant) gets a random host, so every page
+has an origin of its own that cannot reach the Workbench document, which is why the frame may keep
+`allow-same-origin` (for `localStorage` and module scripts). The frame cannot navigate the
+Workbench.
+
+A Project page is authorized like any Project file read and its grant is the whole Project root, so
+`../assets/app.css` resolves. A page outside every Project grants only its own folder and the folders
+below it, the scope an external Markdown preview has. A request that climbs out of its grant,
+lexically or through a symbolic link, answers 404. Files are served with `no-store`, and the frame
+reloads when the page is rewritten on disk, so a regenerated report shows its current state. The
+page keeps its own colors on a white canvas in every theme, the way a PDF keeps its paper.
+
+**Open in Browser** hands the file to the application macOS registers for HTML (`shell.openPath`).
+From a Chat link Main resolves the link first and refuses anything that is not an HTML page, so the
+entry cannot launch a script or an application through its default handler. An SSH Host window
+offers neither entry, since the browser runs on this Mac and the page lives on the SSH Host.
 
 ### SVG
 
@@ -284,6 +313,9 @@ it.
 
 - Scroll sync is one-way by design: the source editor drives the preview. It applies to Markdown
   only.
+- A link inside an HTML page that leads to the web does nothing: the Workbench CSP blocks the
+  frame from navigating there, and Main denies the new window a `target="_blank"` link asks for,
+  as it does for all passive page content. **Open in Browser** shows the page with working links.
 - PDF previews need a Project: a PDF opened from outside every Project has no preview yet. There
   is no in-document search, password prompt, or outline sidebar.
 - PDF ICC color profiles are not applied: pdf.js turns ICC conversion off when it cannot fetch its

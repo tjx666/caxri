@@ -41,6 +41,7 @@ interface StoredTarget {
     projectRootId?: string;
     location?: EditorNavigationTarget;
     focusEditor?: boolean;
+    showPreview?: boolean;
 }
 
 interface DesktopRouterBridge {
@@ -151,7 +152,7 @@ export class ServerDesktopRouter {
             projectRootId?: string;
         },
         location?: EditorNavigationTarget,
-        shouldFocusEditor?: boolean,
+        intent: { focusEditor?: boolean; showPreview?: boolean } = {},
     ): StoredTarget {
         this.pruneTargets();
         if (this.targets.size >= this.maximumTargets)
@@ -163,7 +164,8 @@ export class ServerDesktopRouter {
             id: randomUUID(),
             operation,
             ...(location && { location }),
-            ...(shouldFocusEditor && { focusEditor: shouldFocusEditor }),
+            ...(intent.focusEditor && { focusEditor: true }),
+            ...(intent.showPreview && { showPreview: true }),
         };
         this.targets.set(target.id, target);
         return target;
@@ -410,6 +412,7 @@ export class ServerDesktopRouter {
             expectedIdentity?: ExpectedIdentity;
             location?: EditorNavigationTarget;
             focusEditor?: boolean;
+            showPreview?: boolean;
         },
         signal?: AbortSignal,
         context?: WorkbenchRequestContext,
@@ -454,7 +457,10 @@ export class ServerDesktopRouter {
             lease.generation,
             resolved,
             parameters.location,
-            parameters.focusEditor,
+            {
+                ...(parameters.focusEditor && { focusEditor: true }),
+                ...(parameters.showPreview && { showPreview: true }),
+            },
         );
         const invoked: DesktopOperation =
             operation === 'openInEditor'
@@ -562,6 +568,7 @@ export class ServerDesktopRouter {
             path: current.path,
             ...(target.location && { location: target.location }),
             ...(target.focusEditor && { focusEditor: target.focusEditor }),
+            ...(target.showPreview && { showPreview: target.showPreview }),
         };
     }
 }

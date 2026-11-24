@@ -1,9 +1,16 @@
-import type { SessionState } from '@caxri/protocol';
-import { findResourceTabs, openResource } from '@caxri/protocol';
+import type { EditorNavigationTarget, SessionState } from '@caxri/protocol';
+import { activePane, findResourceTabs, openResource } from '@caxri/protocol';
 import type { EditorDocument } from '@desktop-shared/editor-state';
+import { editorModelPath } from '@desktop-shared/editor-state';
 
-import { useSessionViewStore } from '../../stores/session-view';
+import {
+    getSessionDocuments,
+    sessionViewScope,
+    useSessionViewStore,
+} from '../../stores/session-view';
 import { refreshWorkbench, useWorkbenchStore } from '../../stores/workbench';
+import { layoutCachedDocumentPaths } from './document-layout-paths';
+import { queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
 
 export function sessionStateOf(sessionId: string): SessionState | undefined {
     return useWorkbenchStore
@@ -24,7 +31,7 @@ export function sessionStateOf(sessionId: string): SessionState | undefined {
  * Session's Workbench Root changed mid-flight. `paneId` is pinned once by the caller instead of re-resolved on every
  * retry, so a pane switch mid-flight cannot scatter the same file across two panes.
  */
-export async function persistOpenedEditorTab(
+async function persistOpenedEditorTab(
     sessionId: string,
     path: string,
     paneId: string,
@@ -77,4 +84,76 @@ export async function persistOpenedEditorTab(
         replacedDocuments,
         retriesLeft - 1,
     );
+}
+
+/**
+ * Opens a Renderer-owned editor surface whose content has already been loaded or is virtual.
+ */
+export function didOpenEditorTabForSession(
+    sessionId: string,
+    path: string,
+    options: {
+        location?: EditorNavigationTarget;
+        paneId?: string;
+        preview?: boolean;
+    } = {},
+): boolean {
+    const current = sessionStateOf(sessionId);
+    if (!current) return false;
+    const workbenchRootProjectId = current.workbenchRootProjectId;
+    const view = useSessionViewStore.getState();
+    const existing = findResourceTabs(current.paneLayout, { kind: 'file', path });
+    const wasOpen = existing.length > 0;
+    const wasMounted = existing.some(({ pane, tab }) => pane.activeTabId === tab.id);
+    // Resolved once, the same way `openResource` resolves it internally, so a background retry (see `persistOpenedEditorTab`) can pin this exact pane instead of re-resolving "the active pane" later.
+    const paneId = options.paneId ?? activePane(current.paneLayout).id;
+    const isPreview = options.preview === true;
+    const opened = openResource(
+        current.paneLayout,
+        { kind: 'file', path },
+        { paneId, preview: isPreview },
+    );
+    const didOpen = wasOpen || opened !== current.paneLayout;
+    if (!didOpen) return false;
+    /**
+     * Opening into a preview slot replaces whatever preview was there. Its buffer is released in the same update, but
+     * only once no other pane still shows that document.
+     */
+    const surviving = new Set(layoutCachedDocumentPaths(opened));
+    const replacedPaths = [
+        ...new Set(
+            layoutCachedDocumentPaths(current.paneLayout).filter((path) => !surviving.has(path)),
+        ),
+    ];
+    const replacedDocuments = replacedPaths.flatMap((replaced) => {
+        const document = getSessionDocuments(sessionId, workbenchRootProjectId)?.[replaced];
+        return document ? [document] : [];
+    });
+    if (options.location && (wasOpen || opened !== current.paneLayout)) {
+        const modelPath = editorModelPath(
+            sessionViewScope(sessionId, workbenchRootProjectId),
+            path,
+        );
+        if (wasMounted) revealEditorNavigation(modelPath, options.location);
+        else queueEditorNavigation(modelPath, options.location);
+    }
+    for (const replaced of replacedPaths)
+        view.evictDocument(sessionId, replaced, workbenchRootProjectId);
+    view.touchDocument(sessionId, path, workbenchRootProjectId);
+    if (opened === current.paneLayout) return true;
+    /**
+     * Fire-and-forget: the caller already sees this tab optimistically. Persisting continues in the background,
+     * retrying once against a refreshed snapshot on a lost revision race (see `persistOpenedEditorTab`).
+     */
+    void persistOpenedEditorTab(
+        sessionId,
+        path,
+        paneId,
+        isPreview,
+        { ...current, paneLayout: opened },
+        wasOpen,
+        replacedDocuments,
+        1,
+    );
+    return true;
 }

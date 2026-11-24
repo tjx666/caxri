@@ -9,9 +9,9 @@ import { useTranslation } from '../../../i18n';
 import { useTerminal } from '../../../stores/selectors';
 import { AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME } from '../agent-chat-stop-button';
 import {
-    AgentChatRevealFileContext,
+    AgentChatDesktopFilesContext,
+    useAgentChatDesktopFiles,
     useAgentChatOpenFile,
-    useAgentChatRevealFile,
 } from '../hooks/use-agent-chat-open-file';
 import {
     askAgentChatSideQuestion,
@@ -145,7 +145,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
     const { t } = useTranslation();
     const terminal = useTerminal(terminalId);
     const openFile = useAgentChatOpenFile(terminalId);
-    const revealFile = useAgentChatRevealFile(terminalId);
+    const desktopFiles = useAgentChatDesktopFiles(terminalId);
     const exchanges = useAgentChatSideChatStore(
         (state) => state.threads[terminalId] ?? NO_EXCHANGES,
     );
@@ -174,7 +174,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
                         {t('agentChat.sideChat.hint')}
                     </p>
                 ) : (
-                    <AgentChatRevealFileContext value={revealFile}>
+                    <AgentChatDesktopFilesContext value={desktopFiles}>
                         <ul className="m-0 mx-auto flex w-full max-w-3xl list-none flex-col gap-5 p-4">
                             {exchanges.map((exchange) => (
                                 <AgentChatSideExchange
@@ -188,7 +188,7 @@ export function AgentChatSideChatTab({ tab }: { tab: { terminalId: string } }) {
                                 />
                             ))}
                         </ul>
-                    </AgentChatRevealFileContext>
+                    </AgentChatDesktopFilesContext>
                 )}
             </div>
             <SideChatComposer isBusy={isBusy} terminalId={terminalId} />

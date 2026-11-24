@@ -29,8 +29,9 @@ export async function openTerminalFileLink(
 export async function revealTerminalFileLink(
     terminalId: string,
     target: string,
+    action: 'openInBrowser' | 'reveal' = 'reveal',
 ): Promise<MethodResult<'terminal.revealFileLink'>> {
-    return caxri.request('terminal.revealFileLink', { terminalId, target });
+    return caxri.request('terminal.revealFileLink', { terminalId, target, action });
 }
 
 /**

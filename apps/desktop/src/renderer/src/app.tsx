@@ -120,6 +120,7 @@ function useRuntimeAttachment(): void {
                 return openFileForSession(sessionId, path, {
                     ...(options?.location && { location: options.location }),
                     ...(options?.focusEditor && { focus: true }),
+                    ...(options?.showPreview && { showPreview: true }),
                 });
             },
             revealDirectory: revealDirectoryInFiles,
@@ -149,7 +150,7 @@ function useRuntimeAttachment(): void {
                 }
                 /* oxlint-enable typescript/no-unnecessary-condition */
             },
-            onDesktopOpen: ({ focusEditor, kind, location, path, sessionId }) => {
+            onDesktopOpen: ({ focusEditor, kind, location, path, sessionId, showPreview }) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
                 // established pattern for one-shot Server-triggered opens.
@@ -159,6 +160,7 @@ function useRuntimeAttachment(): void {
                     ...(kind === 'directory' && { kind }),
                     ...(location && { location }),
                     ...(focusEditor && { focusEditor: true }),
+                    ...(showPreview && { showPreview: true }),
                 });
             },
         });

@@ -11,6 +11,9 @@ export const preview: TranslatedNamespace<typeof source> = {
     'preview.revealInFinder': '在访达中显示',
     'preview.openSource': '打开源文件',
     'preview.openPreviewToSide': '在侧边打开预览',
+    'preview.openInBrowser': '在浏览器中打开',
+
+    'preview.html.frameLabel': '页面预览：{{name}}',
 
     'preview.markdown.copyCodeBlock': '复制代码块',
     'preview.mermaid.label': 'Mermaid 图表',

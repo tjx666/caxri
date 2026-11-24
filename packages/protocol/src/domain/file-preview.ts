@@ -43,3 +43,20 @@ export function filePreviewExtension(path: string): string {
     const dot = name.lastIndexOf('.');
     return dot <= 0 ? '' : name.slice(dot + 1).toLowerCase();
 }
+
+/**
+ * Main's scheme for a rendered HTML preview. A page is served from `caxri-html://<grant>/<path below the grant root>`,
+ * so its relative stylesheets, scripts, and images resolve the way they do in a browser, and each grant is an origin of
+ * its own that cannot reach the Workbench document.
+ */
+export const HTML_PREVIEW_SCHEME = 'caxri-html';
+
+const HTML_PREVIEW_EXTENSIONS = new Set(['htm', 'html']);
+
+/**
+ * Whether `path` names an HTML page: the files Caxri renders in its HTML preview, opens on that preview from a Chat or
+ * Terminal link, and offers to open in the browser.
+ */
+export function isHtmlPreviewPath(path: string): boolean {
+    return HTML_PREVIEW_EXTENSIONS.has(filePreviewExtension(path));
+}

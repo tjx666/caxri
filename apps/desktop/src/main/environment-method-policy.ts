@@ -108,6 +108,10 @@ const environmentMethodScopes = {
     'externalDocument.reveal': 'local-only',
     'externalDocument.openWithDefaultApp': 'local-only',
     'externalDocument.openInTerminal': 'local-only',
+    /**
+     * Serves files from this Mac's disk; an SSH Host's pages live on the remote machine.
+     */
+    'htmlPreview.url': 'local-only',
     'editor.confirmDiscard': 'any',
     /**
      * Writes the local disk, which an SSH window's Session does not live on.

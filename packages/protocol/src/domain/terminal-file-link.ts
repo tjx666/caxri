@@ -102,12 +102,16 @@ export const terminalFileLinkMethods = {
      * outside every Project is revealed too: revealing reads no file contents, so it skips the external-file
      * confirmation an open asks for. Several matching Projects return the candidates instead, and the caller says why
      * nothing was revealed.
+     *
+     * `openInBrowser` hands the resolved file to the browser registered for HTML instead, through the same resolution.
+     * Main accepts it only for an HTML page, so a link can never launch an arbitrary file's default application.
      */
     'terminal.revealFileLink': {
         ...desktopControl,
         params: z.object({
             terminalId: identifierSchema,
             target: z.string().min(3).max(4_096),
+            action: z.enum(['reveal', 'openInBrowser']).default('reveal'),
         }),
         result: z.union([
             z.object({ revealed: z.literal(true) }),

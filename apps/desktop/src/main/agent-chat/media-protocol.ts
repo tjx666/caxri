@@ -9,7 +9,7 @@ import {
     isAgentChatVideoPath,
     parseAgentChatMediaUrl,
 } from '@caxri/protocol';
-import { app, nativeImage, protocol } from 'electron';
+import { nativeImage, protocol } from 'electron';
 
 /**
  * The poster's longest edge in pixels: sharp on the message's 2x tile, small enough to stay a quick PNG.
@@ -34,19 +34,16 @@ const quickLookImages = new Map<string, Uint8Array<ArrayBuffer>>();
  * cannot read an arbitrary file, including through a symlink named like a video. Any other cited file or folder gets
  * only its QuickLook thumbnail, the PNG Finder's icon view shows, never its bytes. The path is not held to a Project
  * root: like a file chip's Show in Finder (`openAgentChatPathReference`), it is the user's own drop or pick, and a
- * screen recording usually sits on the Desktop. Electron accepts a privileged (streaming, fetchable) scheme only before
- * `ready`, so Main's entry calls this at module scope; the handler itself attaches once the app is ready.
+ * screen recording usually sits on the Desktop. `installCustomProtocols` registers the scheme before `ready` and
+ * attaches this handler once the app is ready.
  */
-export function installAgentChatMediaProtocol(): void {
-    protocol.registerSchemesAsPrivileged([
-        {
-            scheme: AGENT_CHAT_MEDIA_SCHEME,
-            privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true },
-        },
-    ]);
-    void app.whenReady().then(() => {
-        protocol.handle(AGENT_CHAT_MEDIA_SCHEME, agentChatMediaResponse);
-    });
+export const AGENT_CHAT_MEDIA_PRIVILEGED_SCHEME: Electron.CustomScheme = {
+    scheme: AGENT_CHAT_MEDIA_SCHEME,
+    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true },
+};
+
+export function attachAgentChatMediaProtocol(): void {
+    protocol.handle(AGENT_CHAT_MEDIA_SCHEME, agentChatMediaResponse);
 }
 
 export async function agentChatMediaResponse(request: Request): Promise<Response> {

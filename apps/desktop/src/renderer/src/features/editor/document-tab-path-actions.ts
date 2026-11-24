@@ -1,6 +1,7 @@
 import type { GitRepositoryOverview, PaneTab } from '@caxri/protocol';
 import {
     isExternalEditorTabPath,
+    isFilePreviewTabPath,
     isVirtualEditorTabPath,
     parseExternalEditorTab,
     parseGitDiffTab,
@@ -14,14 +15,17 @@ import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repo
 type RepoRoot = Pick<GitRepositoryOverview, 'id' | 'rootPath'>;
 
 /**
- * The document whose actions fill the tab rail's action slot: a Project file, a Git diff, or an external document.
- * Other virtual tabs (Settings, previews, transcripts) carry no editor actions.
+ * The document whose actions fill the tab rail's action slot: a Project file, a Git diff, an external document, or a
+ * file preview, whose rail offers Open Source (and Open in Browser for an HTML page). Other virtual tabs (Settings,
+ * transcripts) carry no editor actions.
  */
 export function editorTabActionsPath(tab: PaneTab | undefined): string | undefined {
     if (tab?.resource.kind !== 'file') return undefined;
     const { path } = tab.resource;
     if (!isVirtualEditorTabPath(path)) return path;
-    return parseGitDiffTab(path) || isExternalEditorTabPath(path) ? path : undefined;
+    return parseGitDiffTab(path) || isExternalEditorTabPath(path) || isFilePreviewTabPath(path)
+        ? path
+        : undefined;
 }
 
 /**

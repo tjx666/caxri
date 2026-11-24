@@ -29,6 +29,7 @@ describe('revealTerminalFileTarget', () => {
         expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.revealFileLink', {
             terminalId: 'terminal-1',
             target: 'src/app.ts',
+            action: 'reveal',
         });
         expect(mocks.pushToast).not.toHaveBeenCalled();
     });
@@ -55,6 +56,7 @@ describe('revealTerminalFileTarget', () => {
         expect(mocks.caxriRequest).toHaveBeenLastCalledWith('terminal.revealFileLink', {
             terminalId: 'terminal-1',
             target: '/tmp/work/plan.md',
+            action: 'reveal',
         });
         expect(mocks.pushToast).not.toHaveBeenCalled();
     });

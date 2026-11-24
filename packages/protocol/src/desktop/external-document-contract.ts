@@ -94,6 +94,19 @@ export const externalDocumentDesktopMethods = {
         params: documentTarget.extend({ sessionId: identifierSchema }),
         result: terminalRecordSchema,
     },
+    /**
+     * The URL an HTML preview frame loads. Main authorizes the page (a Project file against its Session's Project root,
+     * an external document by the ID Main issued when it read the file) and grants the folder its subresources may come
+     * from: the Project root, or the external document's own folder.
+     */
+    'htmlPreview.url': {
+        ...desktopRead,
+        params: z.union([
+            z.strictObject({ sessionId: identifierSchema, path: pathSchema }),
+            z.strictObject({ documentId: identifierSchema }),
+        ]),
+        result: z.strictObject({ url: z.string().min(1).max(16_384) }),
+    },
 } as const;
 
 /**

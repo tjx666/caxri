@@ -14,7 +14,6 @@ import {
 import type { BrowserWindow, WebContents } from 'electron';
 import { app, dialog, Menu, nativeTheme, powerMonitor, screen } from 'electron';
 
-import { installAgentChatMediaProtocol } from './agent-chat/media-protocol';
 import { applyDevelopmentAppIdentity } from './app-icon';
 import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
 import { updateArgvConfig } from './argv-config';
@@ -57,6 +56,7 @@ import { ProjectRootGrants } from './root-grants';
 import { composeSshHostEnvironments } from './ssh/environments/host-environment-composition';
 import type { SshHostEnvironments } from './ssh/environments/host-environments';
 import { createPrimaryWindowChannel } from './ssh/environments/primary-window-channel';
+import { installCustomProtocols } from './startup/custom-protocols';
 import { createStartupFailureWiring } from './startup/startup-failure-wiring';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
@@ -95,7 +95,7 @@ const desktopProfile = configureDesktopProfile(app, process.env);
 const gpuBoot = prepareGpuBoot(app, desktopProfile.userDataPath);
 const ownsProfileInstance = hasProfileSingleInstanceLock(app, desktopProfile);
 if (!ownsProfileInstance) app.quit();
-installAgentChatMediaProtocol();
+installCustomProtocols();
 
 // A bare block, not module top level, so the mutable bootstrap state below is block-scoped: its lifecycle callbacks
 // need module-lifetime shared state, and this keeps it out of `unicorn/no-top-level-assignment-in-function`'s reach.

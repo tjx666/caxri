@@ -15,26 +15,30 @@ import {
     selectPaneTab,
     splitPaneTab,
 } from '../workbench/pane-actions';
-import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from './preview-registry';
+import { canPreviewPath, previewerForPath } from './preview-registry';
 
 /**
  * The document a preview of this editor tab would show: the tab's own document when a previewer claims it, or, for a
  * preview tab, the document that preview is already showing. Every other virtual tab (a Git diff, a transcript) has no
  * preview even when its encoded path ends in a previewable extension.
  *
- * An external document previews as Markdown, because that view renders the editor's cached buffer, or as a PDF, whose
- * bytes come from Main under the document's grant. The image view loads its asset through Project file IPC, which
- * cannot reach a file outside every Project.
+ * An external document previews as Markdown, because that view renders the editor's cached buffer, or as a PDF or an
+ * HTML page, whose bytes come from Main under the document's grant. The image view loads its asset through Project file
+ * IPC, which cannot reach a file outside every Project.
  *
  * This is the one predicate behind every preview entry point: the commands, the tab-rail icon, and both context menus,
  * so a format registered in `preview-registry.ts` appears in all of them at once.
  */
+const EXTERNAL_PREVIEW_VIEWS: ReadonlySet<string> = new Set(['html', 'markdown', 'pdf']);
+
 export function previewSourcePath(tabPath: string): string | undefined {
     const preview = parseFilePreviewTab(tabPath);
     if (preview) return preview.path;
     if (isExternalEditorTabPath(tabPath)) {
         const id = previewerForPath(tabPath)?.id;
-        return id === 'markdown' || id === 'pdf' ? tabPath : undefined;
+        return id && EXTERNAL_PREVIEW_VIEWS.has(id) && canPreviewPath(tabPath)
+            ? tabPath
+            : undefined;
     }
     if (isVirtualEditorTabPath(tabPath)) return undefined;
     return canPreviewPath(tabPath) ? tabPath : undefined;
@@ -52,10 +56,11 @@ export type PreviewTabSwitch =
 
 export function previewTabSwitch(tabPath: string): PreviewTabSwitch | undefined {
     const preview = parseFilePreviewTab(tabPath);
+    // A binary file's no-preview tab has no source either: opening it lands back on the same tab.
     if (preview)
-        return shouldOpenAsPreview(preview.path)
-            ? undefined
-            : { kind: 'openSource', path: preview.path };
+        return previewerForPath(preview.path)?.defaultView === 'source'
+            ? { kind: 'openSource', path: preview.path }
+            : undefined;
     const source = previewSourcePath(tabPath);
     return source ? { kind: 'openPreview', path: source } : undefined;
 }

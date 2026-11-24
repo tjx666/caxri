@@ -23,7 +23,8 @@ import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { cn } from '../../../lib/utilities';
 import { useCaxriQuery } from '../../../queries/client';
-import { didOpenEditorTabForSession, openFileForSession } from '../../editor/document-commands';
+import { openFileForSession } from '../../editor/document-commands';
+import { didOpenEditorTabForSession } from '../../editor/session-pane-state';
 import { usePaneViewSession } from '../../workbench/pane-view-session';
 import { agentChatChevronMotion } from '../transcript/agent-chat-disclosure';
 import {

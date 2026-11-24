@@ -11,7 +11,7 @@ import {
     useAgentChatMcpServers,
 } from '../../hooks/use-agent-chat-mcp-server';
 import type { AgentChatFileLinks } from '../../hooks/use-agent-chat-open-file';
-import { AgentChatRevealFileContext } from '../../hooks/use-agent-chat-open-file';
+import { AgentChatDesktopFilesContext } from '../../hooks/use-agent-chat-open-file';
 import { AgentChatReadBackHistoryContext } from '../../hooks/use-agent-chat-read-back-history';
 import { useAgentChatSkillHost } from '../../hooks/use-agent-chat-skill-host';
 import { AgentChatSkillsContext } from '../../hooks/use-agent-chat-skills';
@@ -149,7 +149,7 @@ export function AgentChatTimelineBody({
     return (
         <AgentChatMcpServersContext value={servers}>
             <AgentChatTerminalContext value={terminalId}>
-                <AgentChatRevealFileContext value={fileLinks.reveal}>
+                <AgentChatDesktopFilesContext value={fileLinks.desktop}>
                     <AgentChatSkillsContext value={skills}>
                         <AgentChatReferencesContext value={references}>
                             {/*
@@ -200,7 +200,7 @@ export function AgentChatTimelineBody({
                             )}
                         </AgentChatReferencesContext>
                     </AgentChatSkillsContext>
-                </AgentChatRevealFileContext>
+                </AgentChatDesktopFilesContext>
             </AgentChatTerminalContext>
         </AgentChatMcpServersContext>
     );

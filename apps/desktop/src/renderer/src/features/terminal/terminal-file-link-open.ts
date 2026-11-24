@@ -3,11 +3,12 @@ import type {
     MethodResult,
     TerminalFileLinkRefusalReason,
 } from '@caxri/protocol';
-import { isCaxriError } from '@caxri/protocol';
+import { isCaxriError, isHtmlPreviewPath } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import type { TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import { isLocalOnlyAvailable } from '../../stores/environment';
 import { sessionViewScope } from '../../stores/session-view';
 import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -81,6 +82,8 @@ export async function openTerminalFileTarget(
                     document: result.document,
                     sessionId: result.sessionId,
                     workbenchRootProjectId,
+                    // Main asks for a Project page's preview the same way (`desktop.openFile`'s `showPreview`).
+                    showPreview: isLocalOnlyAvailable() && isHtmlPreviewPath(result.document.name),
                 });
             if (!opened) throw new Error(translate('terminal.links.openExternalFileFailed'));
             if (location)

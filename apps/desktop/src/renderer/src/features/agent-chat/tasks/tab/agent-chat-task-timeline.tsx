@@ -10,9 +10,9 @@ import {
 } from '../../hooks/use-agent-chat-expansion';
 import { useAgentChatHistory } from '../../hooks/use-agent-chat-history';
 import {
-    AgentChatRevealFileContext,
+    AgentChatDesktopFilesContext,
+    useAgentChatDesktopFiles,
     useAgentChatOpenFile,
-    useAgentChatRevealFile,
 } from '../../hooks/use-agent-chat-open-file';
 import { useAgentChatScroll } from '../../hooks/use-agent-chat-scroll';
 import { useAgentChatEdgeKeys } from '../../keyboard/use-agent-chat-edge-keys';
@@ -83,7 +83,7 @@ export function AgentChatTaskTimeline({
     // Rows the user expanded stay open and hold in place, exactly as in the parent Chat.
     const expansion = useAgentChatExpansionHost(anchor);
     const openFile = useAgentChatOpenFile(terminalId, [olderItems, items]);
-    const revealFile = useAgentChatRevealFile(terminalId, [olderItems, items]);
+    const desktopFiles = useAgentChatDesktopFiles(terminalId, [olderItems, items]);
     return (
         <div className="relative h-full min-h-0">
             <div
@@ -117,7 +117,7 @@ export function AgentChatTaskTimeline({
                         </p>
                     )}
                     <AgentChatExpansionContext value={expansion}>
-                        <AgentChatRevealFileContext value={revealFile}>
+                        <AgentChatDesktopFilesContext value={desktopFiles}>
                             <AgentChatSettledTimeline
                                 chunks={settledChunks}
                                 onOpenFile={openFile}
@@ -129,7 +129,7 @@ export function AgentChatTaskTimeline({
                                     onOpenFile={openFile}
                                 />
                             ))}
-                        </AgentChatRevealFileContext>
+                        </AgentChatDesktopFilesContext>
                     </AgentChatExpansionContext>
                     {timeline.length === 0 && (
                         <p className="m-0 py-8 text-center text-[13px] text-muted">

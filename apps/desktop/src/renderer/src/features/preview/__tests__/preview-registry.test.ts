@@ -1,7 +1,8 @@
 import type { PaneLayout } from '@caxri/protocol';
 import { filePreviewTabPath } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { useEnvironmentStore } from '../../../stores/environment';
 import {
     canPreviewPath,
     previewerForPath,
@@ -91,5 +92,18 @@ describe('previewOnlyTabPath', () => {
     it('reads a text-backed format as source even when its preview is open', () => {
         const layout = layoutWith(filePreviewTabPath('/p/README.md'));
         expect(previewOnlyTabPath('/p/README.md', layout)).toBeUndefined();
+    });
+});
+
+describe('canPreviewPath in an SSH Host window', () => {
+    const initial = useEnvironmentStore.getState().state;
+    afterEach(() => useEnvironmentStore.setState({ state: initial }));
+
+    it('offers no HTML preview, since this Mac serves it, while other formats keep theirs', () => {
+        expect(canPreviewPath('/p/report.html')).toBe(true);
+        useEnvironmentStore.setState({ state: { ...initial, kind: 'ssh' } as never });
+
+        expect(canPreviewPath('/p/report.html')).toBe(false);
+        expect(canPreviewPath('/p/README.md')).toBe(true);
     });
 });

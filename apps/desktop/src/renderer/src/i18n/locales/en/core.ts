@@ -60,6 +60,7 @@ export const core = {
     'core.markdown.openFile': 'Open {{file}}',
     'core.markdown.fileMenu.open': 'Open File',
     'core.markdown.fileMenu.revealInFinder': 'Reveal in Finder',
+    'core.markdown.fileMenu.openInBrowser': 'Open in Browser',
     'core.markdown.fileMenu.copyPath': 'Copy Path',
     'core.markdown.taskDone': 'Done: ',
     'core.markdown.taskTodo': 'To do: ',

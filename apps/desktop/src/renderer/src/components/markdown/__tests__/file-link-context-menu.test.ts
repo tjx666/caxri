@@ -32,4 +32,23 @@ describe('fileLinkContextMenu', () => {
 
         expect(items(entries).map((entry) => entry.label)).toEqual(['Open File', 'Copy Path']);
     });
+
+    it('offers Open in Browser right after Open File when the link names an HTML page', () => {
+        const onOpenInBrowser = vi.fn();
+        const entries = fileLinkContextMenu({
+            onCopy: vi.fn(),
+            onOpen: vi.fn(),
+            onOpenInBrowser,
+            onReveal: vi.fn(),
+        });
+
+        expect(items(entries).map((entry) => entry.label)).toEqual([
+            'Open File',
+            'Open in Browser',
+            'Reveal in Finder',
+            'Copy Path',
+        ]);
+        items(entries)[1]?.onSelect();
+        expect(onOpenInBrowser).toHaveBeenCalledTimes(1);
+    });
 });
