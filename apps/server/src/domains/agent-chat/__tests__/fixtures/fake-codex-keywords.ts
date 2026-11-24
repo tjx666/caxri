@@ -65,7 +65,12 @@ import {
     runQuestion,
     runQuestions,
 } from './fake-codex-approvals.ts';
-import { runTurnArtifacts, runTurnManyFiles, runTurnOutsideFile } from './fake-codex-artifacts.ts';
+import {
+    runTurnArtifacts,
+    runTurnManyFiles,
+    runTurnMemory,
+    runTurnOutsideFile,
+} from './fake-codex-artifacts.ts';
 import { runAutoCompact } from './fake-codex-autocompact.ts';
 import { runBurstStream } from './fake-codex-burst-stream.ts';
 import { runDefaultReply } from './fake-codex-default-reply.ts';
@@ -158,6 +163,8 @@ export async function runKeywordScenario(
         await runApprovalCommand(io, turn);
     } else if (text.includes('artifacts')) {
         await runTurnArtifacts(io, turn);
+    } else if (text.includes('memorycard')) {
+        await runTurnMemory(io, turn);
     } else if (text.includes('manyfiles')) {
         await runTurnManyFiles(io, turn);
     } else if (text.includes('outsidefile')) {

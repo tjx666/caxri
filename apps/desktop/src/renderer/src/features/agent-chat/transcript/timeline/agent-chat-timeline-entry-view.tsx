@@ -8,8 +8,8 @@ import { AgentChatDelegationNoticeRows } from '../../delegation/notice/agent-cha
 import { AgentChatNotice, AgentChatReply } from '../../messages/agent-chat-message';
 import { AgentChatUserMessage } from '../../messages/agent-chat-user-message';
 import { AgentChatWorkGroup } from '../../tools/agent-chat-work-group';
-import { AgentChatTurnArtifactList } from '../../turns/agent-chat-turn-artifact-list';
 import { AgentChatTurnFold } from '../../turns/agent-chat-turn-fold';
+import { AgentChatTurnArtifactList } from '../../turns/artifacts/agent-chat-turn-artifact-list';
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import { agentChatTimelineEntryKey } from '../agent-chat-timeline';
 import { AgentChatAnsweredQuestions } from '../questions/agent-chat-answered-questions';

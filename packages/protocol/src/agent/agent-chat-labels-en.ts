@@ -442,6 +442,15 @@ export const agentChatLabelsEn = {
     'agentChat.artifacts.deletedFile': 'Deleted {{name}}',
     'agentChat.artifacts.editedFile': 'Edited {{name}}',
 
+    // Memory cards (`agentChatMemoryActionLabel`, `agentChatMemoryTypeLabel`)
+    'agentChat.memory.created': 'Saved memory',
+    'agentChat.memory.updated': 'Updated memory',
+    'agentChat.memory.deleted': 'Forgot memory',
+    'agentChat.memory.type.user': 'User',
+    'agentChat.memory.type.feedback': 'Feedback',
+    'agentChat.memory.type.project': 'Project',
+    'agentChat.memory.type.reference': 'Reference',
+
     // Permission levels (`agentChatPermissionModeLabel`, `agentChatPermissionModeDescription`)
     'agentChat.permission.mode.readOnly': 'Read only',
     'agentChat.permission.mode.ask': 'Ask for approval',

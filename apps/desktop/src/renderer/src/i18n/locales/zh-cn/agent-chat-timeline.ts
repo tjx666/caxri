@@ -171,6 +171,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.plan.completed': '已完成',
     'agentChat.plan.inProgress': '进行中',
     'agentChat.plan.pending': '未开始',
+    'agentChat.memory.hide': '{{action}}：{{title}}。收起记忆',
+    'agentChat.memory.show': '{{action}}：{{title}}。查看记忆',
     'agentChat.tracker.createdPull': '已创建 Pull Request',
     'agentChat.tracker.updatedPull': '已更新 Pull Request',
     'agentChat.tracker.createdIssue': '已创建 Issue',

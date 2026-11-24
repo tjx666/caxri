@@ -1,16 +1,22 @@
 import { pathBasename } from '@caxri/utils';
 
-import type { AgentChatItem } from './agent-chat-contract.js';
+import type { AgentChatItem } from '../agent-chat-contract.js';
 import type {
     AgentChatDiffLine,
     AgentChatDiffStat,
     AgentChatFileChange,
-} from './agent-chat-diff.js';
-import { agentChatDiffLines, agentChatDiffLinesStat } from './agent-chat-diff.js';
-import type { AgentChatLabelTranslate } from './agent-chat-labels.js';
-import { translateAgentChatLabel } from './agent-chat-labels.js';
-import type { AgentChatTrackerArtifact } from './trackers/agent-chat-tracker-artifact.js';
-import { collectAgentChatTrackers } from './trackers/agent-chat-trackers.js';
+} from '../agent-chat-diff.js';
+import { agentChatDiffLines, agentChatDiffLinesStat } from '../agent-chat-diff.js';
+import type { AgentChatLabelTranslate } from '../agent-chat-labels.js';
+import { translateAgentChatLabel } from '../agent-chat-labels.js';
+import type { AgentChatTrackerArtifact } from '../trackers/agent-chat-tracker-artifact.js';
+import { collectAgentChatTrackers } from '../trackers/agent-chat-trackers.js';
+import type { AgentChatMemoryArtifact } from './agent-chat-memory-artifacts.js';
+import {
+    agentChatMemoryArtifact,
+    isAgentChatMemoryIndexPath,
+    isAgentChatMemoryPath,
+} from './agent-chat-memory-artifacts.js';
 
 /**
  * One file a finished turn changed, merged across every edit the turn made to it.
@@ -33,11 +39,16 @@ export interface AgentChatEditedFile extends AgentChatDiffStat {
 }
 
 /**
- * What a finished turn left behind: the files it changed and the issues and pull requests it created or edited.
+ * What a finished turn left behind: the files it changed, the memories it saved, and the issues and pull requests it
+ * created or edited.
  */
 export interface AgentChatTurnArtifacts {
     turnId: string;
+    /**
+     * Changed files other than memory files, which `memories` shows instead.
+     */
     files: readonly AgentChatEditedFile[];
+    memories: readonly AgentChatMemoryArtifact[];
     trackers: readonly AgentChatTrackerArtifact[];
     /**
      * Set by the Client when the projection's item budget dropped the start of this turn, so `files` covers only what
@@ -118,14 +129,36 @@ export function agentChatEditedFilesTitle(
 }
 
 /**
+ * Splits a turn's edited files into the memory files Claude Code saved and everything else. When the turn wrote a
+ * memory, its `MEMORY.md` pointer edit belongs to that memory and is dropped rather than listed as a changed file.
+ * Memory files leave `files`, so the turn's Undo and Review cover only the work it did in the Project.
+ */
+function partitionAgentChatMemoryFiles(files: readonly AgentChatEditedFile[]): {
+    files: AgentChatEditedFile[];
+    memories: AgentChatMemoryArtifact[];
+} {
+    const memories = files
+        .filter((file) => isAgentChatMemoryPath(file.path))
+        .map((file) => agentChatMemoryArtifact(file));
+    return {
+        memories,
+        files: files.filter(
+            (file) =>
+                !isAgentChatMemoryPath(file.path) &&
+                (memories.length === 0 || !isAgentChatMemoryIndexPath(file.path)),
+        ),
+    };
+}
+
+/**
  * The artifacts of one finished turn, or `undefined` when it changed no file and filed nothing.
  */
 export function collectAgentChatTurnArtifacts(
     turnId: string,
     items: readonly AgentChatItem[],
 ): AgentChatTurnArtifacts | undefined {
-    const files = collectAgentChatEditedFiles(items);
+    const { files, memories } = partitionAgentChatMemoryFiles(collectAgentChatEditedFiles(items));
     const trackers = collectAgentChatTrackers(items);
-    if (files.length === 0 && trackers.length === 0) return undefined;
-    return { turnId, files, trackers };
+    if (files.length === 0 && memories.length === 0 && trackers.length === 0) return undefined;
+    return { turnId, files, memories, trackers };
 }

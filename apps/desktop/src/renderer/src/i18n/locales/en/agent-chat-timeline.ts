@@ -177,6 +177,8 @@ export const agentChatTimeline = {
     'agentChat.plan.completed': 'Completed',
     'agentChat.plan.inProgress': 'In progress',
     'agentChat.plan.pending': 'Pending',
+    'agentChat.memory.hide': '{{action}}: {{title}}. Hide memory',
+    'agentChat.memory.show': '{{action}}: {{title}}. Show memory',
     'agentChat.tracker.createdPull': 'Created pull request',
     'agentChat.tracker.updatedPull': 'Updated pull request',
     'agentChat.tracker.createdIssue': 'Created issue',
