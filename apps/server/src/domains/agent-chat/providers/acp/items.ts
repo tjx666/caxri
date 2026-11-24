@@ -351,11 +351,16 @@ export const ACP_PROTOCOL_VERSION = 1;
 
 /**
  * The `initialize` request: Caxri offers no client filesystem or terminal, so the agent uses its own tools.
+ * `capabilities` adds the client capabilities one agent's dialect handles, such as Antigravity's elicitation forms.
  */
-export function acpInitializeParameters(clientVersion: string): Json {
+export function acpInitializeParameters(clientVersion: string, capabilities: Json = {}): Json {
     return {
         protocolVersion: ACP_PROTOCOL_VERSION,
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+        clientCapabilities: {
+            fs: { readTextFile: false, writeTextFile: false },
+            terminal: false,
+            ...capabilities,
+        },
         clientInfo: { name: 'caxri', title: 'Caxri', version: clientVersion },
     };
 }

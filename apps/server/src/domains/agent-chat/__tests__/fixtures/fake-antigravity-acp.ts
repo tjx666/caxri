@@ -42,6 +42,7 @@ import {
     encodeMessage,
     varint,
 } from '../../../agents/providers/antigravity/__tests__/fixtures/protobuf-encode.ts';
+import { askQuestions } from './fake-antigravity-questions.ts';
 
 interface RpcMessage {
     id?: number | string;
@@ -72,6 +73,10 @@ const state: {
      */
     prompts: number;
     nextRequestId: number;
+    /**
+     * Whether `initialize` advertised `elicitation.form`; like `agy` 1.5.16, the fake asks no question without it.
+     */
+    canElicit?: boolean;
 } = {
     updates: [],
     model: 'gemini-fake-flash',
@@ -373,6 +378,13 @@ async function prompt(text: string, images: number): Promise<Record<string, unkn
     } else if (text.includes('plan') && state.mode === 'plan') {
         writePlan();
         reply = 'Review the plan.';
+    } else if (text.includes('question')) {
+        reply = await askQuestions({
+            sessionId: state.sessionId,
+            canElicit: state.canElicit ?? false,
+            update,
+            request,
+        });
     } else if (text.includes('approve')) {
         reply = (await didRunCommand('npm test')) ? 'The command ran.' : 'The command did not run.';
     } else if (text.includes('read')) {
@@ -434,6 +446,9 @@ async function handle(message: RpcMessage): Promise<unknown> {
             const version = process.env.FAKE_ANTIGRAVITY_VERSION ?? '1.5.14-fake';
             // eslint-disable-next-line unicorn/no-process-exit -- this fake is the CLI process, quitting as old `agy` does
             if (version.startsWith('1.4.')) process.exit(2);
+            const capabilities = parameters.clientCapabilities as
+                { elicitation?: { form?: unknown } } | undefined;
+            state.canElicit = capabilities?.elicitation?.form !== undefined;
             return {
                 protocolVersion: 1,
                 agentCapabilities: {

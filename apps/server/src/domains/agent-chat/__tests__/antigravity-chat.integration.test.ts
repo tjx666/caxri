@@ -148,6 +148,58 @@ describe('AgentChatService with a fake Antigravity ACP agent', () => {
         expect(done.items.at(-1)).toMatchObject({ text: 'The command did not run.' });
     });
 
+    it('shows agy questions as a question card and answers its form', async () => {
+        const { service, terminal, signals, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'ask me a question' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        expect(request).toMatchObject({
+            kind: 'question',
+            questions: [
+                {
+                    id: 'q1',
+                    question: 'Which color?',
+                    options: [{ label: 'Red (Recommended)' }, { label: 'Blue' }],
+                    allowsOther: true,
+                },
+                {
+                    id: 'q2',
+                    question: 'Which fruits?',
+                    options: [{ label: 'Apple' }, { label: 'Pear' }],
+                    multiSelect: true,
+                },
+            ],
+        });
+        expect(pending.items.find((item) => item.id === request.id)).toMatchObject({
+            name: 'AskUserQuestion',
+        });
+        expect(signals.map((signal) => signal.phase)).toContain('attentionRequested');
+        service.respond(terminal.id, request.id, {
+            kind: 'answers',
+            answers: { q1: ['Green'], q2: ['Apple', 'Pear', 'Plum'] },
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.requests).toEqual([]);
+        expect(done.items.at(-1)).toMatchObject({
+            type: 'agentMessage',
+            text: 'Answers: {"q1_other":"Green","q2":["1","2"],"q2_other":"Plum"}',
+        });
+        expect(signals.map((signal) => signal.phase)).toContain('attentionResolved');
+    });
+
+    it('cancels an agy question the user skipped', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'antigravity' });
+        await service.send(terminal.id, { text: 'ask me a question' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        service.respond(terminal.id, pending.requests[0].id, {
+            kind: 'decision',
+            decision: 'cancel',
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.requests).toEqual([]);
+        expect(done.items.at(-1)).toMatchObject({ text: 'Answers: cancel' });
+    });
+
     it('names a file tool the way every Chat surface presents it', async () => {
         const { service, terminal, until } = await fixture({ provider: 'antigravity' });
         await service.send(terminal.id, { text: 'read the readme' });

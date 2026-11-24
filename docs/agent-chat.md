@@ -913,7 +913,9 @@ header, so question ids are positional (`q0`, `q1`, ...) and the answer goes bac
 text: one string, or a list for a `multiSelect` question. Skip answers `{"outcome":"cancelled"}`,
 which Grok Build reads as "the user declined to answer" and continues the turn. On
 `session/cancel` Grok Build stops the turn without withdrawing a pending question and ignores a
-later answer, so Caxri answers it `cancelled` and clears the card when the turn ends.
+later answer, so Caxri answers it `cancelled` and clears the card when the turn ends. Antigravity
+asks through a standard ACP form elicitation instead, which Caxri advertises (`elicitation.form`)
+for Antigravity only; see [Antigravity](antigravity.md#chat) for its form and answer shape.
 
 Codex server requests become pending `requests` keyed by the approval callback id when present,
 else the item id. Codex re-sends pending requests with fresh transport ids after a resume, and

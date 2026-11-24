@@ -30,6 +30,7 @@ const ANTIGRAVITY_TOOL_NAMES: Readonly<Record<string, string>> = {
     command_status: 'BashOutput',
     search_web: 'WebSearch',
     read_url_content: 'WebFetch',
+    ask_question: 'AskUserQuestion',
 };
 
 /**

@@ -33,6 +33,11 @@ export interface AcpDialect {
     label: string;
     presentation: AcpToolPresentation;
     questions?: AcpQuestionDialect;
+    /**
+     * Client capabilities `initialize` adds for this agent only, such as Antigravity's `elicitation.form`, which `agy`
+     * needs before it sends its questions to the client at all.
+     */
+    clientCapabilities?: Json;
     displayText?: (content: Json | undefined) => string | undefined;
     configState?: (configOptions: unknown) => Partial<AgentChatSnapshot> | undefined;
     /**

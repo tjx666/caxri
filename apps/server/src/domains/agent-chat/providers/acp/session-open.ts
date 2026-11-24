@@ -49,7 +49,7 @@ function isOlderThan(version: unknown, minimum: string): boolean {
  */
 export async function initializeAcpConnection(
     connection: JsonRpcConnection,
-    dialect: Pick<AcpDialect, 'label' | 'minimumVersion' | 'provider'>,
+    dialect: Pick<AcpDialect, 'clientCapabilities' | 'label' | 'minimumVersion' | 'provider'>,
     options: { clientVersion: string; executable: string },
     spawnFailure: () => ChatProcessEnd | undefined,
 ): Promise<Json> {
@@ -62,7 +62,7 @@ export async function initializeAcpConnection(
     try {
         initialized = await connection.request(
             'initialize',
-            acpInitializeParameters(options.clientVersion),
+            acpInitializeParameters(options.clientVersion, dialect.clientCapabilities),
             HANDSHAKE_TIMEOUT_MS,
         );
     } catch {

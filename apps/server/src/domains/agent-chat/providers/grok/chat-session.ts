@@ -23,6 +23,7 @@ import type { AcpActiveTurn } from '../acp/dialect';
 import { acpCommands } from '../acp/items';
 import { AcpChatSession, TURN_REQUEST_TIMEOUT_MS } from '../acp/session';
 import {
+    GROK_QUESTION_CANCELLED,
     grokContextWindow,
     grokDisplayText,
     grokEffort,
@@ -56,7 +57,11 @@ class GrokChatSession extends AcpChatSession {
                 provider: 'grok',
                 label: 'Grok Build',
                 presentation: grokToolPresentation,
-                questions: { request: mapGrokQuestion, answers: grokQuestionAnswers },
+                questions: {
+                    request: mapGrokQuestion,
+                    answers: grokQuestionAnswers,
+                    cancelled: GROK_QUESTION_CANCELLED,
+                },
                 displayText: grokDisplayText,
                 configState: (configOptions) => {
                     const effort = grokEffort(configOptions);
