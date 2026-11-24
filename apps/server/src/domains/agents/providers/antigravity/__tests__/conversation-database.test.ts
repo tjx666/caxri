@@ -8,17 +8,23 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
     antigravityConversationId,
     antigravityConversationStamp,
+    classifyAntigravityReadFailure,
     readAntigravityConversation,
     readAntigravityConversationHead,
+    readAntigravityConversationHeadResult,
+    readAntigravityConversationResult,
     readAntigravityConversationSummary,
     readAntigravityConversationUsage,
 } from '../conversation-database';
+import type { StoreReadFailureReport } from '../diagnostics/store-read-failures';
+import { setStoreReadFailureSink } from '../diagnostics/store-read-failures';
 import { decodeWireFields } from '../protobuf-wire';
 import { writeAntigravityConversation } from './fixtures/conversation-database';
 import { encodeMessage } from './fixtures/protobuf-encode';
 
 const ID = '0d5a5fdf-001d-44f8-b06c-ece668b72852';
 const PROJECT = '/workspace/demo-app';
+const NOT_A_DATABASE = 'not sqlite, but long enough to be read as a database header'.repeat(8);
 
 describe('Antigravity conversation database', () => {
     let home: string;
@@ -124,6 +130,71 @@ describe('Antigravity conversation database', () => {
         await writeFile(path, 'not sqlite');
         expect(readAntigravityConversation(path)).toBeUndefined();
         expect(readAntigravityConversation(join(home, 'missing.db'))).toBeUndefined();
+    });
+
+    it('names why a read failed with a closed reason', async () => {
+        const missing = join(home, 'missing.db');
+        expect(readAntigravityConversationResult(missing)).toEqual({
+            ok: false,
+            reason: 'missing',
+        });
+
+        const corrupt = join(home, 'corrupt.db');
+        await writeFile(corrupt, NOT_A_DATABASE);
+        expect(readAntigravityConversationResult(corrupt)).toEqual({
+            ok: false,
+            reason: 'corrupt',
+        });
+
+        const changed = await writeAntigravityConversation(home, { id: ID, turns: [] });
+        const database = new Database(changed);
+        database.exec('DROP TABLE steps');
+        database.close();
+        expect(readAntigravityConversationResult(changed)).toEqual({
+            ok: false,
+            reason: 'schema',
+        });
+        expect(readAntigravityConversationHeadResult(changed)).toEqual({
+            ok: false,
+            reason: 'schema',
+        });
+    });
+
+    it('classifies better-sqlite3 result codes', () => {
+        expect(classifyAntigravityReadFailure({ code: 'SQLITE_BUSY' }, '/x')).toBe('locked');
+        expect(classifyAntigravityReadFailure({ code: 'SQLITE_LOCKED' }, '/x')).toBe('locked');
+        expect(classifyAntigravityReadFailure({ code: 'SQLITE_CORRUPT' }, '/x')).toBe('corrupt');
+        expect(classifyAntigravityReadFailure({ code: 'SQLITE_NOTADB' }, '/x')).toBe('corrupt');
+        expect(
+            classifyAntigravityReadFailure(
+                { code: 'SQLITE_ERROR', message: 'no such column: metadata' },
+                '/x',
+            ),
+        ).toBe('schema');
+        expect(classifyAntigravityReadFailure({ code: 'SQLITE_IOERR' }, '/x')).toBe('unreadable');
+    });
+
+    it('reports a failing read per streak and at each doubling, never a missing file', async () => {
+        const reports: StoreReadFailureReport[] = [];
+        setStoreReadFailureSink((report) => reports.push(report));
+        try {
+            const corrupt = join(home, 'corrupt.db');
+            await writeFile(corrupt, NOT_A_DATABASE);
+            for (let attempt = 0; attempt < 5; attempt += 1) readAntigravityConversation(corrupt);
+            readAntigravityConversation(join(home, 'missing.db'));
+            expect(reports).toEqual([
+                { site: 'conversation', reason: 'corrupt', count: 1 },
+                { site: 'conversation', reason: 'corrupt', count: 2 },
+                { site: 'conversation', reason: 'corrupt', count: 4 },
+            ]);
+
+            const good = await writeAntigravityConversation(home, { id: ID, turns: [] });
+            readAntigravityConversation(good);
+            readAntigravityConversation(corrupt);
+            expect(reports.at(-1)).toEqual({ site: 'conversation', reason: 'corrupt', count: 1 });
+        } finally {
+            setStoreReadFailureSink(undefined);
+        }
     });
 
     it('covers the write-ahead log in the conversation stamp', async () => {

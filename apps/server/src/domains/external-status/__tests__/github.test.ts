@@ -279,7 +279,7 @@ describe('GitHubPullRequestStore', () => {
             '--repo',
             'example/example',
             '--json',
-            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,isCrossRepository,baseRefOid,headRefOid,mergeCommit,mergedAt,mergeable,mergeStateStatus,changedFiles',
+            'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,isCrossRepository,baseRefOid,headRefOid,mergeCommit,mergedAt,closedAt,mergeable,mergeStateStatus,changedFiles',
         ]);
     });
 });

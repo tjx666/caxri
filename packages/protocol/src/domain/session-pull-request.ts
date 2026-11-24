@@ -68,6 +68,12 @@ export const sessionPullRequestSchema = z.object({
      * from one made elsewhere.
      */
     mergedAt: z.number().optional(),
+    /**
+     * When GitHub closed the pull request, in epoch milliseconds; present only for a merged or closed pull request
+     * whose timestamp GitHub reported. Automatic Mark as Done compares it with the Session's Agent turns so a follow-up
+     * turn started after a close that was not a merge survives a Server Core restart.
+     */
+    closedAt: z.number().optional(),
 });
 
 const sessionPullRequestsSchema = z.object({

@@ -22,6 +22,7 @@ import { CaxriError, isCaxriError } from '@caxri/protocol';
 import type { AgentEnvironment, AgentLifecycleSignal, ReportedAgentSkill } from '../agents';
 import type { McpServerReport } from './chat-mcp-servers';
 import type { ProviderGroupRegistration } from './provider-process-groups';
+import type { ChatTurnHoldHost } from './providers/chat-turn-hold';
 
 /**
  * The seam between `AgentChatService` and one provider's structured protocol. The service owns the Terminal row, the
@@ -177,7 +178,7 @@ export type SpawnChatProcess = (
  * Everything a provider session may read or report. Callbacks are fenced by the service: once a session is replaced or
  * closed, its late reports are dropped.
  */
-export interface AgentChatSessionHost {
+export interface AgentChatSessionHost extends ChatTurnHoldHost {
     terminalId: string;
     cwd: string;
     executable: string;

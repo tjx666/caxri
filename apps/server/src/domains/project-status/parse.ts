@@ -45,6 +45,7 @@ const githubPullRequestSchema = z.object({
     mergeStateStatus: z.string().optional(),
     mergeCommit: z.object({ oid: z.string() }).nullish(),
     mergedAt: z.string().nullish(),
+    closedAt: z.string().nullish(),
     changedFiles: z.number().int().nonnegative().optional(),
     state: z.string().optional(),
     number: z.number().int().positive().optional(),
@@ -255,6 +256,11 @@ export function parseGitHubPullRequest(
      */
     mergedAt?: number;
     /**
+     * When GitHub closed the pull request (a merge closes it too), in epoch milliseconds; absent while open or when the
+     * timestamp is unparsable.
+     */
+    closedAt?: number;
+    /**
      * How many files the whole pull request changes; absent when GitHub did not report it.
      */
     changedFiles?: number;
@@ -276,6 +282,7 @@ export function parseGitHubPullRequest(
             : aggregateChecks(checks);
     const mergeBlocker = pullRequestMergeBlocker({ mergeState, state });
     const mergedAt = mergedAtMilliseconds(raw.mergedAt);
+    const closedAt = mergedAtMilliseconds(raw.closedAt);
     return {
         body: raw.body ?? '',
         mergeCommit:
@@ -284,6 +291,7 @@ export function parseGitHubPullRequest(
                 ? raw.mergeCommit?.oid
                 : undefined,
         ...(mergedAt !== undefined && { mergedAt }),
+        ...(closedAt !== undefined && { closedAt }),
         ...(raw.changedFiles !== undefined && { changedFiles: raw.changedFiles }),
         pullRequest: {
             number: raw.number,

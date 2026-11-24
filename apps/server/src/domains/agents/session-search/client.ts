@@ -190,11 +190,14 @@ export class SessionSearchIndex {
             case 'pass': {
                 this.lastStatus = reply.status;
                 const { durationMs, excluded, scanFailed, ...counts } = reply.report;
-                // A record past the head read's caps or a scan that stopped early hides a real conversation, so either is
-                // as loud as a failed file.
+                // A record past the head read's caps, a scan that stopped early, or an Antigravity database that is
+                // corrupt or no longer has the expected tables hides a real conversation, so each is as loud as a failed
+                // file. A locked database is retried next pass and stays at debug.
                 const isLossy =
                     counts.failed > 0 ||
                     (excluded.oversizedRecord ?? 0) > 0 ||
+                    (excluded.schemaChanged ?? 0) > 0 ||
+                    (excluded.corrupt ?? 0) > 0 ||
                     Object.keys(scanFailed).length > 0;
                 logger.write(isLossy ? 'warn' : 'debug', logEventCatalog.sessionSearch.indexPass, {
                     durationMs,

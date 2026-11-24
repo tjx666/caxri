@@ -1,6 +1,7 @@
 import type { UsageLimit } from '@caxri/protocol';
 
 import { runExternalCommand } from '../../../executables';
+import { clearStoreReadFailure, reportStoreReadFailure } from './diagnostics/store-read-failures';
 
 /**
  * Antigravity's own quota answer: `agy -p /usage --output-format json` runs the built-in `/usage` command without a
@@ -104,16 +105,23 @@ export function parseAntigravityUsage(stdout: string, now: number): AntigravityU
     try {
         answer = JSON.parse(stdout);
     } catch {
+        reportStoreReadFailure('usageCommand', 'parse');
         return { status: 'unknown' };
     }
-    if (!isRecord(answer)) return { status: 'unknown' };
-    if (answer.status !== 'SUCCESS')
-        return /authenticat|log ?in|sign ?in/iu.test(stringField(answer.error) ?? '')
-            ? { status: 'signedOut' }
-            : { status: 'unknown' };
+    if (!isRecord(answer)) {
+        reportStoreReadFailure('usageCommand', 'shape');
+        return { status: 'unknown' };
+    }
+    if (answer.status !== 'SUCCESS') {
+        if (/authenticat|log ?in|sign ?in/iu.test(stringField(answer.error) ?? ''))
+            return { status: 'signedOut' };
+        reportStoreReadFailure('usageCommand', 'shape');
+        return { status: 'unknown' };
+    }
     const command = isRecord(answer.command) ? answer.command : undefined;
     const data = isRecord(command?.data) ? command.data : undefined;
     const groups = Array.isArray(data?.groups) ? data.groups : [];
+    clearStoreReadFailure('usageCommand');
     return { status: 'signedIn', limit: { observedAt: now, windows: readWindows(groups) } };
 }
 
@@ -144,8 +152,10 @@ export async function readAntigravityUsage(
         }));
     } catch (error) {
         const failure = error as { killed?: unknown; stdout?: unknown };
-        if (failure.killed === true || typeof failure.stdout !== 'string')
+        if (failure.killed === true || typeof failure.stdout !== 'string') {
+            reportStoreReadFailure('usageCommand', failure.killed === true ? 'timeout' : 'spawn');
             return { status: 'unknown' };
+        }
         stdout = failure.stdout;
     }
     return parseAntigravityUsage(stdout, now());

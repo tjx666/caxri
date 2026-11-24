@@ -67,3 +67,35 @@ export type ServerIdleExitDeferralReason = 'active-pty';
  * `server_core.load_changed` deferral counts and in a slow `git.command` record's `background` field.
  */
 export type BackgroundWorkSource = 'delivery-watch' | 'project-status-poll' | 'pull-request-sweep';
+
+/**
+ * Closed set of Antigravity private stores and read paths whose failures `agent.antigravity_store_read_failed` names.
+ * `conversation`, `usage`, `userSteps`, `head` read one `conversations/<id>.db`; `summary` and `title` read
+ * `conversation_summaries.db`; `usageCommand` is the `agy -p /usage` probe.
+ */
+export type AntigravityStoreReadSite =
+    'conversation' | 'head' | 'summary' | 'title' | 'usage' | 'usageCommand' | 'userSteps';
+
+/**
+ * Closed reason set for `agent.antigravity_store_read_failed`. Database reads: `missing` (no file), `locked`
+ * (`SQLITE_BUSY`/`SQLITE_LOCKED`, transient), `schema` (a table or column `agy` changed), `corrupt`
+ * (`SQLITE_CORRUPT`/`SQLITE_NOTADB`), `unreadable` (anything else). The `/usage` probe: `spawn` (the command failed to
+ * run), `timeout`, `parse` (stdout was not JSON), `shape` (JSON without the expected fields).
+ */
+export type AntigravityStoreReadFailureReason =
+    | 'corrupt'
+    | 'locked'
+    | 'missing'
+    | 'parse'
+    | 'schema'
+    | 'shape'
+    | 'spawn'
+    | 'timeout'
+    | 'unreadable';
+
+/**
+ * Closed reason set for `agent_chat.turn_hold_released`: `call_finished` (the last holding call reported its end),
+ * `stopped` (the user pressed Stop), `process_ended` (the provider process ended), `superseded` (the turn ended by
+ * another path while held).
+ */
+export type TurnHoldReleaseReason = 'call_finished' | 'process_ended' | 'stopped' | 'superseded';

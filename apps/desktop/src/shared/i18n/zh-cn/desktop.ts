@@ -247,6 +247,8 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.externalFile.message': '要打开项目之外的 {{name}} 吗？',
     'desktop.externalFile.detail':
         '{{path}}\n\n此文件不在任何已添加的项目中。Caxri 会在编辑器中打开它而不添加项目，保存时会写回此文件。信任该文件夹后，打开 {{folder}} 下的文件将不再提示。',
+    'desktop.externalFile.htmlDetail':
+        '{{path}}\n\n此页面不在任何已添加的项目中。Caxri 会以实时预览打开它，页面中的脚本会运行，并可读取 {{folder}} 中的文件。信任该文件夹后，打开 {{folder}} 下的文件将不再提示。',
     'desktop.externalFile.trustFolder': '信任文件夹并打开',
     'desktop.externalFile.copyPath': '复制路径',
     'desktop.delegationImport.title': '导入 dianjiang 预设',

@@ -24,6 +24,7 @@ export function parseSessionPullRequest(
 ): SessionPullRequest | undefined {
     const {
         changedFiles,
+        closedAt,
         mergedAt,
         pullRequest: parsed,
     } = parseGitHubPullRequest(output, ignoredChecks);
@@ -40,6 +41,7 @@ export function parseSessionPullRequest(
         // GitHub reports 0 for a pull request it has not computed yet; a count of nothing is shown as unknown.
         ...(changedFiles !== undefined && changedFiles > 0 && { changedFiles }),
         ...(state === 'merged' && mergedAt !== undefined && { mergedAt }),
+        ...((state === 'merged' || state === 'closed') && closedAt !== undefined && { closedAt }),
     };
 }
 

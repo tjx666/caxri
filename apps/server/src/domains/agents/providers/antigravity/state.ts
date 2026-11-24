@@ -5,6 +5,8 @@ import Database from 'better-sqlite3';
 
 import type { AgentEnvironment, AgentSnapshotContext, LocalAgentState } from '../../contract';
 import { isOpaqueAgentSessionId } from '../../contract';
+import { classifyAntigravityReadFailure } from './conversation-database';
+import { clearStoreReadFailure, reportStoreReadFailure } from './diagnostics/store-read-failures';
 import { antigravityStateDirectory } from './paths';
 
 /**
@@ -22,18 +24,20 @@ export function readAntigravityState(
     const { agentSessionId } = context;
     if (!agentSessionId || !isOpaqueAgentSessionId(agentSessionId))
         return Promise.resolve(undefined);
+    const summariesPath = join(antigravityStateDirectory(environment), 'conversation_summaries.db');
     let database: Database.Database | undefined;
     let row: { title?: unknown } | undefined;
     try {
-        database = new Database(
-            join(antigravityStateDirectory(environment), 'conversation_summaries.db'),
-            { fileMustExist: true, readonly: true },
-        );
+        database = new Database(summariesPath, { fileMustExist: true, readonly: true });
         row = database
             .prepare('SELECT title FROM conversation_summaries WHERE conversation_id = ?')
             .get(agentSessionId) as { title?: unknown } | undefined;
-    } catch {
-        // A missing index, a schema Antigravity changed, or a write lock all mean no title to publish.
+        clearStoreReadFailure('title');
+    } catch (error) {
+        // A missing index, a schema Antigravity changed, or a write lock all mean no title to publish; the closed
+        // reason is reported once so a silent title failure stays diagnosable.
+        const reason = classifyAntigravityReadFailure(error, summariesPath);
+        if (reason !== 'missing') reportStoreReadFailure('title', reason);
         return Promise.resolve(undefined);
     } finally {
         database?.close();

@@ -261,6 +261,8 @@ export const desktop = {
     'desktop.externalFile.message': 'Open {{name}} from outside your Projects?',
     'desktop.externalFile.detail':
         '{{path}}\n\nThis file is outside every added Project. Caxri opens it in the editor without adding a Project, and saving writes back to this file. Trusting the folder skips this prompt for files under {{folder}}.',
+    'desktop.externalFile.htmlDetail':
+        '{{path}}\n\nThis page is outside every added Project. Caxri shows it as a live preview that runs its scripts and can read files in {{folder}}. Trusting the folder skips this prompt for files under {{folder}}.',
     'desktop.externalFile.trustFolder': 'Trust Folder and Open',
     'desktop.externalFile.copyPath': 'Copy Path',
     'desktop.delegationImport.title': 'Import dianjiang presets',

@@ -164,4 +164,29 @@ describe('AutoMarkDone', () => {
         expect(listVisibleSessions).toHaveBeenCalledTimes(1);
         sweep.dispose();
     });
+
+    it('keeps a follow-up turn across a restart using the closedAt GitHub reported', () => {
+        vi.useFakeTimers();
+        const monday = 10 * DAY_MS;
+        const wednesday = monday + 2 * DAY_MS;
+        const settle = vi.fn(() => []);
+        const sweep = new AutoMarkDone({
+            database: {
+                attentionMarks: { settle },
+                listVisibleSessions: () => [session({ turnStartedAt: monday + DAY_MS })],
+            },
+            logger: { write: vi.fn() },
+            now: () => wednesday,
+            pullRequest: () => ({ closedAt: monday, state: 'closed' }),
+            send: vi.fn(),
+            settings: () => ({
+                'agentActivity.autoMarkDoneAfterInactivity': 'off',
+                'agentActivity.autoMarkDoneOnPullRequestClose': true,
+            }),
+        });
+        sweep.sweep();
+
+        expect(settle).not.toHaveBeenCalled();
+        sweep.dispose();
+    });
 });

@@ -2,6 +2,7 @@ import { mkdtemp, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { AgentEnvironment } from '../contract';
@@ -117,4 +118,32 @@ describe('Session search over Antigravity conversations', () => {
         ).toEqual([BILLING]);
         expect(engine.search({ query: 'welcome tour', limit: 10 }).hits).toHaveLength(1);
     });
+
+    it('retries a conversation that was locked, without waiting for Antigravity to write again', async () => {
+        const path = await writeAntigravityConversation(home, {
+            id: BILLING,
+            cwd: PROJECT,
+            title: 'Invoice rounding drift',
+            turns: [{ prompt: 'Why does the total drift?', reply: 'Per line item.', at: AT }],
+        });
+        // An exclusive lock leaves the file bytes (and so the stored identity) untouched.
+        const holder = new Database(path);
+        holder.pragma('locking_mode = EXCLUSIVE');
+        holder.exec('BEGIN EXCLUSIVE');
+        let report: Awaited<ReturnType<typeof engine.indexer.refresh>>;
+        try {
+            report = await engine.indexer.refresh();
+        } finally {
+            holder.exec('ROLLBACK');
+            holder.close();
+        }
+        expect(report.excluded.locked).toBe(1);
+        expect(engine.search({ query: 'invoice', limit: 10 }).hits).toEqual([]);
+
+        // Nothing changed on disk, yet the next pass reads the conversation now that the lock is gone.
+        await engine.indexer.refresh();
+        expect(
+            engine.search({ query: 'invoice', limit: 10 }).hits.map((hit) => hit.agentSessionId),
+        ).toEqual([BILLING]);
+    }, 30_000);
 });

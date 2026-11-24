@@ -41,6 +41,53 @@ describe('TerminalReplayBuffer', () => {
         ]);
     });
 
+    it('drains pending output and stays usable when the snapshot write rejects', async () => {
+        const writes: string[] = [];
+        const failure = new Error('snapshot write failed');
+        let isFirst = true;
+        const buffer = new TerminalReplayBuffer((value) => {
+            writes.push(value);
+            if (isFirst) {
+                isFirst = false;
+                return Promise.reject(failure);
+            }
+            return Promise.resolve();
+        });
+
+        buffer.push('before');
+        const restoration = buffer.restore('snapshot');
+        buffer.push('during');
+        await expect(restoration).rejects.toBe(failure);
+
+        buffer.push('after');
+        await expect(buffer.restore('')).resolves.toBeUndefined();
+        expect(writes).toEqual(['snapshot', 'before', 'during', 'after']);
+    });
+
+    it('reports dropped output over the cap when the snapshot write rejects', async () => {
+        const dropped: number[] = [];
+        let isFirst = true;
+        const buffer = new TerminalReplayBuffer(
+            () => {
+                if (!isFirst) return Promise.resolve();
+                isFirst = false;
+                return Promise.reject(new Error('snapshot write failed'));
+            },
+            {
+                maximumPendingBytes: 2,
+                maximumPendingItems: 1,
+                onDroppedOutput: (n) => dropped.push(n),
+            },
+        );
+
+        const restoration = buffer.restore('snapshot');
+        buffer.push('ab');
+        buffer.push('cdef');
+        await expect(restoration).rejects.toThrow('snapshot write failed');
+
+        expect(dropped).toEqual([4]);
+    });
+
     it('bounds initial replay output and emits one aggregated marker after the retained prefix', async () => {
         const writes: string[] = [];
         const snapshotWrite = Promise.withResolvers<void>();

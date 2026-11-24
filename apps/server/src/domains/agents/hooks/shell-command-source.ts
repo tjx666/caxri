@@ -1,5 +1,9 @@
 /**
- * The one Shell command parser and pattern matcher shared by the standalone hook bridge and Server Core.
+ * The Shell command parser and pattern matcher shared by the standalone hook bridge and Server Core's hook classifiers.
+ *
+ * Presentation code parses commands its own way and is not bound to this parser's semantics: the tool-row word splitter
+ * (`@caxri/protocol` `tool-rows/shell/words.ts`) refuses input it cannot split faithfully, and the Chat trackers keep
+ * `$(...)` whole. A change here therefore does not change how a command is labeled in Chat.
  *
  * It is plain JavaScript source rather than TypeScript because the hook bridge (`bridge.cjs`) embeds it verbatim, while
  * Server Core compiles the same source through {@link shellCommandMatchesAny}, so a command the Terminal path classifies

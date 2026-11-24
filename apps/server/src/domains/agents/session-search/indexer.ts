@@ -1,5 +1,3 @@
-import { lstat } from 'node:fs/promises';
-
 import { normalizeSessionSearchText } from '@caxri/protocol';
 import { mapWithConcurrency } from '@caxri/system';
 
@@ -14,10 +12,7 @@ import {
     readCodexThreadIndex,
 } from '../external-conversation-parsers';
 import { compactInlineMediaPayloads } from '../inline-media';
-import {
-    antigravityConversationStamp,
-    readAntigravityConversation,
-} from '../providers/antigravity/conversation-database';
+import { readAntigravityConversationResult } from '../providers/antigravity/conversation-database';
 import { isCompressedTranscriptPath } from '../transcript-compression';
 import type { DiscoveredTranscript } from '../transcript-discovery';
 import { discoverTranscripts } from '../transcript-discovery';
@@ -26,6 +21,9 @@ import { scanTranscriptLines } from '../transcript-scan';
 import type { AgentTranscriptLocation, TranscriptScanFailureReason } from '../transcript-security';
 import type { VisibleTranscriptMessage } from '../visible-transcript-message';
 import { extractVisibleTranscriptMessage } from '../visible-transcript-message';
+import { antigravityReadExclusion } from './antigravity-candidate';
+import type { FileIdentity } from './file-identity';
+import { fileIdentity, isUnchanged, transcriptIdentity, yieldToEventLoop } from './file-identity';
 import type {
     IndexedMessage,
     SessionSearchStore,
@@ -72,7 +70,8 @@ export interface IndexerPassReport {
     removed: number;
     /**
      * Changed transcripts this pass stored as not a conversation, by cause. A rebuild re-reads every transcript, so its
-     * pass counts the whole index; `oversizedRecord` is the cause that hides a real conversation.
+     * pass counts the whole index; `oversizedRecord` is the cause that hides a real conversation. `locked` is counted
+     * but not stored: the transcript is retried on the next pass.
      */
     excluded: Partial<Record<ConversationExclusionReason, number>>;
     /**
@@ -84,12 +83,6 @@ export interface IndexerPassReport {
      * stream counts as `decompressFailed`.
      */
     scanFailed: Partial<Record<TranscriptScanFailureReason, number>>;
-}
-
-interface FileIdentity {
-    inode: number;
-    size: number;
-    mtimeMs: number;
 }
 
 interface ChangedTranscript {
@@ -112,42 +105,6 @@ function transcriptKey(provider: string, agentSessionId: string): string {
  */
 function isSkippedHosted(stored: StoredTranscript | undefined): boolean {
     return stored?.state === 'hosted' && stored.scanOffset === 0;
-}
-
-/**
- * An Antigravity conversation is a SQLite database whose recent writes sit in its write-ahead log, so its identity
- * covers both files.
- */
-async function transcriptIdentity(
-    provider: StoredTranscript['provider'],
-    path: string,
-): Promise<FileIdentity | undefined> {
-    if (provider !== 'antigravity') return fileIdentity(path);
-    const stamp = await antigravityConversationStamp(path);
-    return stamp && { inode: stamp.inode, size: stamp.size, mtimeMs: stamp.mtimeMs };
-}
-
-async function fileIdentity(path: string): Promise<FileIdentity | undefined> {
-    try {
-        const stats = await lstat(path);
-        if (!stats.isFile()) return;
-        return { inode: stats.ino, size: stats.size, mtimeMs: Math.trunc(stats.mtimeMs) };
-    } catch {
-        return undefined;
-    }
-}
-
-function isUnchanged(stored: StoredTranscript | undefined, identity: FileIdentity): boolean {
-    return (
-        stored !== undefined &&
-        stored.inode === identity.inode &&
-        stored.size === identity.size &&
-        stored.mtimeMs === identity.mtimeMs
-    );
-}
-
-function yieldToEventLoop(): Promise<void> {
-    return new Promise((resolve) => setImmediate(resolve));
 }
 
 /**
@@ -376,7 +333,6 @@ export class SessionSearchIndexer {
             stored !== undefined &&
             stored.inode === identity.inode &&
             identity.size >= stored.scanOffset;
-        if (stored && !isSameFile) this.store.clearMessages(stored.id);
         const base: TranscriptUpsert = {
             path: found.main.path,
             provider: found.provider,
@@ -403,6 +359,13 @@ export class SessionSearchIndexer {
                       identity,
                       codex,
                   );
+        /**
+         * A locked Antigravity database is transient: storing it would stamp the unchanged identity on an excluded row
+         * and `runPass` would never look again. Leave the row as it was (and keep its indexed messages) so the next
+         * pass retries it.
+         */
+        if (parsed === 'locked') return parsed;
+        if (stored && !isSameFile) this.store.clearMessages(stored.id);
         if (typeof parsed === 'string') {
             if (stored) this.store.clearMessages(stored.id);
             this.store.saveTranscript({
@@ -440,28 +403,40 @@ export class SessionSearchIndexer {
          * reads the rest of the file next time instead of trusting a half-indexed one.
          */
         const id = this.store.saveTranscript({ ...conversation, size: -1 });
-        const final =
-            found.provider === 'antigravity'
-                ? this.indexAntigravity({ ...conversation, id })
-                : await this.scanContent({ ...conversation, id }, identity, onScanFailure);
-        this.store.saveTranscript(final);
+        if (found.provider === 'antigravity') {
+            const indexed = this.indexAntigravity({ ...conversation, id });
+            // A lock while reading the body keeps the row's never-matching size, so the next pass reads it again.
+            if (indexed.reason === 'locked') return indexed.reason;
+            this.store.saveTranscript(indexed.transcript);
+            return indexed.reason;
+        }
+        this.store.saveTranscript(
+            await this.scanContent({ ...conversation, id }, identity, onScanFailure),
+        );
         return undefined;
     }
 
     /**
      * Reads an Antigravity conversation's visible messages from its database in one go; the row was cleared above.
      */
-    private indexAntigravity(
-        transcript: TranscriptUpsert & { id: number },
-    ): TranscriptUpsert & { id: number } {
+    private indexAntigravity(transcript: TranscriptUpsert & { id: number }): {
+        transcript: TranscriptUpsert & { id: number };
+        reason?: ConversationExclusionReason;
+    } {
         const collector = new MessageCollector(MAX_TRANSCRIPT_CHARS);
-        const visible = readAntigravityConversation(transcript.path)?.messages ?? [];
+        const read = readAntigravityConversationResult(transcript.path);
+        if (!read.ok && read.reason === 'locked') return { transcript, reason: 'locked' };
+        const visible = read.ok ? read.value.messages : [];
         for (const message of visible) collector.add({ ...message, isChunk: false });
         const messages = collector.drain();
         const indexed = { ...transcript, scanOffset: 0, isSkippingLine: false };
         const indexedChars = indexedLength(messages);
         this.store.appendMessages({ ...indexed, size: -1, indexedChars }, messages);
-        return { ...indexed, indexedChars };
+        const reason = read.ok ? undefined : antigravityReadExclusion(read.reason, 'unreadable');
+        return {
+            transcript: { ...indexed, indexedChars },
+            ...(reason !== undefined && reason !== 'unreadable' && { reason }),
+        };
     }
 
     private async scanContent(

@@ -65,7 +65,7 @@ function createHarness(fixture: Fixture = {}) {
         logger: { write } as unknown as StructuredLogger,
         now: () => clock.now,
     });
-    return { archived, clock, restore, resumed, sessions, stored, write };
+    return { archived, clock, database, restore, resumed, sessions, stored, write };
 }
 
 describe('QuitRestore', () => {
@@ -129,6 +129,41 @@ describe('QuitRestore', () => {
         restore.record();
         await restore.restore();
         expect(resumed.map(({ sessionId }) => sessionId)).toEqual(['s1']);
+    });
+
+    it('keeps Sessions not yet relaunched in the record, so a crash mid-restore loses only the in-flight one', async () => {
+        const live = { s1: ['t-s1'], s2: ['t-s2'], s3: ['t-s3'] };
+        const harness = createHarness({ live });
+        const recorded = (): string[] =>
+            (
+                harness.stored.get('quitStoppedSessions') as {
+                    sessions: Array<{ sessionId: string }>;
+                }
+            ).sessions.map(({ sessionId }) => sessionId);
+        const seen: string[][] = [];
+        const crashing = new QuitRestore({
+            database: harness.database,
+            livePtyIds: (sessionId) =>
+                (live as Record<string, string[] | undefined>)[sessionId] ?? [],
+            hasLiveChat: () => false,
+            isWorking: () => false,
+            resume: (sessionId) => {
+                seen.push(recorded());
+                // The second resume never settles: the process dies there, so no finally runs.
+                return sessionId === 's2' ? new Promise<void>(() => {}) : Promise.resolve();
+            },
+            logger: { write: vi.fn() } as unknown as StructuredLogger,
+            now: () => 1_000,
+        });
+        crashing.record();
+        void crashing.restore();
+        await vi.waitFor(() => expect(seen).toHaveLength(2));
+        // Each entry leaves the record before its relaunch, so a relaunch that takes Server Core down is not retried in
+        // a loop by the next start.
+        expect(seen).toEqual([['s2', 's3'], ['s3']]);
+        expect(recorded()).toEqual(['s3']);
+        // The next Server Core still offers what the crash left.
+        expect(harness.restore.pending().count).toBe(1);
     });
 
     describe('restoreAfterUpdate', () => {
@@ -206,21 +241,23 @@ describe('QuitRestore', () => {
             expect(restore.pending().count).toBe(1);
         });
 
-        it("never fails Server Core's start when the record cannot be claimed", () => {
-            const { restore, stored, write } = createHarness({ unwritable: true });
+        it("never fails Server Core's start when progress cannot be written", async () => {
+            const { restore, resumed, stored, write } = createHarness({ unwritable: true });
             stored.set('quitStoppedSessions', {
                 stoppedAt: 1_000,
                 restartedForUpdate: true,
                 sessions: [{ sessionId: 's1', terminalIds: ['t-s1'], shouldContinue: false }],
             });
-            expect(restore.restoreAfterUpdate()).toBeUndefined();
+            await expect(restore.restoreAfterUpdate()).resolves.toEqual({
+                restored: 1,
+                skipped: 0,
+            });
+            expect(resumed).toHaveLength(1);
             expect(write).toHaveBeenCalledWith(
                 'warn',
                 'session.quit_stopped_auto_restore_failed',
                 expect.anything(),
             );
-            // The record survives for the launch notice.
-            expect(restore.pending().count).toBe(1);
         });
     });
 

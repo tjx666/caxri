@@ -54,8 +54,8 @@ a live PTY or a live Chat and stores, in the `quitStoppedSessions` app state row
 
 ## Restoring
 
-`session.restoreQuitStopped` consumes the record first, so a second run (or one from another
-client) restores nothing twice, then relaunches the Sessions one at a time without moving any
+`session.restoreQuitStopped` marks a restore as running in memory first, so a second run (or one
+from another client) restores nothing twice, then relaunches the Sessions one at a time without moving any
 window's selection, through the same path Airplane Mode resumes with:
 
 1. The recorded `stopped` PTYs relaunch on their bound Agent conversations (`--resume`), and a
@@ -69,6 +69,14 @@ window's selection, through the same path Airplane Mode resumes with:
 A Session deleted or archived since the quit, or one whose relaunch fails, is skipped and keeps
 its stopped Terminals for a manual restart. The toast reports how many Sessions were restored and
 how many were skipped; with no record it says no Sessions were stopped at the last quit.
+
+The stored record is not cleared up front. Each Session leaves it just before its relaunch starts,
+so if Server Core is killed or crashes partway through, for example during the third of 6, the
+three Sessions after it stay in the record: the next start restores them (an update record still
+within 30 minutes) or the launch notice offers them. The Session being relaunched when the process
+died is not retried, so a relaunch that itself takes Server Core down cannot loop across restarts;
+it keeps its stopped Terminals for a manual restart. A failed automatic relaunch is written back to
+the record for the launch notice; a failed manual one is dropped.
 
 ## After an update
 

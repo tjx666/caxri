@@ -26,6 +26,11 @@ interface DeletionHandlerOptions {
 }
 
 /**
+ * Bounds the rounds that fence Sessions created while a Project deletion waited; see `project.delete`.
+ */
+const maxProjectDeleteRounds = 4;
+
+/**
  * Reclaims private delegation files before the owning metadata disappears, then retires runtime and selection state.
  * Authorized Project folders and user files are never deletion targets.
  */
@@ -95,18 +100,45 @@ export function createDeletionHandlers(
         },
         'project.delete': ({ projectId, windowKey }) =>
             options.mobileTerminalMutations.runProject(projectId, () => {
-                const { owned, workbench } = database.projectDeletionScope(projectId);
-                const affected = [
-                    ...new Set([...owned, ...workbench].map((session) => session.id)),
-                ];
-                return options.delegations.deleteSessions(
-                    owned.map((session) => session.id),
-                    () =>
+                /**
+                 * Retires the Project's Sessions behind the delegation fence and the mutation queue. Both waits are
+                 * asynchronous, so a Session an Agent delegation creates meanwhile is missing from the scope read
+                 * before them: the database cascade would delete its row while its delegation private files and pending
+                 * questions and approvals survive. After the waits the scope is read again; Sessions the fence did not
+                 * cover are fenced, cleaned and forgotten by one more round, nested inside this one, until a read finds
+                 * nothing new. A round limit bounds a Project that keeps gaining Sessions; the last round then proceeds
+                 * with the scope it read.
+                 */
+                const retire = (
+                    scope: ReturnType<typeof database.projectDeletionScope>,
+                    fenced: ReadonlySet<string>,
+                    round: number,
+                ): Promise<BootstrapState> => {
+                    const owned = scope.owned.map((session) => session.id);
+                    const affected = [
+                        ...new Set(
+                            [...scope.owned, ...scope.workbench].map((session) => session.id),
+                        ),
+                    ];
+                    return options.delegations.deleteSessions(owned, () =>
                         options.mobileTerminalMutations.runSessions(affected, () => {
-                            // The scope read above predates the fence and queue waits, so a Session created meanwhile
-                            // is missing from it. Re-read it here so runtime and view state are retired for exactly the
-                            // Sessions the cascade deletes.
                             const fresh = database.projectDeletionScope(projectId);
+                            const covered = new Set([...fenced, ...owned]);
+                            if (
+                                round < maxProjectDeleteRounds &&
+                                fresh.owned.some((session) => !covered.has(session.id))
+                            ) {
+                                return retire(
+                                    {
+                                        owned: fresh.owned.filter(
+                                            (session) => !covered.has(session.id),
+                                        ),
+                                        workbench: [],
+                                    },
+                                    covered,
+                                    round + 1,
+                                );
+                            }
                             const freshAffected = [
                                 ...new Set(
                                     [...fresh.owned, ...fresh.workbench].map(
@@ -122,7 +154,9 @@ export function createDeletionHandlers(
                             options.projectMetadataDeleted?.();
                             return finish('project.delete', windowKey);
                         }),
-                );
+                    );
+                };
+                return retire(database.projectDeletionScope(projectId), new Set(), 0);
             }),
     };
 }

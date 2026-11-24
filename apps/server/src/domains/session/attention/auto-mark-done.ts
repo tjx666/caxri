@@ -113,7 +113,9 @@ export interface AutoMarkDoneOptions {
     /**
      * Each Session's pull request as last resolved in this Server Core, without a GitHub lookup.
      */
-    pullRequest(sessionId: string): Pick<SessionPullRequest, 'mergedAt' | 'state'> | undefined;
+    pullRequest(
+        sessionId: string,
+    ): Pick<SessionPullRequest, 'closedAt' | 'mergedAt' | 'state'> | undefined;
     send(event: ServerEvent): void;
     settings(): Parameters<typeof autoMarkDonePolicy>[0];
 }
@@ -165,7 +167,9 @@ export class AutoMarkDone {
         if (!pullRequest) return undefined;
         const isClosed = pullRequest.state === 'merged' || pullRequest.state === 'closed';
         return {
-            closedAt: isClosed ? (pullRequest.mergedAt ?? this.noteClosed(sessionId)) : undefined,
+            closedAt: isClosed
+                ? (pullRequest.mergedAt ?? pullRequest.closedAt ?? this.noteClosed(sessionId))
+                : undefined,
             state: pullRequest.state,
         };
     }

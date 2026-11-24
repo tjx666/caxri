@@ -102,6 +102,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
             (event) => options.lifecycle(event),
             dialect.presentation,
             dialect.shouldHoldTurn,
+            (event) => options.onTurnHold?.(event),
         );
         this.updates = new AcpUpdates({
             apply: (operations) => options.apply(operations),
@@ -209,7 +210,7 @@ export abstract class AcpChatSession implements AgentChatProviderSession {
         const turn = this.activeTurn;
         if (turn?.id !== turnId) return;
         this.activeTurn = undefined;
-        this.runningTools.clear();
+        this.runningTools.clear('superseded');
         this.updates.closeStreaming();
         const durationMs = Date.now() - turn.startedAt;
         const snapshot = this.options.read();

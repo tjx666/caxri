@@ -58,7 +58,8 @@ export type PullRequestFetchOutcome = 'fetched' | 'missing' | 'failed' | 'rate-l
 
 /**
  * Fetches GitHub outcomes through the shared `gh` runner with fixed argv. A rate-limit or authentication failure ends
- * the pass early; the remaining URLs stay pending for the next one.
+ * the pass early; the remaining URLs stay pending for the next one. `onFailed` receives each URL whose lookup failed
+ * permanently (gh error, bad JSON, schema mismatch) so the caller can back it off; nothing is stored for it.
  */
 export async function fetchPullRequestOutcomes(
     urls: readonly string[],
@@ -66,6 +67,7 @@ export async function fetchPullRequestOutcomes(
     cwd: string,
     save: (row: PullRequestOutcomeRow) => void,
     now: () => number,
+    onFailed?: (url: string) => void,
 ): Promise<Record<PullRequestFetchOutcome, number>> {
     const counts: Record<PullRequestFetchOutcome, number> = {
         'fetched': 0,
@@ -134,6 +136,7 @@ export async function fetchPullRequestOutcomes(
                     isStopped = true;
                 } else {
                     counts.failed += 1;
+                    onFailed?.(url);
                 }
             }
         }
