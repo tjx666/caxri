@@ -3,7 +3,7 @@ import { createStore } from '../../../../lib/store';
 /**
  * A collapsible section in the composer strip, or the usage guard card above it.
  */
-export type AgentChatStripSection = 'plan' | 'usageGuard';
+export type AgentChatStripSection = 'background' | 'plan' | 'usageGuard';
 
 interface AgentChatStripFoldsState {
     /**
@@ -39,6 +39,20 @@ export function toggleAgentChatStripFold(terminalId: string, section: AgentChatS
     useStripFoldsStore.setState(({ collapsed }) => ({
         collapsed: withToggledFold(collapsed, terminalId, section),
     }));
+}
+
+/**
+ * Expands `section` for `terminalId` when it is collapsed; a no-op otherwise.
+ */
+export function expandAgentChatStripSection(
+    terminalId: string,
+    section: AgentChatStripSection,
+): void {
+    useStripFoldsStore.setState(({ collapsed }) =>
+        collapsed.get(terminalId)?.has(section)
+            ? { collapsed: withToggledFold(collapsed, terminalId, section) }
+            : { collapsed },
+    );
 }
 
 export function useIsAgentChatStripSectionCollapsed(

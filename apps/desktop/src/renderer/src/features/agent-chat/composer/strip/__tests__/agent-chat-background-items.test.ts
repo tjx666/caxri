@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatBackgroundItems,
+    agentChatBackgroundRows,
     delegatedBackgroundItemId,
     delegatedBackgroundState,
-    foldAgentChatBackgroundItems,
+    splitAgentChatBackgroundItems,
 } from '../agent-chat-background-items';
 
 function entry(
@@ -131,44 +132,52 @@ describe('agentChatBackgroundItems', () => {
     });
 });
 
-describe('foldAgentChatBackgroundItems', () => {
+describe('splitAgentChatBackgroundItems', () => {
+    const OPENED_AT = 1000;
     const items = agentChatBackgroundItems({
-        delegated: [entry('child')],
+        delegated: [
+            entry('running-child'),
+            entry('failed-earlier', {
+                failure: 'provider_failed',
+                settledAt: 10,
+                status: 'failed',
+            }),
+            entry('cut-earlier', {
+                failure: 'target_changed',
+                settledAt: 10,
+                status: 'interrupted',
+            }),
+            entry('reset-earlier', { failure: 'host_reset', settledAt: 20, status: 'failed' }),
+            entry('cut-now', { failure: 'target_changed', settledAt: 2000, status: 'interrupted' }),
+            entry('cut-undated', { status: 'interrupted' }),
+        ],
         dismissedIds: NONE,
-        work: {
-            failed: [shell('broken', 'failed')],
-            running: [
-                workflow('verify'),
-                task('reviewer', 'running'),
-                shell('build'),
-                shell('lint'),
-            ],
-        },
+        work: { failed: [shell('broken', 'failed')], running: [shell('build')] },
     });
 
-    it('keeps every row that needs the user and fills the rest of three in display order', () => {
-        const { hiddenCount, shown } = foldAgentChatBackgroundItems(items);
-        expect(ids(shown)).toEqual(['broken', 'delegation:child', 'verify']);
-        expect(hiddenCount).toBe(3);
+    it('moves interruptions that settled before the window opened out of the rows and counts the rest', () => {
+        const { current, earlier, needsYouCount, runningCount } = splitAgentChatBackgroundItems(
+            items,
+            OPENED_AT,
+        );
+        expect(ids(earlier)).toEqual(['delegation:cut-earlier', 'delegation:reset-earlier']);
+        // A real failure keeps its row (and its retry actions) however old it is; an undated interruption counts as now.
+        expect(ids(current)).toEqual([
+            'delegation:failed-earlier',
+            'delegation:cut-now',
+            'delegation:cut-undated',
+            'broken',
+            'delegation:running-child',
+            'build',
+        ]);
+        expect({ needsYouCount, runningCount }).toEqual({ needsYouCount: 4, runningCount: 2 });
     });
 
-    it('keeps the folded rows in display order, so unfolding only inserts rows between them', () => {
-        const { shown } = foldAgentChatBackgroundItems(items);
-        const positions = shown.map((item) => items.indexOf(item));
-        expect(positions).toEqual(positions.toSorted((left, right) => left - right));
-    });
-
-    it('shows past three when more rows need the user, and hides nothing for a short list', () => {
-        const attention = agentChatBackgroundItems({
-            delegated: [],
-            dismissedIds: NONE,
-            work: {
-                failed: ['a', 'b', 'c', 'd'].map((id) => shell(id, 'failed')),
-                running: [shell('build')],
-            },
-        });
-        expect(foldAgentChatBackgroundItems(attention)).toMatchObject({ hiddenCount: 1 });
-        expect(ids(foldAgentChatBackgroundItems(attention).shown)).toEqual(['a', 'b', 'c', 'd']);
-        expect(foldAgentChatBackgroundItems(items.slice(0, 3)).hiddenCount).toBe(0);
+    it('shows the earlier rows on request between the rows that need the user and the running work', () => {
+        const { current, earlier } = splitAgentChatBackgroundItems(items, OPENED_AT);
+        expect(agentChatBackgroundRows(current, earlier, false)).toEqual(current);
+        const shown = ids(agentChatBackgroundRows(current, earlier, true));
+        expect(shown.slice(4, 6)).toEqual(['delegation:cut-earlier', 'delegation:reset-earlier']);
+        expect(shown.slice(6)).toEqual(['delegation:running-child', 'build']);
     });
 });

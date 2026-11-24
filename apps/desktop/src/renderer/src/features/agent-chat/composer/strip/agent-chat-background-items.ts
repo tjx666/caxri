@@ -26,7 +26,7 @@ interface BackgroundItemBase {
      */
     id: string;
     /**
-     * The row needs the user (a question or approval, a failure, an interruption): it is never folded away.
+     * The row needs the user (a question or approval, a failure, an interruption): the header counts it.
      */
     requiresUser: boolean;
 }
@@ -34,11 +34,6 @@ interface BackgroundItemBase {
 export type AgentChatBackgroundItem =
     | (BackgroundItemBase & { kind: 'delegated'; entry: AgentDelegationSession })
     | (BackgroundItemBase & { kind: 'workflow' | 'subagent' | 'shell'; task: AgentChatTask });
-
-/**
- * How many rows the list shows while folded. Rows that need the user always show, even past this.
- */
-export const AGENT_CHAT_BACKGROUND_FOLDED_ROWS = 3;
 
 /**
  * Failures that mean the task was cut short rather than failing at its work: its Terminal was replaced or closed, or a
@@ -129,21 +124,54 @@ export function agentChatBackgroundItems({
 }
 
 /**
- * The rows a folded list shows and how many it leaves behind its `N more` line. Every row that needs the user stays;
- * the remaining slots up to `AGENT_CHAT_BACKGROUND_FOLDED_ROWS` go to the rest in display order. The kept rows keep
- * their display order, so unfolding only inserts rows between them and never moves one already in view.
+ * Whether a row is an interruption that settled before `openedAt` (when this window opened): a delegated task its
+ * Terminal or a restart cut short during an earlier run of Caxri. Those pile up after a restart, so the list counts
+ * them in its header (`N interrupted earlier`) and shows their rows only on request. A real failure stays a row: it
+ * carries its retry actions. An interruption without `settledAt` counts as current.
  */
-export function foldAgentChatBackgroundItems(items: readonly AgentChatBackgroundItem[]): {
-    hiddenCount: number;
-    shown: AgentChatBackgroundItem[];
+function isEarlierInterruption(item: AgentChatBackgroundItem, openedAt: number): boolean {
+    if (item.kind !== 'delegated') return false;
+    const { entry } = item;
+    const isInterruption =
+        entry.status === 'interrupted' ||
+        (entry.status === 'failed' &&
+            entry.failure !== undefined &&
+            INTERRUPTING_FAILURES.has(entry.failure));
+    return isInterruption && entry.settledAt !== undefined && entry.settledAt < openedAt;
+}
+
+/**
+ * The list split for its header: `current` rows (in display order) and the `earlier` interruptions
+ * (`isEarlierInterruption`) the header counts instead of listing, with what the header says about `current`: how many
+ * rows need the user and how many still run.
+ */
+export function splitAgentChatBackgroundItems(
+    items: readonly AgentChatBackgroundItem[],
+    openedAt: number,
+): {
+    current: AgentChatBackgroundItem[];
+    earlier: AgentChatBackgroundItem[];
+    needsYouCount: number;
+    runningCount: number;
 } {
-    const attention = items.filter((item) => item.requiresUser).length;
-    let slots = Math.max(0, AGENT_CHAT_BACKGROUND_FOLDED_ROWS - attention);
-    const shown = items.filter((item) => {
-        if (item.requiresUser) return true;
-        if (slots === 0) return false;
-        slots -= 1;
-        return true;
-    });
-    return { hiddenCount: items.length - shown.length, shown };
+    const current: AgentChatBackgroundItem[] = [];
+    const earlier: AgentChatBackgroundItem[] = [];
+    for (const item of items)
+        (isEarlierInterruption(item, openedAt) ? earlier : current).push(item);
+    const needsYouCount = current.filter((item) => item.requiresUser).length;
+    return { current, earlier, needsYouCount, runningCount: current.length - needsYouCount };
+}
+
+/**
+ * The rows the list shows: the current rows that need the user, then the earlier interruptions when the user opened
+ * them, then the work still running. Opening the earlier rows only inserts rows, never moves one already in view.
+ */
+export function agentChatBackgroundRows(
+    current: readonly AgentChatBackgroundItem[],
+    earlier: readonly AgentChatBackgroundItem[],
+    isEarlierShown: boolean,
+): AgentChatBackgroundItem[] {
+    const attention = current.filter((item) => item.requiresUser);
+    const live = current.filter((item) => !item.requiresUser);
+    return [...attention, ...(isEarlierShown ? earlier : []), ...live];
 }

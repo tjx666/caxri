@@ -7,6 +7,7 @@ import { runServerDatabase } from './support/run-server-database.ts';
 import type {
     DeepDelegatedChatSeed,
     DelegatedChatSeed,
+    InterruptedDelegatedChatSeed,
 } from './support/server-database/delegated-chat-seed.ts';
 
 /**
@@ -131,6 +132,76 @@ test('the strip rolls up a failed grandchild and names the direct child it sits 
         await expect(deeper).toContainText('Port the billing exports');
         await expect(deeper).toContainText('via Coordinate the migration');
         await page.screenshot({ path: testInfo.outputPath('delegated-via.png') });
+    } finally {
+        await chat.cleanup();
+    }
+});
+
+/**
+ * Interruptions an earlier run left take no rows: the header counts them, shows them on request, and Clear dismisses
+ * them for good, so a restart never refills the list. A real failure from that run keeps its row.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('the strip counts interruptions from an earlier run in its header and clears them for good', async ({}, testInfo) => {
+    const chat = await launchDelegatingChat('caxri-delegated-interrupted-');
+    try {
+        const { projectId, sessionId: hostId } = await createParentSession(chat);
+        await chat.writeScript(projectId);
+        await openAgentChat(chat.running.page, 'Codex Chat');
+        await chat.running.app.close();
+        const input = { userData: chat.userData, hostSessionId: hostId, projectId };
+        const failed = await runServerDatabase<DelegatedChatSeed>('delegated-chat-seed', {
+            ...input,
+            phase: 'children',
+        });
+        const cut = await runServerDatabase<InterruptedDelegatedChatSeed>('delegated-chat-seed', {
+            ...input,
+            phase: 'interrupted',
+        });
+        chat.running = await launchCaxri(chat.launchOptions);
+        const { page } = chat.running;
+        await selectSession(page, hostId);
+        const strip = page
+            .locator(VISIBLE_SESSION)
+            .getByRole('region', { name: 'Background work' });
+        const rowOf = (id: string) => strip.locator(`[data-agent-chat-delegated-session="${id}"]`);
+        const fold = strip.locator('[data-agent-chat-strip-fold]');
+        const earlier = strip.locator('[data-agent-chat-background-earlier]');
+
+        await expect(fold).toContainText('1 needs you');
+        await expect(earlier).toHaveText('2 interrupted earlier');
+        await expect(rowOf(failed.quota)).toBeVisible();
+        await expect(rowOf(cut.targetChanged)).toHaveCount(0);
+        await expect(rowOf(cut.hostReset)).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('interrupted-earlier.png') });
+
+        // The count shows their rows after the ones that need the user, and hides them again.
+        await earlier.click();
+        await expect(rowOf(cut.targetChanged)).toBeVisible();
+        await expect(rowOf(cut.hostReset)).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('interrupted-earlier-shown.png') });
+        await earlier.click();
+        await expect(rowOf(cut.targetChanged)).toHaveCount(0);
+
+        // The header folds everything, the failure included, and keeps its counts.
+        await fold.click();
+        await expect(rowOf(failed.quota)).toHaveCount(0);
+        await expect(fold).toContainText('1 needs you');
+        await expect(earlier).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('interrupted-folded.png') });
+        await fold.click();
+
+        await strip
+            .getByRole('button', { name: 'Clear the delegations interrupted earlier' })
+            .click();
+        await expect(earlier).toHaveCount(0);
+        await expect(rowOf(failed.quota)).toBeVisible();
+
+        // The dismissal outlives the window.
+        await page.reload();
+        await selectSession(page, hostId);
+        await expect(rowOf(failed.quota)).toBeVisible();
+        await expect(earlier).toHaveCount(0);
     } finally {
         await chat.cleanup();
     }

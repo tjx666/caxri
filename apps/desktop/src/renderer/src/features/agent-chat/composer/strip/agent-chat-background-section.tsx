@@ -17,23 +17,38 @@ import {
 import { useChatDelegatedSessions } from '../../delegation/hooks/use-chat-delegated-sessions';
 import { useDelegatedCost } from '../../delegation/hooks/use-delegated-cost';
 import { AgentChatTaskEntry } from '../../tasks/agent-chat-task-entry';
+import { AgentChatBackgroundHeaderActions } from './agent-chat-background-header-actions';
 import type { AgentChatBackgroundItem } from './agent-chat-background-items';
 import {
-    AGENT_CHAT_BACKGROUND_FOLDED_ROWS,
     agentChatBackgroundItems,
-    foldAgentChatBackgroundItems,
+    agentChatBackgroundRows,
+    splitAgentChatBackgroundItems,
 } from './agent-chat-background-items';
-import { AgentChatBackgroundMoreRow } from './agent-chat-background-more-row';
-import { markAgentChatFailuresSeen, useAgentChatSeenFailures } from './agent-chat-seen-failures';
+import {
+    dismissDelegatedBackgroundItems,
+    useDismissedDelegations,
+} from './agent-chat-dismissed-delegations';
+import { markAgentChatFailuresSeen } from './agent-chat-seen-failures';
+import { expandAgentChatStripSection } from './agent-chat-strip-folds';
+import { AgentChatStripSection } from './agent-chat-strip-section';
 import type { AgentChatBackgroundWork } from './agent-chat-strip-sections';
 
 const NO_DELEGATIONS: readonly AgentDelegationSession[] = [];
 
 /**
- * The list itself: one row per item in `agentChatBackgroundItems` order, folded to the rows that need the user plus up
- * to `AGENT_CHAT_BACKGROUND_FOLDED_ROWS`, with a `N more` line for the rest. No header: the rows say what runs, and a
- * polite live region announces what the delegated rows need (the strip announces the task counts). Leaves the strip
- * once nothing runs and nothing needs the user.
+ * When this window opened: a delegated interruption that settled before it is from an earlier run of Caxri (or of this
+ * window) and counts under the header instead of taking a row (`isEarlierInterruption`). Fixed for the window's
+ * lifetime, so reading it during render stays pure.
+ */
+const WINDOW_OPENED_AT = performance.timeOrigin;
+
+/**
+ * The list itself: a collapsible section whose header names it and says what matters even folded (how many rows need
+ * the user, how many still run, how many delegations an earlier run left interrupted), then one row per item in
+ * `agentChatBackgroundRows` order. The header folds everything, rows that need the user included; unfolded, every row
+ * shows and the strip's height cap scrolls them. A polite live region announces what the delegated rows need (the strip
+ * announces the task counts). Leaves the strip once nothing runs, nothing needs the user, and no earlier interruption
+ * is left.
  */
 function BackgroundList({
     delegated,
@@ -52,16 +67,18 @@ function BackgroundList({
     onOpenTask: ((taskId: string) => void) | undefined;
 }) {
     const { t } = useTranslation();
-    const dismissedIds = useAgentChatSeenFailures(terminalId);
-    const [isExpanded, setExpanded] = useState(false);
+    const dismissedIds = useDismissedDelegations();
+    const [isEarlierShown, setEarlierShown] = useState(false);
     const listId = useId();
     const items = agentChatBackgroundItems({ delegated, dismissedIds, work });
-    const { hiddenCount, shown } = foldAgentChatBackgroundItems(items);
-    const canFold = hiddenCount > 0;
-    // Adjusting state during render: a list that shrank back under the fold starts folded the next time it grows.
-    if (isExpanded && items.length <= AGENT_CHAT_BACKGROUND_FOLDED_ROWS) setExpanded(false);
+    const { current, earlier, needsYouCount, runningCount } = splitAgentChatBackgroundItems(
+        items,
+        WINDOW_OPENED_AT,
+    );
+    // Adjusting state during render: once the earlier rows are all dismissed, the next ones start hidden again.
+    if (isEarlierShown && earlier.length === 0) setEarlierShown(false);
     if (items.length === 0) return null;
-    const delegatedEntries = items.flatMap((item) =>
+    const delegatedEntries = current.flatMap((item) =>
         item.kind === 'delegated' ? [item.entry] : [],
     );
     const { asking, failed, needsInput, waiting } = delegatedSessionsHeaderParts(
@@ -70,14 +87,58 @@ function BackgroundList({
     );
     // The task counts live in the strip's own region, which outlives this list; this one adds what the delegated rows need.
     const announcement = [needsInput, failed, waiting, asking].filter(Boolean);
-    const dismiss = (id: string) => () => markAgentChatFailuresSeen(terminalId, [id]);
-    const rows = isExpanded || !canFold ? items : shown;
+    const dismiss = (item: AgentChatBackgroundItem) => () => {
+        if (item.kind === 'delegated') dismissDelegatedBackgroundItems([item.id]);
+        else markAgentChatFailuresSeen(terminalId, [item.id]);
+    };
+    const stoppableTaskIds = (work?.running ?? []).filter(canStopAgentChatTask).map(({ id }) => id);
+    const rows = agentChatBackgroundRows(current, earlier, isEarlierShown);
     return (
-        <section
-            aria-label={t('agentChat.tasks.backgroundWork')}
-            className="group/background border-0 border-b border-solid border-border p-1"
-            data-agent-chat-composer-strip-row=""
-            data-agent-chat-strip-section="background"
+        <AgentChatStripSection
+            actions={
+                <AgentChatBackgroundHeaderActions
+                    earlierCount={earlier.length}
+                    isEarlierShown={isEarlierShown}
+                    listId={listId}
+                    stoppableTaskIds={stoppableTaskIds}
+                    terminalId={terminalId}
+                    onClearEarlier={() =>
+                        dismissDelegatedBackgroundItems(earlier.map(({ id }) => id))
+                    }
+                    onToggleEarlier={() => {
+                        // Showing the earlier rows inside a folded section would show nothing.
+                        if (!isEarlierShown) expandAgentChatStripSection(terminalId, 'background');
+                        setEarlierShown((value) => !value);
+                    }}
+                />
+            }
+            label={t('agentChat.tasks.backgroundWork')}
+            section="background"
+            status={
+                <>
+                    {needsYouCount > 0 && (
+                        <span className="min-w-0 truncate text-danger">
+                            {t(
+                                needsYouCount === 1
+                                    ? 'agentChat.tasks.needsYouOne'
+                                    : 'agentChat.tasks.needsYouOther',
+                                { count: needsYouCount },
+                            )}
+                        </span>
+                    )}
+                    {needsYouCount > 0 && runningCount > 0 && (
+                        <span aria-hidden="true" className="shrink-0">
+                            ·
+                        </span>
+                    )}
+                    {runningCount > 0 && (
+                        <span className="min-w-0 truncate">
+                            {t('agentChat.tasks.runningCount', { count: runningCount })}
+                        </span>
+                    )}
+                </>
+            }
+            terminalId={terminalId}
         >
             <span aria-live="polite" className="sr-only" role="status">
                 {announcement.join(', ')}
@@ -88,7 +149,7 @@ function BackgroundList({
                         renderDelegated(
                             item,
                             item.requiresUser && !isDelegationNeedsInput(item.entry)
-                                ? dismiss(item.id)
+                                ? dismiss(item)
                                 : undefined,
                         )
                     ) : (
@@ -96,25 +157,13 @@ function BackgroundList({
                             key={item.id}
                             task={item.task}
                             terminalId={terminalId}
-                            onDismiss={item.requiresUser ? dismiss(item.id) : undefined}
+                            onDismiss={item.requiresUser ? dismiss(item) : undefined}
                             onOpenTask={onOpenTask}
                         />
                     ),
                 )}
             </ul>
-            {canFold && (
-                <AgentChatBackgroundMoreRow
-                    hiddenCount={hiddenCount}
-                    isExpanded={isExpanded}
-                    listId={listId}
-                    stoppableTaskIds={(work?.running ?? [])
-                        .filter(canStopAgentChatTask)
-                        .map(({ id }) => id)}
-                    terminalId={terminalId}
-                    onToggle={() => setExpanded((value) => !value)}
-                />
-            )}
-        </section>
+        </AgentChatStripSection>
     );
 }
 

@@ -13,9 +13,10 @@ interface Input {
      * one direct child with a grandchild whose settled task failed, the case the parent strip rolls up "via" its
      * branch. `attention` (app closed) creates two settled children whose sidebar status raises unread attention: one
      * finished, one waiting on the user. The other phases leave every Session's attention at zero, so a nested row's
-     * amber cue can only be inspected through this one.
+     * amber cue can only be inspected through this one. `interrupted` (app closed) creates two children whose tasks a
+     * Terminal loss and a restart cut short, settled before the next launch: the interruptions an earlier run left.
      */
-    phase: 'attention' | 'blocked' | 'children' | 'deep';
+    phase: 'attention' | 'blocked' | 'children' | 'deep' | 'interrupted';
     blockedSessionId?: string;
     /**
      * The profile directory that holds `caxri.db`. The app must not be running on it.
@@ -62,6 +63,14 @@ export interface DeepDelegatedChatSeed {
 }
 
 /**
+ * The `interrupted` phase's Sessions: one whose Terminal was lost, one a Server restart cut short.
+ */
+export interface InterruptedDelegatedChatSeed {
+    targetChanged: string;
+    hostReset: string;
+}
+
+/**
  * The `attention` phase's Sessions: a nested child with an unread finished result and one with an unread question.
  */
 export interface AttentionDelegatedChatSeed {
@@ -78,7 +87,12 @@ const HOUR = 3_600_000;
  */
 export function run(
     input: Input,
-): AttentionDelegatedChatSeed | DeepDelegatedChatSeed | DelegatedChatSeed | null {
+):
+    | AttentionDelegatedChatSeed
+    | DeepDelegatedChatSeed
+    | DelegatedChatSeed
+    | InterruptedDelegatedChatSeed
+    | null {
     const path = join(input.userData, 'caxri.db');
     const database = new CaxriDatabase(path);
     let attentionSeed: AttentionDelegatedChatSeed | undefined;
@@ -86,7 +100,9 @@ export function run(
         const now = Date.now();
         // The blocked and deep phases can run on a database the children phase already filled (the debug skill's
         // `seed-delegated-chat.ts` runs children then deep), so each phase's IDs start in their own range.
-        let sequence = { attention: 300, blocked: 100, children: 0, deep: 200 }[input.phase];
+        let sequence = { attention: 300, blocked: 100, children: 0, deep: 200, interrupted: 400 }[
+            input.phase
+        ];
         const create = (
             title: string,
             relation: SessionRelation,
@@ -101,7 +117,7 @@ export function run(
         const record = (
             sessionId: string,
             receipt: {
-                status: 'answer_unavailable' | 'blocked' | 'completed' | 'failed';
+                status: 'answer_unavailable' | 'blocked' | 'completed' | 'failed' | 'interrupted';
                 failure?: AgentDelegationReceipt['failure'];
                 failureResetsAt?: number;
                 provider: 'claude' | 'codex';
@@ -155,6 +171,23 @@ export function run(
                 isSettled: true,
             });
             return { branch, leaf };
+        }
+        if (input.phase === 'interrupted') {
+            const targetChanged = create('Review the backfill plan', 'delegated');
+            const hostReset = create('Read the signup source table', 'delegated');
+            record(targetChanged, {
+                status: 'interrupted',
+                failure: 'target_changed',
+                provider: 'codex',
+                isSettled: true,
+            });
+            record(hostReset, {
+                status: 'interrupted',
+                failure: 'host_reset',
+                provider: 'claude',
+                isSettled: true,
+            });
+            return { targetChanged, hostReset };
         }
         if (input.phase === 'attention') {
             const finished = create('Draft the release notes', 'delegated');

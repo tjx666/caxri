@@ -31,6 +31,7 @@ export function AgentChatStripSection({
     label,
     meta,
     section,
+    status,
     summary,
     terminalId,
 }: {
@@ -44,10 +45,14 @@ export function AgentChatStripSection({
      * How many items the section holds, right after its label (`Background work 3`).
      */
     count?: number;
-    glyph: ReactNode;
+    glyph?: ReactNode;
     label: string;
-    meta: ReactNode;
+    meta?: ReactNode;
     section: AgentChatStripSectionName;
+    /**
+     * Shown after the label and count whether or not the section is collapsed (`2 need you · 3 running`).
+     */
+    status?: ReactNode;
     /**
      * Shown after the label only while the section is collapsed.
      */
@@ -90,10 +95,13 @@ export function AgentChatStripSection({
                         {count !== undefined && (
                             <span className="shrink-0 tabular-nums">{count}</span>
                         )}
+                        {status}
                         {isCollapsed && summary && (
                             <span className="min-w-0 truncate">{summary}</span>
                         )}
-                        <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
+                        {meta !== undefined && (
+                            <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
+                        )}
                     </button>
                     {actions}
                     <button
