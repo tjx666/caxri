@@ -97,7 +97,7 @@ export const AgentChatMemoryCard = ({
                 </Text>
             </AgentChatResultRow>
             {isExpanded ? (
-                <View style={styles.detail}>
+                <View style={styles.detail} testID={`agent-chat-memory-${memory.name}-detail`}>
                     {memory.description ? (
                         <Text
                             numberOfLines={1}

@@ -3,7 +3,12 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, isReachedWithin, waitForCheck } from './mobile-agent-chat-helpers';
+import {
+    hasCheck,
+    isReachedWithin,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
 import { tapMobileCheck, waitForMobile } from './mobile-android';
 
 /**
@@ -45,9 +50,12 @@ export async function executeMobileMemoryCardScenario(
         await capture(environment, 'memory-cards', artifacts);
         if (!hasCards) throw new Error('The turn ends without a memory card');
         await tapMobileCheck(serial, SAVED);
+        await waitForCheck(serial, `${SAVED}-detail`);
         await capture(environment, 'memory-saved-open', artifacts);
         await tapMobileCheck(serial, SAVED);
+        await waitForNoCheck(serial, `${SAVED}-detail`);
         await tapMobileCheck(serial, UPDATED);
+        await waitForCheck(serial, `${UPDATED}-detail`);
         await capture(environment, 'memory-updated-open', artifacts);
         await finish(environment, artifacts, { status: 'passed' });
     } finally {
