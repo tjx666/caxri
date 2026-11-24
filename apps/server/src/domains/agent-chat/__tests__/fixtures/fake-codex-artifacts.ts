@@ -109,6 +109,56 @@ export async function runTurnArtifacts(io: FakeCodexIo, turn: FakeTurn) {
 }
 
 /**
+ * `memorycard`: a turn that saves a Claude Code memory file, points `MEMORY.md` at it, and edits another memory, so the
+ * Chat shows memory cards instead of the edited-files card. The files go under the fixture HOME's `.claude`, as Claude
+ * Code writes them.
+ */
+export async function runTurnMemory(io: FakeCodexIo, turn: FakeTurn) {
+    const directory = path.join(
+        process.env.HOME ?? process.cwd(),
+        '.claude',
+        'projects',
+        '-demo',
+        'memory',
+    );
+    const created = path.join(directory, 'fix-from-requirements.md');
+    const content = [
+        '---',
+        'name: fix-from-requirements-not-patch',
+        'description: When a design flaw is found, propose the design the requirements call for, not the smallest patch',
+        'metadata:',
+        '  type: feedback',
+        '---',
+        '',
+        'Re-derive the fix from the requirements and the cost facts, not as a patch on what is already built.',
+        '',
+        '**Why:** a patch on a flawed design keeps the flaw.',
+        '',
+    ].join('\n');
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(created, content);
+    io.completeItem(turn, {
+        type: 'fileChange',
+        id: crypto.randomUUID(),
+        status: 'completed',
+        changes: [
+            { path: created, kind: { type: 'add' }, diff: content },
+            {
+                path: path.join(directory, 'MEMORY.md'),
+                kind: { type: 'update', move_path: null },
+                diff: '@@ -1 +1,2 @@\n - [Keep replies short](keep-replies-short.md)\n+- [Fix from requirements](fix-from-requirements.md)\n',
+            },
+            {
+                path: path.join(directory, 'keep-replies-short.md'),
+                kind: { type: 'update', move_path: null },
+                diff: '@@ -7 +7 @@\n-Answer in 1-3 lines.\n+Answer in 1-3 lines unless a table is clearer.\n',
+            },
+        ],
+    });
+    await io.streamMessage(turn, 'Saved that as a feedback memory.', 0);
+}
+
+/**
  * `manyfiles`: a turn that creates five notes on disk, more than a turn card lists before folding the rest away.
  */
 export async function runTurnManyFiles(io: FakeCodexIo, turn: FakeTurn) {

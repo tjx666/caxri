@@ -425,6 +425,8 @@ export const chat = {
     'chat.stale': 'This Chat could not be updated. Showing the last loaded messages.',
     'chat.starting': 'Starting {{provider}}…',
     'chat.steeredHint': 'Steered: sent while the Agent was working, so it joined the running turn',
+    'chat.memory.hide': '{{action}}: {{title}}. Hide memory',
+    'chat.memory.show': '{{action}}: {{title}}. Show memory',
     'chat.tasks.back': 'Back to background work',
     'chat.tasks.backgroundShell': 'Background shell',
     'chat.tasks.backgroundWork': 'Background work',

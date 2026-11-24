@@ -402,6 +402,8 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.stale': '无法更新此对话，正在显示上次加载的消息。',
     'chat.starting': '正在启动 {{provider}}…',
     'chat.steeredHint': '已插入本轮：在 Agent 工作时发送，并入了正在进行的这一轮',
+    'chat.memory.hide': '{{action}}：{{title}}。收起记忆',
+    'chat.memory.show': '{{action}}：{{title}}。查看记忆',
     'chat.tasks.back': '返回后台工作',
     'chat.tasks.backgroundShell': '后台 Shell',
     'chat.tasks.backgroundWork': '后台工作',

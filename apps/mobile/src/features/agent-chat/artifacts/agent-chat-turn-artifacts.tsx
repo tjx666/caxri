@@ -11,16 +11,17 @@ import {
 import { useRecyclingState } from '@shopify/flash-list';
 import { ChevronDown, FileDiff } from 'lucide-react-native';
 
-import { Card } from '../../components/card';
-import { useTranslation } from '../../i18n';
-import { mobileSpace, mobileType } from '../../theme/scale';
-import type { MobileTheme } from '../../theme/tokens';
-import { ChangesDiffStat } from '../changes/changes-diff-stat';
-import { useConversationDisclosure } from '../conversation/conversation-disclosure';
-import { conversationStyles } from '../conversation/conversation-styles';
-import { AgentChatFileDiff } from './agent-chat-file-changes';
-import { AgentChatResultRow } from './agent-chat-result-row';
-import { AgentChatTrackerCard } from './agent-chat-tracker-card';
+import { Card } from '../../../components/card';
+import { useTranslation } from '../../../i18n';
+import { mobileSpace, mobileType } from '../../../theme/scale';
+import type { MobileTheme } from '../../../theme/tokens';
+import { ChangesDiffStat } from '../../changes/changes-diff-stat';
+import { useConversationDisclosure } from '../../conversation/conversation-disclosure';
+import { conversationStyles } from '../../conversation/conversation-styles';
+import { AgentChatFileDiff } from '../agent-chat-file-changes';
+import { AgentChatResultRow } from '../agent-chat-result-row';
+import { AgentChatTrackerCard } from '../agent-chat-tracker-card';
+import { AgentChatMemoryCard } from './agent-chat-memory-card';
 
 const EditedFile = ({
     file,
@@ -116,8 +117,8 @@ const AgentChatEditedFiles = ({
 };
 
 /**
- * What a finished turn left behind, under its final reply: the edited-files card, then a card for each pull request,
- * issue, or acceptance report the Agent filed.
+ * What a finished turn left behind, under its final reply: the edited-files card, a card for each memory the Agent
+ * saved, then a card for each pull request, issue, or acceptance report it filed.
  */
 export const AgentChatTurnArtifacts = ({
     artifacts,
@@ -130,6 +131,14 @@ export const AgentChatTurnArtifacts = ({
         {artifacts.files.length > 0 ? (
             <AgentChatEditedFiles files={artifacts.files} theme={theme} turnId={artifacts.turnId} />
         ) : null}
+        {artifacts.memories.map((memory) => (
+            <AgentChatMemoryCard
+                key={memory.path}
+                memory={memory}
+                theme={theme}
+                turnId={artifacts.turnId}
+            />
+        ))}
         {artifacts.trackers.map((artifact) => (
             <AgentChatTrackerCard artifact={artifact} key={artifact.url} theme={theme} />
         ))}

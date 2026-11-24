@@ -1287,8 +1287,14 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   `gh api` POST to `repos/o/r/pulls|issues` or PATCH to `repos/o/r/pulls|issues/N` (how an Agent
   rewrites a PR body from a file), or a GitHub or Linear MCP create/update/save call. An issue's card also
   starts that issue in a new Session ([Hand off with /new-session](agent-delegation.md#hand-off-with-new-session)).
+  A Claude Code memory file the turn wrote (`<hidden config dir>/projects/<project>/memory/<name>.md`)
+  leaves the edited-files card and shows as its own memory card instead of a frontmatter diff: its
+  `description` as the title, its `type` (User, Feedback, Project, Reference) beside `Saved memory`,
+  `Updated memory`, or `Forgot memory`, and on click the new memory's Markdown body, or the diff
+  of an update, whose hunks alone do not hold the whole file. A `MEMORY.md` index edit in the same
+  turn folds into that card; memory files stay out of Undo and Review, which cover the Project.
   Collection lives in
-  `packages/protocol/src/agent/agent-chat-turn-artifacts.ts` and its `trackers/` subdirectory, Undo in the
+  `packages/protocol/src/agent/artifacts/` and the `trackers/` subdirectory, Undo in the
   Desktop `agent-chat-undo.ts`. The phone shows the same cards without Undo and Review; see
   [Mobile](#mobile).
 - Review on that card opens the turn as one diff, `Turn changes`, in the Portal where task views

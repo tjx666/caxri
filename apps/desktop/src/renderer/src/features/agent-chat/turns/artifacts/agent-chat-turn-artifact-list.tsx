@@ -1,11 +1,12 @@
 import type { AgentChatTurnArtifacts } from '@caxri/protocol';
 
-import { AgentChatTrackerCard } from '../tools/agent-chat-tracker-card';
-import { AgentChatTurnChanges } from './agent-chat-turn-changes';
+import { AgentChatTrackerCard } from '../../tools/agent-chat-tracker-card';
+import { AgentChatTurnChanges } from '../agent-chat-turn-changes';
+import { AgentChatMemoryCard } from './agent-chat-memory-card';
 
 /**
- * What a finished turn left behind, under its reply: the changed files first, then each issue or pull request it
- * created or edited.
+ * What a finished turn left behind, under its reply: the changed files first, then each memory it saved, then each
+ * issue or pull request it created or edited.
  */
 export function AgentChatTurnArtifactList({ artifacts }: { artifacts: AgentChatTurnArtifacts }) {
     return (
@@ -17,6 +18,9 @@ export function AgentChatTurnArtifactList({ artifacts }: { artifacts: AgentChatT
                     turnId={artifacts.turnId}
                 />
             )}
+            {artifacts.memories.map((memory) => (
+                <AgentChatMemoryCard key={memory.path} memory={memory} />
+            ))}
             {artifacts.trackers.map((artifact) => (
                 <AgentChatTrackerCard artifact={artifact} key={artifact.url} />
             ))}

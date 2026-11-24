@@ -15,9 +15,9 @@ import { AgentChatReplyActionBar } from './agent-chat-reply-action-bar';
 import { AgentChatReplyPlaceholder } from './agent-chat-reply-placeholder';
 import { AgentChatSteeredMark } from './agent-chat-steered-mark';
 import type { AgentChatTimelineEntry as Entry } from './agent-chat-timeline';
-import { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
 import { AgentChatWorkGroup } from './agent-chat-work-group';
+import { AgentChatTurnArtifacts } from './artifacts/agent-chat-turn-artifacts';
 
 /**
  * A message row through the shared Conversation renderer, with what only Chat adds around the bubble: the files it

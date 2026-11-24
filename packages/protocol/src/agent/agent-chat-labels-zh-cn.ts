@@ -438,6 +438,14 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
     'agentChat.artifacts.deletedFile': '删除了 {{name}}',
     'agentChat.artifacts.editedFile': '编辑了 {{name}}',
 
+    'agentChat.memory.created': '已保存记忆',
+    'agentChat.memory.updated': '已更新记忆',
+    'agentChat.memory.deleted': '已删除记忆',
+    'agentChat.memory.type.user': '用户',
+    'agentChat.memory.type.feedback': '反馈',
+    'agentChat.memory.type.project': '项目',
+    'agentChat.memory.type.reference': '参考',
+
     // Permission levels (`agentChatPermissionModeLabel`, `agentChatPermissionModeDescription`)
     'agentChat.permission.mode.readOnly': '只读',
     'agentChat.permission.mode.ask': '请求批准',

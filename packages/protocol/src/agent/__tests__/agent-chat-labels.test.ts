@@ -18,8 +18,8 @@ import {
     agentChatNoticeHeading,
     agentChatWorkingVerb,
 } from '../agent-chat-presentation';
-import { agentChatEditedFilesTitle } from '../agent-chat-turn-artifacts';
 import { agentChatTurnLabel, describeAgentChatWork } from '../agent-chat-work';
+import { agentChatEditedFilesTitle } from '../artifacts/agent-chat-turn-artifacts';
 import { botInboxKindLabel, botInboxReplyState } from '../bot/caxri-bot-inbox-presentation';
 import { summarizeAgentChatWork } from '../tool-rows/agent-chat-work-summary';
 import { agentToolLabel } from '../tool-rows/agent-tool-labels';

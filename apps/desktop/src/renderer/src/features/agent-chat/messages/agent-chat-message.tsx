@@ -28,7 +28,7 @@ import { useAgentChatReferences } from '../references/use-agent-chat-references'
 import { useAgentChatCommands } from '../run-command/use-agent-chat-commands';
 import { openAgentChatLink } from '../transcript/agent-chat-links';
 import { AgentChatCompactedNotice } from '../transcript/compaction/agent-chat-compacted-notice';
-import { AgentChatTurnArtifactList } from '../turns/agent-chat-turn-artifact-list';
+import { AgentChatTurnArtifactList } from '../turns/artifacts/agent-chat-turn-artifact-list';
 import { AgentChatUsageLimitNotice } from '../usage-limit/agent-chat-usage-limit-notice';
 import { AgentChatFeedback } from './agent-chat-feedback';
 import { AgentChatMessageTime, AgentChatTurnMetricsLabel } from './agent-chat-message-time';
