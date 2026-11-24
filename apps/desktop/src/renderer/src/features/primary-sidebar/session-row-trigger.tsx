@@ -4,7 +4,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { SessionRecord } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
-import { didSelectSession } from '../session/session-commands';
+import { activateSessionRow } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { canSuggestSessionTitle } from './session-rename-draft';
 import { sessionRowKeyShortcuts } from './session-row-key-shortcuts';
@@ -113,8 +113,7 @@ export function SessionRowTrigger({
                     if (canSuggest) onSuggestRename();
                     return;
                 }
-                // Fire-and-forget: selection reports its own failures through a toast.
-                if (!selected) void didSelectSession(session.id);
+                activateSessionRow(session.id);
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
@@ -128,8 +127,7 @@ export function SessionRowTrigger({
                     onBeginRename();
                 } else if (!renaming && event.key === ' ') {
                     event.preventDefault();
-                    // Fire-and-forget: didSelectSession reports its own failures through a toast.
-                    if (!selected) void didSelectSession(session.id);
+                    activateSessionRow(session.id);
                 }
             }}
         >

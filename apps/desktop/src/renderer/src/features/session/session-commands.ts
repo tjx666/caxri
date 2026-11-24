@@ -24,6 +24,7 @@ import {
 } from '../primary-sidebar/delegated/delegated-order';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { beginSessionSwitchTiming } from '../renderer-performance/jank-monitor';
+import { findPaneTabId, selectPaneTab } from '../workbench/pane-actions';
 import { requestPinnedSessionReveal } from './pinned-session-reveal';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
@@ -131,6 +132,25 @@ async function didRequestSessionSelection(sessionId: string): Promise<boolean> {
 export async function didSelectSession(sessionId: string): Promise<boolean> {
     delete mruNavigationState.pendingSelection;
     return didRequestSessionSelection(sessionId);
+}
+
+/**
+ * A Session row's click or `Space`. An unselected row selects its Session. The selected row has nothing left to select,
+ * so the same gesture brings the Session's Primary Agent tab back to the front: after the user opens a file over the
+ * Agent's Chat or Terminal, the row they already know is the way back to the conversation.
+ */
+export function activateSessionRow(sessionId: string): void {
+    const bootstrap = getBootstrap();
+    if (bootstrap?.selectedSessionId !== sessionId) {
+        // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
+        void didSelectSession(sessionId);
+        return;
+    }
+    const terminalId = bootstrap.sessions.find(
+        (session) => session.id === sessionId,
+    )?.primaryAgentTerminalId;
+    const tabId = terminalId ? findPaneTabId({ kind: 'terminal', terminalId }) : undefined;
+    if (tabId) selectPaneTab(tabId);
 }
 
 /**
