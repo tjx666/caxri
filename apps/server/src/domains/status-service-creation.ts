@@ -1,7 +1,7 @@
 import { refreshWatchSessionInBackground } from './background-tasks';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
-import { ProjectStatusService, VercelDeploymentStore } from './project-status';
+import { ProjectStatusService, VercelDeploymentStore, watchedSessionIds } from './project-status';
 import type { createRootServices } from './root-services';
 
 type RootServices = Awaited<ReturnType<typeof createRootServices>>;
@@ -43,11 +43,7 @@ export function createStatusServices({
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
         github: externalStatus.github,
-        listWatchedSessions: () =>
-            database
-                .listVisibleSessions()
-                .filter((session) => session.archivedAt === undefined)
-                .map((session) => session.id),
+        listWatchedSessions: () => watchedSessionIds(database.listVisibleSessions(), Date.now()),
         sessionContext: (sessionId) => sessionContext.readSession(sessionId),
         settings: () => configuration.getSettings().value,
         vercel,

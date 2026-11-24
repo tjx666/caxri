@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -103,6 +107,33 @@ describe('ExternalStatusHub git probes', () => {
             operation: 'remote.get-url',
             queueMs: 0,
         });
+    });
+
+    it('count the shared pull-request record reads in the per-operation command summary', async () => {
+        let now = 1_000_000;
+        const writes: Array<{ event: string; fields?: Record<string, unknown> }> = [];
+        const logger = {
+            write: (
+                _level: string,
+                event: string,
+                options?: { fields?: Record<string, unknown> },
+            ) => writes.push({ event, fields: options?.fields }),
+        } as unknown as StructuredLogger;
+        const hub = new ExternalStatusHub({
+            logger,
+            now: () => now,
+            pausePath: join(tmpdir(), `caxri-hub-${randomUUID()}.json`),
+            runner: (_source, arguments_) =>
+                Promise.resolve(arguments_[0] === 'pr' ? '{"number":7}' : '{}'),
+        });
+
+        await hub.github.view({ cwd: '/repo', number: 7, owner: 'acme', repo: 'widgets' });
+        // The summary window closes lazily on the next command after it elapsed.
+        now += 61_000;
+        await hub.github.view({ cwd: '/repo', number: 8, owner: 'acme', repo: 'widgets' });
+
+        const summary = writes.find((write) => write.event === 'project_status.cli_summary');
+        expect(summary?.fields).toMatchObject({ calls: 1, command: 'gh', operation: 'pr.view' });
     });
 
     it('keep gh calls out of the Git budget', async () => {

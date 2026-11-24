@@ -4,4 +4,5 @@ export { ProjectStatusService } from './service';
 export type { SessionPullRequestResolver } from './session-pull-request';
 export { SessionPullRequestService } from './session-pull-requests';
 export { VercelDeploymentStore } from './vercel';
+export { watchedSessionIds } from './watch';
 export { parseGitHubRemote } from '@caxri/utils';

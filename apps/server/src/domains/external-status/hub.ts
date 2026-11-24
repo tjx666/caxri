@@ -4,6 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { ExternalStatusRunner } from './command';
 import { GITHUB_RATE_LIMIT_QUERY, runExternalStatusCommand } from './command';
+import { ExternalStatusCommandTelemetry } from './diagnostics';
 import { GitHubPullRequestStore } from './github';
 import { GitHubReferenceStore } from './github-reference';
 import type { ExternalStatusLimiterOptions, GitHubQuota } from './limiter';
@@ -67,8 +68,29 @@ export class ExternalStatusHub {
             pausePath: options.pausePath,
             probeQuota: () => this.probeGitHubQuota(),
         });
-        this.github = new GitHubPullRequestStore(this.run, { now: options.now });
+        this.github = new GitHubPullRequestStore(this.observedRunner(options), {
+            now: options.now,
+        });
         this.githubReferences = new GitHubReferenceStore(this.run, { now: options.now });
+    }
+
+    /**
+     * The shared pull-request record's `gh pr view` is one of the largest GraphQL consumers, yet it used to bypass the
+     * per-operation command summary every other delivery query reports, so the logs undercounted Caxri's own spend.
+     */
+    private observedRunner(options: ExternalStatusHubOptions): ExternalStatusRunner {
+        if (!options.logger) return this.run;
+        const telemetry = new ExternalStatusCommandTelemetry(
+            options.logger,
+            'project_status.cli',
+            options.now,
+        );
+        return (source, arguments_, cwd, runOptions) =>
+            telemetry.observe({
+                command: source,
+                arguments: arguments_,
+                run: () => this.run(source, arguments_, cwd, runOptions),
+            });
     }
 
     /**

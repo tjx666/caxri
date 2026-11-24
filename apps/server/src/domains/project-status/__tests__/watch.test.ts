@@ -5,7 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProjectStatusService } from '..';
 import type { SummaryCacheEntry } from '../carry-over';
 import type { WatchOutcome } from '../watch';
-import { DeliveryWatch, isWatchFresh } from '../watch';
+import {
+    DeliveryWatch,
+    DORMANT_AFTER_MS,
+    isDormantSession,
+    isWatchFresh,
+    watchedSessionIds,
+} from '../watch';
 import {
     checkPayload,
     cleanupProjectStatusFixtures,
@@ -216,5 +222,49 @@ describe('DeliveryWatch cadence', () => {
         expect(rounds).toEqual([false, true]);
         expect(timers.at(-1)!.delayMs).toBe(60_000);
         watch.dispose();
+    });
+});
+
+const dormancyNow = 10 * DORMANT_AFTER_MS;
+
+function record(id: string, lastTouchedAt: number, archivedAt?: number) {
+    return {
+        archivedAt,
+        createdAt: 0,
+        id,
+        lastVisitedAt: 0,
+        sessionActivityAt: lastTouchedAt,
+    };
+}
+
+describe('session dormancy', () => {
+    it('counts Agent activity, a visit, or creation as touching the Session', () => {
+        const old = dormancyNow - DORMANT_AFTER_MS - 1;
+        expect(isDormantSession(record('a', old), dormancyNow)).toBe(true);
+        expect(
+            isDormantSession(
+                { ...record('a', old), lastVisitedAt: dormancyNow - 1_000 },
+                dormancyNow,
+            ),
+        ).toBe(false);
+        expect(
+            isDormantSession({ ...record('a', old), createdAt: dormancyNow - 1_000 }, dormancyNow),
+        ).toBe(false);
+        expect(isDormantSession(record('a', dormancyNow - DORMANT_AFTER_MS), dormancyNow)).toBe(
+            false,
+        );
+    });
+
+    it('watches only unarchived Sessions touched within the dormancy window', () => {
+        expect(
+            watchedSessionIds(
+                [
+                    record('recent', dormancyNow - 60_000),
+                    record('dormant', dormancyNow - 2 * DORMANT_AFTER_MS),
+                    record('archived', dormancyNow - 60_000, dormancyNow),
+                ],
+                dormancyNow,
+            ),
+        ).toEqual(['recent']);
     });
 });

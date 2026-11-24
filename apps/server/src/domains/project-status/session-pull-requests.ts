@@ -42,8 +42,10 @@ import type {
     SessionUpdate,
 } from './session-pull-request-entries';
 import { isSettled, pullRequestKey, wasMergedBefore } from './session-pull-request-entries';
+import type { PullRequestTtlOverrides } from './session-pull-request-limits';
 import {
     BRANCH_DISCOVERY_JSON_FIELDS,
+    DormantSweeps,
     FAILURE_TTL_MS,
     FORCED_RECORD_MAX_AGE_MS,
     INTEGRATION_BRANCHES,
@@ -52,7 +54,7 @@ import {
     MAX_PULL_REQUEST_ENTRIES,
     MISSING_TTL_MS,
     OPEN_TTL_MS,
-    SETTLED_TTL_MS,
+    pullRequestTtlMs,
 } from './session-pull-request-limits';
 import type { SessionPullRequestResolution } from './session-pull-request-parse';
 import {
@@ -62,7 +64,7 @@ import {
 } from './session-pull-request-parse';
 import { VercelDeploymentStore } from './vercel';
 
-export interface SessionPullRequestServiceOptions {
+export interface SessionPullRequestServiceOptions extends PullRequestTtlOverrides {
     agentEnvironment?: AgentEnvironment;
     emit?: (event: ServerEvent) => void;
     /**
@@ -90,9 +92,6 @@ export interface SessionPullRequestServiceOptions {
         previous: SessionPullRequest | undefined,
         next: SessionPullRequest | undefined,
     ) => void;
-    openTtlMs?: number;
-    settledTtlMs?: number;
-    missingTtlMs?: number;
     /**
      * Reads the Session's transcript clues, shared with every other clue consumer so a transcript is scanned once.
      * Without it the Service scans through a private reader.
@@ -130,6 +129,7 @@ export class SessionPullRequestService {
      * resolves the Session, so one request forces exactly one lookup.
      */
     private readonly forcedSessionIds = new Set<string>();
+    private readonly dormantSweeps = new DormantSweeps();
     private readonly readSessionContext: (
         session: SessionRecord,
     ) => Promise<SessionTranscriptContext>;
@@ -209,6 +209,7 @@ export class SessionPullRequestService {
         for (const entry of this.sessions.values()) entry.expiresAt = 0;
         for (const entry of this.pullRequests.values()) entry.expiresAt = 0;
         for (const entry of this.branchLookups.values()) entry.expiresAt = 0;
+        this.dormantSweeps.clear();
     }
 
     /**
@@ -233,7 +234,11 @@ export class SessionPullRequestService {
                 if (!liveIds.has(sessionId)) this.sessions.delete(sessionId);
             for (const sessionId of this.forcedSessionIds)
                 if (!liveIds.has(sessionId)) this.forcedSessionIds.delete(sessionId);
-            await mapWithConcurrency(sessions, MAX_CONCURRENT_LOOKUPS, async (session) => {
+            const due = this.dormantSweeps.select(sessions, this.now(), (session) => {
+                const entry = this.currentEntry(session);
+                return !this.forcedSessionIds.has(session.id) && !!entry && !entry.unavailable;
+            });
+            await mapWithConcurrency(due, MAX_CONCURRENT_LOOKUPS, async (session) => {
                 const { isJoined, update } = await this.runUpdate(session);
                 if (!isJoined && update.lookedUp) lookups += 1;
                 if (update.outcome === 'rebound') isContextChanged = true;
@@ -241,9 +246,10 @@ export class SessionPullRequestService {
                 else if (!isJoined && update.outcome === 'changed') changed.push(session.id);
             });
             this.refreshedAt = this.now();
+            const deferred = sessions.length - due.length; // Dormant Sessions left on their last projection.
             this.logger.write('debug', logEventCatalog.sessionPullRequests.refresh, {
                 durationMs: performance.now() - startedAt,
-                fields: { changed: changed.length, lookups, sessions: sessions.length },
+                fields: { changed: changed.length, deferred, lookups, sessions: sessions.length },
             });
         } catch (error) {
             this.logger.write('warn', logEventCatalog.sessionPullRequests.refreshFailed, {
@@ -422,7 +428,7 @@ export class SessionPullRequestService {
                 'agent',
                 isForced,
             );
-            const expiresAt = now + this.ttlFor(value);
+            const expiresAt = now + pullRequestTtlMs(value, this.options);
             rememberBounded(this.pullRequests, key, { expiresAt, value }, MAX_PULL_REQUEST_ENTRIES);
             return { entry: { expiresAt, key, value }, lookedUp: true };
         } catch (error) {
@@ -472,13 +478,6 @@ export class SessionPullRequestService {
         if (!branch.value || branch.value.url === settled.url)
             return { entry: { ...transcript.entry, expiresAt }, lookedUp };
         return { entry: { expiresAt, key, value: branch.value }, lookedUp };
-    }
-
-    private ttlFor(value: SessionPullRequest | undefined): number {
-        if (!value) return this.options.missingTtlMs ?? MISSING_TTL_MS;
-        return isSettled(value)
-            ? (this.options.settledTtlMs ?? SETTLED_TTL_MS)
-            : (this.options.openTtlMs ?? OPEN_TTL_MS);
     }
 
     /**
@@ -620,7 +619,7 @@ export class SessionPullRequestService {
                       isForced,
                   )
                 : undefined;
-            ttl = this.ttlFor(value);
+            ttl = pullRequestTtlMs(value, this.options);
         } catch (error) {
             if (!isNoPullRequest(error)) {
                 ttl = FAILURE_TTL_MS;

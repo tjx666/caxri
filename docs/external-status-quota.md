@@ -245,7 +245,9 @@ free, so it bypasses the circuit entirely.
   so the probe never spends the quota it is protecting. REST `/rate_limit` is deliberately not used:
   for the token class `gh` holds, its `resources.graphql` entry is a constant placeholder (`used` 0,
   `remaining` equal to `limit`, `reset` sliding with the clock), which is why the reserve never fired
-  before #917. Fallback when the probe fails: 15 minutes.
+  before #917. Fallback when the probe fails: 15 minutes. When the probe shows more than the
+  reserve left (the hourly window rolled over between the failure and the probe, or quota was never
+  the cause), pause only 60s with reason `quota-available` instead of idling until the next reset.
 - **GitHub secondary (abuse) limit**: clears in seconds, not at the hourly reset, so it pauses for
   60s. See
   [GitHub's secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
@@ -307,8 +309,8 @@ A record is only fetched when a surface actually reads it, so a key nobody is lo
 nothing: Vercel is reached only from Project Status summaries, and never on behalf of a session that
 merely renders a sidebar badge. The one background reader is the delivery-failure watch (see
 [Notifications](./notifications.md)): while delivery failure notifications are enabled it refreshes
-each unarchived Session's summary every one to three minutes, deduplicated per repository and
-branch, and it stops spending entirely when the setting is off. The
+the summary of each unarchived Session touched within the last 24 hours every one to three minutes,
+deduplicated per repository and branch, and it stops spending entirely when the setting is off. The
 Renderer's polls (`session.pullRequests`, `projectStatus.overview`) are now snapshot reads whose
 external CLI spend is entirely governed by the Server's TTLs and circuits.
 
@@ -324,6 +326,14 @@ one issue. See [session conversation context](./session-conversation-context.md)
 window, so a backgrounded Caxri really does spend nothing; a visible one still asks every 60s, and
 the sidebar sweep covers every active Session rather than only the rows on screen. What the TTL and
 the circuit control is how many of those reads reach a CLI.
+
+Dormant Sessions (no creation, visit, or Agent activity in 24 hours) cost far less. The sidebar
+sweep re-resolves one at most once an hour (`DormantSweeps`), unless it has no projection yet, its
+last lookup failed, or a refresh was forced; a visit or a new Agent turn makes it active again on
+the next sweep. The delivery watch skips dormant Sessions entirely. Production measured why: 851
+unarchived Sessions, 142 of them touched within a day, made Caxri's own polling about 90% of an
+account burning 5,000 GraphQL points an hour. The shared pull-request record's `gh pr view` now
+reports in `project_status.cli_summary` too, so that spend is no longer invisible in the logs.
 
 Under machine load the background readers step aside. The resident poll and the delivery watch
 skip a round and retry at their own floor, and a stale `snapshot()` does not start a pull request
