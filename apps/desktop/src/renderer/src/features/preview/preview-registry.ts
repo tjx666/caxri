@@ -2,6 +2,7 @@ import type { PaneLayout } from '@caxri/protocol';
 import { filePreviewExtension, filePreviewTabPath, findResourceTabs } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
+import { isLocalOnlyAvailable } from '../../stores/environment';
 
 /**
  * The one loading sentence every preview shows, from the lazy view chunk through the source or asset read. Naming the
@@ -29,6 +30,11 @@ export interface PreviewerRegistration {
      * failing a text read.
      */
     defaultView: 'preview' | 'source';
+    /**
+     * The view is served by this Mac's Main (a `local-only` method), so an SSH Host window, whose files live on the SSH
+     * Host, offers no preview of the format at all instead of a preview that can only fail to load.
+     */
+    localOnly?: true;
 }
 
 const PREVIEWERS: readonly PreviewerRegistration[] = [
@@ -46,7 +52,7 @@ const PREVIEWERS: readonly PreviewerRegistration[] = [
     { id: 'pdf', extensions: ['pdf'], defaultView: 'preview' },
     // Source stays the default because Agents edit pages; a Chat or Terminal link opens the preview instead
     // (`desktop.openFile`'s `showPreview`), since clicking a generated report means reading it.
-    { id: 'html', extensions: ['htm', 'html'], defaultView: 'source' },
+    { id: 'html', extensions: ['htm', 'html'], defaultView: 'source', localOnly: true },
 ];
 
 export function previewerForPath(path: string): PreviewerRegistration | undefined {
@@ -55,8 +61,13 @@ export function previewerForPath(path: string): PreviewerRegistration | undefine
     return PREVIEWERS.find((previewer) => previewer.extensions.includes(extension));
 }
 
+/**
+ * Whether this window can show a preview of `path`. Every preview entry point (the commands, the tab rail, the context
+ * menus, a link's `showPreview`) asks this, so a format this window cannot serve disappears from all of them at once.
+ */
 export function canPreviewPath(path: string): boolean {
-    return previewerForPath(path) !== undefined;
+    const previewer = previewerForPath(path);
+    return previewer !== undefined && (!previewer.localOnly || isLocalOnlyAvailable());
 }
 
 /**
@@ -77,7 +88,7 @@ export function previewOnlyTabPath(
 ): string | undefined {
     const tabPath = filePreviewTabPath(path);
     if (shouldOpenAsPreview(path)) return tabPath;
-    if (!paneLayout || canPreviewPath(path)) return undefined;
+    if (!paneLayout || previewerForPath(path)) return undefined;
     return findResourceTabs(paneLayout, { kind: 'file', path: tabPath }).length > 0
         ? tabPath
         : undefined;

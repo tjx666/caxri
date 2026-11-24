@@ -36,7 +36,9 @@ export function previewSourcePath(tabPath: string): string | undefined {
     if (preview) return preview.path;
     if (isExternalEditorTabPath(tabPath)) {
         const id = previewerForPath(tabPath)?.id;
-        return id && EXTERNAL_PREVIEW_VIEWS.has(id) ? tabPath : undefined;
+        return id && EXTERNAL_PREVIEW_VIEWS.has(id) && canPreviewPath(tabPath)
+            ? tabPath
+            : undefined;
     }
     if (isVirtualEditorTabPath(tabPath)) return undefined;
     return canPreviewPath(tabPath) ? tabPath : undefined;
