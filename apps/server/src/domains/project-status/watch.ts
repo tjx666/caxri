@@ -1,4 +1,4 @@
-import type { ProjectStatusState, ProjectStatusSummary } from '@caxri/protocol';
+import type { ProjectStatusState, ProjectStatusSummary, SessionRecord } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 
@@ -219,4 +219,45 @@ export class DeliveryWatch {
         this.options.clearTimer(this.timer);
         this.timer = undefined;
     }
+}
+
+/**
+ * How long a Session may go without Agent work or a visit before background delivery polling treats it as dormant.
+ *
+ * Every unarchived Session used to be polled at the same cadence. With hundreds of them (production: 851 unarchived,
+ * 142 touched within a day) the delivery watch and the sidebar pull-request sweep together spent most of the account's
+ * hourly 5,000-point GitHub GraphQL budget, starving the Agents' own `gh` calls and leaving every badge on "rate
+ * limited". A Session nobody touched for a day rarely gains new CI; a visit or new Agent turn wakes it immediately.
+ */
+export const DORMANT_AFTER_MS = 24 * 60 * 60_000;
+
+export function isDormantSession(
+    session: Pick<SessionRecord, 'createdAt' | 'lastVisitedAt' | 'sessionActivityAt'>,
+    now: number,
+): boolean {
+    const lastTouchedAt = Math.max(
+        session.createdAt,
+        session.lastVisitedAt,
+        session.sessionActivityAt,
+    );
+    return now - lastTouchedAt > DORMANT_AFTER_MS;
+}
+
+/**
+ * The Sessions the background delivery watch checks for CI and deployment failures: unarchived and not dormant. A
+ * dormant Session's failure alert would describe work nobody has looked at for a day, and checking it is what drained
+ * the shared budget.
+ */
+export function watchedSessionIds(
+    sessions: ReadonlyArray<
+        Pick<
+            SessionRecord,
+            'archivedAt' | 'createdAt' | 'id' | 'lastVisitedAt' | 'sessionActivityAt'
+        >
+    >,
+    now: number,
+): string[] {
+    return sessions
+        .filter((session) => session.archivedAt === undefined && !isDormantSession(session, now))
+        .map((session) => session.id);
 }

@@ -42,7 +42,9 @@ attaches a reminder type. The separate delivery failure setting still controls i
 the error rule does not override that setting. Disabling delivery failure notifications prevents
 those alerts from being emitted, including their history entries.
 
-Delivery failure alerts cover every unarchived Session, not only the selected one: a failing CI
+Delivery failure alerts cover every unarchived Session touched (created, visited, or worked on by its
+Agent) within the last 24 hours, not only the selected one; older Sessions are left out because
+polling hundreds of them exhausted the account's GitHub GraphQL budget. A failing CI
 check, a failing Vercel preview build, or a failing Vercel production build raises one
 notification. Every Session a visible window shows keeps its fast Status panel poll; every other Session is
 refreshed by a slower delivery watch in Server Core (about every three minutes; a Session whose own check or build is still running is revisited every

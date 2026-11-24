@@ -66,9 +66,10 @@ export function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         workbenchRootProjectId: 'project-1',
         rootPath: '/project',
         createdAt: 0,
-        lastVisitedAt: 0,
+        // Touched now, so the Session counts as active whether the harness runs on a fake or the real clock.
+        lastVisitedAt: Date.now(),
         sidebarOrder: 0,
-        sessionActivityAt: 0,
+        sessionActivityAt: Date.now(),
         sessionActivityReason: 'created',
         agentActivityState: 'idle',
         attentionGeneration: 0,

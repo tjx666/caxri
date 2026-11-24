@@ -187,6 +187,19 @@ export class ExternalStatusLimiter {
                 if (reading) {
                     this.quota = { ...reading, probedAt: this.now() };
                     resetAt = reading.resetAt;
+                    /**
+                     * The budget is back (the hourly window rolled over between the failure and this probe) or was
+                     * never the cause. Waiting for the _next_ reset would hold every PR badge on "rate limited" for up
+                     * to an hour while thousands of points sit unused (production: a 37-minute pause with 4,900 left).
+                     */
+                    if (reading.remaining > GITHUB_POINT_RESERVE) {
+                        await this.pauseUntil(
+                            source,
+                            this.now() + SECONDARY_PAUSE_MS,
+                            'quota-available',
+                        );
+                        return;
+                    }
                 }
             } catch {
                 // Probe failure falls through to the fixed fallback below.
@@ -205,7 +218,11 @@ export class ExternalStatusLimiter {
     private async pauseUntil(
         source: ExternalStatusQuotaSource,
         resumeAt: number,
-        reason: 'backoff' | 'primary' | 'reserve' | 'secondary',
+        /**
+         * `quota-available`: GitHub reported a limit while the follow-up probe still showed budget above the reserve,
+         * so the pause is short; kept apart from `secondary` so the log tells the two causes apart.
+         */
+        reason: 'backoff' | 'primary' | 'quota-available' | 'reserve' | 'secondary',
     ): Promise<void> {
         const now = this.now();
         const bounded = Math.min(Math.max(resumeAt, now), now + MAX_PAUSE_MS);

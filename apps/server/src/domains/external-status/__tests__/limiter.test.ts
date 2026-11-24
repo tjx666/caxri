@@ -91,6 +91,24 @@ describe('ExternalStatusLimiter', () => {
         await expect(limiter.guard('gh', () => Promise.resolve('ok'))).resolves.toBe('ok');
     });
 
+    it('does not wait for the next hourly reset when the probe shows the budget is already back', async () => {
+        let now = 1_000_000;
+        const limiter = new ExternalStatusLimiter({
+            now: () => now,
+            pausePath: await pausePath(),
+            // The window rolled over between the failed call and the probe: plenty left, next reset an hour away.
+            probeQuota: () => Promise.resolve({ remaining: 4_900, resetAt: now + 3_600_000 }),
+        });
+
+        await expect(limiter.guard('gh', rateLimited('gh'))).rejects.toMatchObject({
+            kind: 'rate-limited',
+            retryAt: now + 60_000,
+        });
+
+        now += 61_000;
+        await expect(limiter.guard('gh', () => Promise.resolve('ok'))).resolves.toBe('ok');
+    });
+
     it('keeps a limited source from silencing the other two', async () => {
         const now = 1_000_000;
         const limiter = new ExternalStatusLimiter({
