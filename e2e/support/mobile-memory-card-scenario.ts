@@ -3,7 +3,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { scrollTimelineTo, waitForCheck } from './mobile-agent-chat-helpers';
+import { hasCheck, isReachedWithin, waitForCheck } from './mobile-agent-chat-helpers';
 import { tapMobileCheck, waitForMobile } from './mobile-android';
 
 /**
@@ -39,8 +39,11 @@ export async function executeMobileMemoryCardScenario(
         await fixture.pair();
         await tapMobileCheck(serial, `session-row-${sessionId}`);
         await waitForCheck(serial, 'agent-chat');
-        await scrollTimelineTo(serial, SAVED);
+        // A baseline round on the previous build shows the memory files in the edited-files card instead, so it
+        // captures that turn end before failing on the missing card.
+        const hasCards = await isReachedWithin(serial, (nodes) => hasCheck(nodes, SAVED), 10_000);
         await capture(environment, 'memory-cards', artifacts);
+        if (!hasCards) throw new Error('The turn ends without a memory card');
         await tapMobileCheck(serial, SAVED);
         await capture(environment, 'memory-saved-open', artifacts);
         await tapMobileCheck(serial, SAVED);
