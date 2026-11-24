@@ -274,12 +274,17 @@ const errnoReasons: Partial<Record<string, TranslationKey>> = {
  * operation failed" hid that the remedy is simply to review the new commits and merge again.
  *
  * `Could not reach GitHub` is the Server's `UNAVAILABLE` merge failure after the network dropped `gh`; the code's "not
- * ready" reason would hide that retrying the merge is the remedy.
+ * ready" reason would hide that retrying the merge is the remedy. The other `UNAVAILABLE` GitHub failures (an exhausted
+ * API budget, a signed-out or missing `gh`) are named for the same reason: each has its own remedy, and none of them
+ * means Caxri itself is still starting.
  */
 const messageReasons: ReadonlyArray<readonly [RegExp, TranslationKey]> = [
     [/\bBinary files cannot be opened in the (?:diff )?editor\b/u, 'toasts.failure.binaryFile'],
     [/\bHead branch was modified\b/u, 'toasts.failure.pullRequestHeadMoved'],
     [/\bCould not reach GitHub\b/u, 'toasts.failure.githubUnreachable'],
+    [/\bGitHub API rate limit reached\b/u, 'toasts.failure.githubRateLimited'],
+    [/\bGitHub CLI is not (?:logged|signed) in\b/u, 'toasts.failure.githubSignedOut'],
+    [/\bGitHub CLI is not available on PATH\b/u, 'toasts.failure.githubCliMissing'],
 ];
 
 /**
