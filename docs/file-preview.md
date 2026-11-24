@@ -172,9 +172,15 @@ has an origin of its own that cannot reach the Workbench document, which is why 
 Workbench.
 
 A Project page is authorized like any Project file read and its grant is the whole Project root, so
-`../assets/app.css` resolves. A page outside every Project grants only its own folder and the folders
-below it, the scope an external Markdown preview has. A request that climbs out of its grant,
-lexically or through a symbolic link, answers 404. Files are served with `no-store`, and the frame
+`../assets/app.css` resolves. A Project grant judges containment on the workspace path: the
+requested path, resolved lexically against the Project root, must stay inside it (a `..` climb,
+encoded or not, answers 404), and the file is then read through any symbolic link, even one that
+points outside the Project, the way the editor does. A Project folder `docs -> ~/shared/reports`
+therefore previews, and its relative stylesheets load. The entry must still be a regular file. A
+page outside every Project has no workspace link to trust: its grant is its own folder and the
+folders below it, the scope an external Markdown preview has, and every request is canonicalized
+with `realpath` and must resolve inside that folder, so a symbolic link out of it answers 404.
+Files are served with `no-store`, and the frame
 reloads when the page is rewritten on disk, so a regenerated report shows its current state. The
 page keeps its own colors on a white canvas in every theme, the way a PDF keeps its paper.
 
@@ -313,9 +319,16 @@ it.
 
 - Scroll sync is one-way by design: the source editor drives the preview. It applies to Markdown
   only.
-- A link inside an HTML page that leads to the web does nothing: the Workbench CSP blocks the
-  frame from navigating there, and Main denies the new window a `target="_blank"` link asks for,
-  as it does for all passive page content. **Open in Browser** shows the page with working links.
+- A link inside an HTML page that leads to the web does nothing: the frame's sandbox withholds
+  top-level navigation, the Workbench CSP does not allow the frame to load a web page, and Main
+  denies the new window a `target="_blank"` link asks for, as it does for all passive page content.
+  **Open in Browser** shows the page with working links.
+- The frame is not network-isolated. It is a separate `caxri-html:` origin that carries no CSP
+  header, so a page's `fetch`, XHR, and external scripts, images, and fonts reach the network;
+  only navigating the frame to a link and opening a popup are blocked. A page's scripts can also
+  read any file under its grant, which for a Project page is the whole Project root, dotfiles such
+  as `.env` and `.git` included. This is the accepted single-user tradeoff: the page comes from the
+  user's own Project or Agent, so the preview does not add a CSP or narrow the sandbox for it.
 - PDF previews need a Project: a PDF opened from outside every Project has no preview yet. There
   is no in-document search, password prompt, or outline sidebar.
 - PDF ICC color profiles are not applied: pdf.js turns ICC conversion off when it cannot fetch its

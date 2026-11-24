@@ -1,7 +1,8 @@
-import type { AgentChatTurn } from '@caxri/protocol';
+import type { AgentChatTurn, TurnHoldReleaseReason } from '@caxri/protocol';
 
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { ChatShellToolSignals } from '../../worktree/shell-tool-signals';
+import type { ChatTurnHoldEvent } from '../chat-turn-hold';
 import type { AcpToolCall, AcpToolPresentation } from './items';
 
 type TurnStatus = AgentChatTurn['status'];
@@ -38,12 +39,25 @@ export class AcpRunningTools {
      */
     private isStopPending = false;
 
+    /**
+     * When the current hold began, for the hold duration the release event reports.
+     */
+    private heldAt = 0;
+
     constructor(
         lifecycle: AgentChatSessionHost['lifecycle'],
         private readonly presentation: AcpToolPresentation,
         private readonly shouldHoldTurn?: (call: AcpToolCall) => boolean,
+        /**
+         * Receives a hold and its release as content-free events; injected so this class stays logger-free.
+         */
+        private readonly onHold?: (event: ChatTurnHoldEvent) => void,
     ) {
         this.shellTools = new ChatShellToolSignals(lifecycle);
+    }
+
+    private reportRelease(reason: TurnHoldReleaseReason): void {
+        this.onHold?.({ kind: 'released', reason, holdMs: Date.now() - this.heldAt });
     }
 
     /**
@@ -60,7 +74,8 @@ export class AcpRunningTools {
         const keepsOpen =
             canHoldTurn && call.status === 'in_progress' && this.shouldHoldTurn?.(call);
         if (keepsOpen) this.holding.add(call.id);
-        else if (this.holding.delete(call.id) && this.holding.size === 0) this.release();
+        else if (this.holding.delete(call.id) && this.holding.size === 0)
+            this.release(undefined, 'call_finished');
     }
 
     /**
@@ -70,26 +85,33 @@ export class AcpRunningTools {
     endTurn(status: TurnStatus, finish: (status?: TurnStatus) => void): void {
         if (this.isStopPending) finish('interrupted');
         else if (status === 'interrupted' || this.holding.size === 0) finish();
-        else this.held = finish;
+        else {
+            this.held = finish;
+            this.heldAt = Date.now();
+            this.onHold?.({ kind: 'held', holdingCalls: this.holding.size });
+        }
     }
 
     /**
      * Ends a held turn now with `status`, as a Stop does. A Stop with no turn held yet ends the turn as interrupted
      * once its prompt answers.
      */
-    release(status?: TurnStatus): void {
+    release(status?: TurnStatus, reason?: TurnHoldReleaseReason): void {
         if (status === 'interrupted' && !this.held) this.isStopPending = true;
         const held = this.held;
         this.held = undefined;
+        if (held) this.reportRelease(reason ?? 'stopped');
         held?.(status);
     }
 
     /**
-     * Forgets every running call once the turn ended or the agent stopped.
+     * Forgets every running call once the turn ended or the agent stopped. A turn still held at that point ended
+     * without the calls finishing: `reason` says whether the process ended or another path closed the turn.
      */
-    clear(): void {
+    clear(reason: 'process_ended' | 'superseded' = 'process_ended'): void {
         this.shellTools.clear();
         this.holding.clear();
+        if (this.held) this.reportRelease(reason);
         this.held = undefined;
         this.isStopPending = false;
     }

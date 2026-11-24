@@ -75,12 +75,13 @@ export function SessionChildrenDisclosure({
 
 /**
  * How many child rows a folded host hides, as a quiet pill just left of the row's status slot. A warning dot joins the
- * number when one of the hidden Sessions waits on the user or failed, the same dot a collapsed Project heading shows,
- * so folding never hides work that needs a person. Nothing else crosses the fold: a running or finished child would
- * only repeat the spinner or pull request glyph the host shows for itself beside it. An expanded host shows no pill,
- * since its rows are on screen. Like the other trailing glyphs it gives way to Pin and Archive under pointer hover.
- * `aria-hidden` because the row's `aria-expanded` already tells assistive tech the rows are folded, and the rows
- * themselves are one Right arrow away.
+ * number when one of the hidden delegated Sessions waits on the user or failed, the same dot a collapsed Project
+ * heading shows, so folding never hides a delegated Session that needs a person. A background subagent row adds to the
+ * count only: it cannot wait on the user, and its failure reaches the host Agent, which reports it in the host's own
+ * status. Nothing else crosses the fold: a running or finished child would only repeat the spinner or pull request
+ * glyph the host shows for itself beside it. An expanded host shows no pill, since its rows are on screen. Like the
+ * other trailing glyphs it gives way to Pin and Archive under pointer hover. `aria-hidden` because the row's
+ * `aria-expanded` already tells assistive tech the rows are folded, and the rows themselves are one Right arrow away.
  */
 export function SessionChildrenCount({ rows }: { rows: SessionChildRows }) {
     if (!rows.isCollapsed) return null;

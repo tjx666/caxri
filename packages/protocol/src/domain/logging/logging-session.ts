@@ -39,7 +39,9 @@ export const sessionSearchLogEvents = {
      * `excluded<Reason>` count per closed exclusion reason, and a `scanFailed<Reason>` count for each closed
      * `TranscriptScanFailureReason` a content scan reported (such as `scanFailedDecompressFailed` for a corrupt Codex
      * `.jsonl.zst`). Logged at `warn` when a file failed, a scan stopped early, or a record past the head read's caps
-     * (`excludedOversizedRecord`) hid a conversation.
+     * (`excludedOversizedRecord`) or an Antigravity database that is corrupt or lost its tables (`excludedCorrupt`,
+     * `excludedSchemaChanged`) hid a conversation. `excludedLocked` counts Antigravity databases another process held:
+     * they are not stored, so the next pass retries them.
      */
     indexPass: 'session_search.index_pass',
     /**

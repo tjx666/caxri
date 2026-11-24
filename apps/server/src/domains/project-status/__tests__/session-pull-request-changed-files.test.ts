@@ -13,6 +13,15 @@ describe('SessionPullRequest changedFiles', () => {
         expect(parse({ changedFiles: 0 })).not.toHaveProperty('changedFiles');
     });
 
+    it('carries closedAt for a closed pull request and omits it while open', () => {
+        const parse = (overrides: Record<string, unknown>) =>
+            parseSessionPullRequest(pullRequestJson(overrides), 'agent', []);
+        const closedAt = '2026-10-19T06:11:53Z';
+
+        expect(parse({ state: 'CLOSED', closedAt })?.closedAt).toBe(Date.parse(closedAt));
+        expect(parse({ state: 'OPEN', closedAt: null })).not.toHaveProperty('closedAt');
+    });
+
     it('emits a change when only the file count moves', async () => {
         let changedFiles = 3;
         const clock = { now: 0 };

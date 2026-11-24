@@ -11,9 +11,9 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-11-18 @ `d535e2a29` (`main`)                                                                      |
+| **Last full audit**      | 2026-11-24 @ `2e20304a2` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
-| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `d535e2a29`               |
+| **Full-audit scope**     | Every prior OPEN entry plus all dimensions over the complete tracked tree at `2e20304a2`               |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
 
 Targeted maintenance corrects affected evidence and records reviewed tradeoffs; it does not move
@@ -46,9 +46,99 @@ Full audit 2026-11-08 @ `d2b1d1f4d` found no prior OPEN entry; the batch of [iss
 
 Full audit 2026-11-18 @ `d535e2a29` found no prior OPEN entry; the batch of [issue caxri#4024](https://github.com/tjx666/caxri/issues/4024) fixed its ten findings. The "unused build-freshness module" candidate was a false positive (a promo-images skill script imports it), the Git manual-controls exceptions were a documentation gap closed by a `DESIGN.md` cross-link, and provider literal branches stay `IT-provider-literal-comparisons`. Splitting Mobile `features/agent-chat` and moving Server composition glue into its own directory are tracked by [issue caxri#4029](https://github.com/tjx666/caxri/issues/4029) and [issue caxri#4030](https://github.com/tjx666/caxri/issues/4030); loading remote held messages at window start is [issue caxri#4031](https://github.com/tjx666/caxri/issues/4031); the density guard now holds both at their current counts.
 
+Full audit 2026-11-24 @ `2e20304a2` found no prior OPEN entry; the batch of [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166) fixed its confirmed findings and gaps below. The HTML preview's open network and grant-wide reads are recorded as `IT-html-preview-open-network`. Two candidates need measurement before a fix and are tracked instead of listed: the Mobile home's per-page dashboard recomputation ([issue caxri#4167](https://github.com/tjx666/caxri/issues/4167)) and the synchronous Antigravity conversation copy ([issue caxri#4168](https://github.com/tjx666/caxri/issues/4168)). The Mobile bottom sheet's focus return needs a device run and stays an open hypothesis.
+
 ---
 
 ## RESOLVED
+
+### AD-state-pr-close-time-after-restart: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** After a Server Core restart, automatic Mark as Done settled a follow-up turn the user started after a pull request was closed without merging, because the close time was this process's first sighting.
+- **Evidence:** `apps/server/src/domains/external-status/github.ts` requests `closedAt`; `project-status/session-pull-request-parse.ts` projects it onto `SessionPullRequest`; `session/attention/auto-mark-done.ts` judges `mergedAt ?? closedAt` and keeps first sighting only as a fallback; `auto-mark-done.test.ts` covers the restart case.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** A fresh AutoMarkDone keeps a turn started after GitHub's close time.
+
+### AD-lifecycle-quit-restore-crash-window: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** A crash partway through restoring Sessions after Restart to Update lost every Session not yet relaunched, because the durable record was emptied before the loop.
+- **Evidence:** `apps/server/src/domains/session/quit-restore.ts` keeps the record and drops each entry just before its relaunch, so only the in-flight Session is lost and a relaunch that kills Server Core cannot loop; `quit-restore.test.ts` covers a relaunch that never settles; `docs/session-quit-restore.md` describes it.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** Sessions after the in-flight one stay recorded for the next start or the launch notice.
+
+### AD-lifecycle-project-delete-late-delegation: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Deleting a Project while an Agent delegation created a Session in it left that Session's delegation private files and pending questions and approvals behind, because the fence used the scope read before the waits.
+- **Evidence:** `apps/server/src/domains/deletion-handlers.ts` re-reads the scope after the fence and queue waits and runs another bounded round for Sessions it did not cover; `session-discard-if-empty.integration.test.ts` covers a late Session.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** Every Session the cascade deletes was fenced, cleaned, and forgotten first.
+
+### AD-diag-antigravity-store-read-reasons: [RESOLVED · Coverage or observability gap · M]
+
+- **Summary:** Failed reads of Antigravity's private stores collapsed to an empty result with no cause, and cross-Session search stored a transient lock as a final exclusion, so the conversation stayed unsearchable until agy wrote it again.
+- **Evidence:** `apps/server/src/domains/agents/providers/antigravity/conversation-database.ts` classifies `missing | locked | schema | corrupt | unreadable`; `providers/antigravity/diagnostics/store-read-failures.ts` logs `agent.antigravity_store_read_failed` per site and reason transition; `session-search/indexer.ts` leaves a locked read retry-eligible; the title and `/usage` readers report too.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** Distinct fixtures yield distinct reasons; a released lock is indexed on the next pass without a file change.
+
+### AD-perf-usage-pr-failed-starvation: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Permanently failing or unparsable pull request URLs took the front of every 40-URL usage pass, so newer pull requests never resolved and each report re-spent the GitHub quota.
+- **Evidence:** `apps/server/src/domains/usage/pull-request-pass/pull-request-pass.ts` drops unparsable URLs, backs failed lookups off for an hour, and orders never-tried URLs first; `pull-request-pass.test.ts` covers 45 failing plus 5 good URLs.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** Good URLs resolve within a few passes; failed ones are not re-asked inside the backoff.
+
+### AD-contract-html-preview-workspace-links: [RESOLVED · Contract drift · S]
+
+- **Summary:** HTML Preview refused a Project page or asset reached through a workspace symbolic link to an outside target, though the editor opens it.
+- **Evidence:** `apps/desktop/src/main/html-preview/protocol.ts` judges a Project grant lexically and follows links (still refusing `..`), keeping external grants canonical; `protocol.test.ts` covers a linked folder with a page and stylesheet; `docs/file-preview.md` and the security reference state both rules.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** A linked Project page previews with its assets.
+
+### AD-dup-html-preview-media-types: [RESOLVED · Architecture debt · S]
+
+- **Summary:** HTML Preview kept its own image and PDF media-type table, which missed apng and bmp, so those images broke in a page.
+- **Evidence:** `apps/desktop/src/main/html-preview/protocol.ts` consults `previewAssetMediaType` first and keeps only web-only types; `protocol.test.ts` asserts every shared extension resolves identically.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** One owner for preview image and PDF types.
+
+### AD-contract-external-html-confirmation: [RESOLVED · Contract drift · S]
+
+- **Summary:** The confirmation for an HTML page outside every Project said it opens in the editor, while it opens as a live preview that runs scripts and can read its folder.
+- **Evidence:** `apps/desktop/src/main/external-documents/open-confirmation.ts` uses `desktop.externalFile.htmlDetail` for HTML paths (en and zh-CN); `open-confirmation.test.ts` covers both variants.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** The dialog describes what opening an external HTML page does.
+
+### AD-diag-acp-held-turn: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** An Antigravity turn held open while a foreground command ran left no trace of the hold or of why it ended.
+- **Evidence:** `apps/server/src/domains/agent-chat/providers/acp/running-tools.ts` reports held and released events (closed release reason, hold duration) through a callback that `acp/session.ts` logs; a unit test covers each release path. No deadline was added: a long command is legitimate work.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** A held turn's start and end are visible in diagnostics.
+
+### AD-lifecycle-terminal-replay-write-failure: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** A rejected Terminal snapshot write would leave the replay buffer closed and drop live output silently, freezing the pane; production writes do not reject today.
+- **Evidence:** `apps/desktop/src/renderer/src/features/terminal/terminal-replay.ts` drains pending output in a `finally`, surfaces the error once, and reports drops through `onDroppedOutput`; `terminal-replay.test.ts` covers it.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** Output after a failed snapshot write still reaches the pane.
+
+### AD-docs-comment-scope-drift-2026-11-24: [RESOLVED · Contract drift · S]
+
+- **Summary:** The hook Shell parser called itself the one parser although Chat presentation parses commands its own way, and the folded host row's JSDoc promised a warning dot for every hidden child although background subagents only add to the count.
+- **Evidence:** `apps/server/src/domains/agents/hooks/shell-command-source.ts` header; `apps/desktop/src/renderer/src/features/primary-sidebar/session-children/session-children-disclosure.tsx` `SessionChildrenCount` JSDoc.
+- **First seen:** 2026-11-24 @ 2e20304a2 · **Last verified:** 2026-11-24 @ 2e20304a2
+- **Resolved:** 2026-11-24 via [issue caxri#4166](https://github.com/tjx666/caxri/issues/4166).
+- **Remediation target / Acceptance:** Comments describe the implemented scope.
 
 ### AD-state-remote-events-into-local-stores: [RESOLVED · Confirmed defect · M]
 
@@ -1686,6 +1776,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-ssh-offline-host-records          | A listed SSH Host that failed or was taken over keeps its last snapshot in the side bar, because its Project headings carry the connection row with Reconnect; selecting one of its Sessions shows the connection overlay and Main refuses its requests                                                                                                                                                                                                             | `apps/desktop/src/renderer/src/stores/workbench-environments.ts` `readComposedSnapshot`, `features/ssh-host/host-connection-rows.tsx`, [issue caxri#3656](https://github.com/tjx666/caxri/issues/3656) |
 | IT-device-open-any-scheme            | `caxri device open <url>` hands any URL scheme to the paired phone, which opens it through the OS; the phone is the user's own device and the command is the user's or their Agent's, so no scheme allowlist applies                                                                                                                                                                                                                                                | `apps/cli/src/commands/device.ts`, `apps/mobile/src/features/device-actions/device-action-handler.ts`                                                                                                  |
 | IT-delegation-history-text-retention | `delegation_history` keeps a deleted delegation's title and summary so its cost history stays readable                                                                                                                                                                                                                                                                                                                                                              | `docs/agent-delegation.md` (delegation history retention)                                                                                                                                              |
+| IT-html-preview-open-network         | HTML Preview page scripts may reach the network and read every file under the page's grant (including `.env` and `.git`); no CSP or network block, under the single-user local security bar                                                                                                                                                                                                                                                                         | `apps/desktop/src/main/html-preview/protocol.ts`, `docs/file-preview.md`, security reference                                                                                                           |
 | IT-bot-legacy-workspace-shim         | Caxri Bot keeps the legacy-workspace agent-commander shim                                                                                                                                                                                                                                                                                                                                                                                                           | `docs/caxri-bot.md`                                                                                                                                                                                    |
 
 ---

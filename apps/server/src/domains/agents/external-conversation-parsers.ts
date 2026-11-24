@@ -4,16 +4,12 @@ import { readBoundedRegularFileText } from '@caxri/system';
 import Database from 'better-sqlite3';
 
 import type { AgentEnvironment } from './contract';
-import {
-    ANTIGRAVITY_SUBAGENT_SOURCE,
-    readAntigravityConversationHead,
-    readAntigravityConversationSummary,
-} from './providers/antigravity/conversation-database';
 import { isHostedClaudeEntrypoint } from './providers/claude/entrypoint';
 import { claudeTranscriptRoot } from './providers/claude/paths';
 import { resolveCodexStateDirectories } from './providers/codex/paths';
 import type { SqliteColumn } from './providers/codex/state-databases';
 import { findCodexStateDatabases } from './providers/codex/state-databases';
+import { readAntigravityCandidate } from './session-search/antigravity-candidate';
 import { extractAgentTitleMessage } from './title-generation';
 import type { HeadReadOutcome } from './transcript-head-reader';
 import {
@@ -66,6 +62,9 @@ export interface ParsedConversation {
 /**
  * Why a transcript is not a conversation the user had, or could not be read as one. Closed, so the index pass can count
  * each cause; `oversizedRecord` is a record past the head read's caps, the one cause that hides a real conversation.
+ * `locked` (an Antigravity database another process held) is transient and is never stored, so the next pass retries
+ * it; `schemaChanged` and `corrupt` are Antigravity database reads that failed for a lasting cause and hide a real
+ * conversation like `oversizedRecord` does.
  */
 export const conversationExclusionReasons = [
     'unreadable',
@@ -77,6 +76,9 @@ export const conversationExclusionReasons = [
     'missingFolder',
     'missingPrompt',
     'oversizedRecord',
+    'locked',
+    'schemaChanged',
+    'corrupt',
 ] as const;
 export type ConversationExclusionReason = (typeof conversationExclusionReasons)[number];
 
@@ -586,10 +588,8 @@ function parseAntigravityConversation(
     candidate: ConversationCandidate,
     environment: AgentEnvironment,
 ): ConversationParse {
-    const head = readAntigravityConversationHead(candidate.path);
-    if (!head) return 'unreadable';
-    if (head.source === ANTIGRAVITY_SUBAGENT_SOURCE) return 'sidechain';
-    const summary = readAntigravityConversationSummary(environment, candidate.providerSessionId);
-    if (!summary) return 'missingMetadata';
-    return finishConversation(summary.cwd, summary.title, head.firstPrompt);
+    const read = readAntigravityCandidate(candidate.path, environment, candidate.providerSessionId);
+    return typeof read === 'string'
+        ? read
+        : finishConversation(read.cwd, read.title, read.firstPrompt);
 }

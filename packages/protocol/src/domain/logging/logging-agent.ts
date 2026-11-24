@@ -118,6 +118,17 @@ export const agentChatLogEvents = {
      * or commands.
      */
     staleGroupsReaped: 'agent_chat.stale_groups_reaped',
+    /**
+     * A Chat turn's end was held open because its prompt answered while a foreground command still ran (Antigravity),
+     * with the count of `holdingCalls`. Pairs with `agent_chat.turn_hold_released`. Never carries the command.
+     */
+    turnHeld: 'agent_chat.turn_held',
+    /**
+     * A held turn ended, with the closed `reason` (`TurnHoldReleaseReason`) and how long it was held (`holdMs`). A long
+     * `holdMs` with `call_finished` is a slow command; `stopped`, `process_ended`, or `superseded` mean the command
+     * never reported its end.
+     */
+    turnHoldReleased: 'agent_chat.turn_hold_released',
 } as const;
 
 export const agentLogEvents = {
@@ -136,6 +147,13 @@ export const agentLogEvents = {
      * name, and the running per-Session grant lifetime count.
      */
     permissionAutoAllowed: 'agent.permission_auto_allowed',
+    /**
+     * A read of one of Antigravity's private stores failed (so a conversation drops out of search, usage, or title
+     * sync): the closed `site` (`AntigravityStoreReadSite`), the closed `reason` (`AntigravityStoreReadFailureReason`),
+     * and `count`, how many times that pair failed since the site last read successfully. Written at the first failure
+     * and at each doubling of the count. Never carries a path, an error message, or store content.
+     */
+    antigravityStoreReadFailed: 'agent.antigravity_store_read_failed',
     probe: 'agent.probe',
     /**
      * One record per user-requested Session title suggestion with a closed `reason` and duration. Never carries the

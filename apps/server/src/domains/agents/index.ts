@@ -63,6 +63,7 @@ export {
     readAntigravityConversationSummary,
     readAntigravityConversationUsage,
 } from './providers/antigravity/conversation-database';
+export { logStoreReadFailures } from './providers/antigravity/diagnostics/store-read-failures';
 export {
     antigravitySettingsPath,
     grantAntigravityFolderTrust,

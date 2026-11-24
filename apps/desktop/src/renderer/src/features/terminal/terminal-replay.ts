@@ -85,10 +85,18 @@ export class TerminalReplayBuffer {
             throw new RangeError('Terminal replay item limit must be a positive integer');
     }
 
+    /**
+     * A rejected snapshot write must still drain pending output: otherwise `restored` stays false, live output fills
+     * the cap and is dropped without `onDroppedOutput` ever firing, and the pane freezes with no recovery request. The
+     * original error still propagates to the caller.
+     */
     private async restoreOnce(snapshot: string, afterSnapshot?: () => void): Promise<void> {
-        if (snapshot) await this.write(snapshot);
-        afterSnapshot?.();
-        await this.drainPending();
+        try {
+            if (snapshot) await this.write(snapshot);
+            afterSnapshot?.();
+        } finally {
+            await this.drainPending();
+        }
     }
 
     /**
@@ -172,8 +180,17 @@ export class TerminalReplayBuffer {
     }
 
     restore(snapshot: string, afterSnapshot?: () => void): Promise<void> {
-        this.restoration ??= this.restoreOnce(snapshot, afterSnapshot);
-        return this.restoration;
+        if (this.restoration) return this.restoration;
+        const attempt = this.restoreOnce(snapshot, afterSnapshot);
+        // Only the first caller observes a failure; the cached promise resolves so a later restore is not stuck rejected.
+        this.restoration = (async () => {
+            try {
+                await attempt;
+            } catch {
+                // Surfaced to the first caller through `attempt`.
+            }
+        })();
+        return attempt;
     }
 }
 

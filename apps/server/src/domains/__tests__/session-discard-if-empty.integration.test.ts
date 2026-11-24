@@ -39,13 +39,19 @@ async function fixture(untouched: ReadonlySet<string>, fence?: ReturnType<typeof
     const project = database.createProject(join(directory, 'project'));
     const forgetSessionRuntime = vi.fn();
     const evictSessions = vi.fn();
+    const deletedDelegationSessions: Array<readonly string[]> = [];
+    const forgottenDelegationSessions: Array<readonly string[]> = [];
     const handlers = createDeletionHandlers({
         database,
         delegations: {
-            deleteSessions: async (_ids: readonly string[], remove: () => unknown) => {
+            deleteSessions: async (ids: readonly string[], remove: () => unknown) => {
+                deletedDelegationSessions.push(ids);
                 fence?.signalEntered();
                 await fence?.gate;
-                return remove();
+                const removed = await remove();
+                // The real service forgets pending questions and approvals only after the removal succeeded.
+                forgottenDelegationSessions.push(ids);
+                return removed;
             },
         } as unknown as AgentDelegationService,
         mobileTerminalMutations: new MobileTerminalMutationQueue(),
@@ -66,7 +72,9 @@ async function fixture(untouched: ReadonlySet<string>, fence?: ReturnType<typeof
     return {
         chatSession,
         database,
+        deletedDelegationSessions,
         discard,
+        forgottenDelegationSessions,
         evictSessions,
         forgetSessionRuntime,
         handlers,
@@ -156,6 +164,23 @@ describe('project.delete', () => {
         expect(f.forgetSessionRuntime).toHaveBeenCalledWith(early);
         expect(f.forgetSessionRuntime).toHaveBeenCalledWith(late);
         expect(f.evictSessions).toHaveBeenCalledWith(expect.arrayContaining([early, late]));
+        f.database.close();
+    });
+
+    it('fences and forgets a Session created while the deletion waited', async () => {
+        const fence = heldFence();
+        const f = await fixture(new Set(), fence);
+        const { sessionId: early } = f.chatSession();
+
+        const deleted = f.handlers['project.delete']({ projectId: f.project.id });
+        await fence.entered;
+        const { sessionId: late } = f.chatSession();
+        fence.release();
+        await deleted;
+
+        expect(f.deletedDelegationSessions).toEqual([[early], [late]]);
+        expect(f.forgottenDelegationSessions).toEqual([[late], [early]]);
+        expect(f.database.getSession(late)).toBeUndefined();
         f.database.close();
     });
 });

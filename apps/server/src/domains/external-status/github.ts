@@ -31,6 +31,7 @@ const PULL_REQUEST_FIELDS = [
     'headRefOid',
     'mergeCommit',
     'mergedAt',
+    'closedAt',
     'mergeable',
     'mergeStateStatus',
     'changedFiles',

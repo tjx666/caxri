@@ -15,6 +15,7 @@ import {
 } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
+import { logStoreReadFailures } from '../domains/agents';
 import { warmServerExecutablePath } from '../domains/executables';
 import { startServerObservability } from '../observability/server-observability';
 import {
@@ -78,6 +79,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const startedAt = Date.now();
     const { eventLoopMonitor, logger } = startServerObservability(options);
     const detachExecutableLogger = warmServerExecutablePath(logger);
+    const detachStoreReadLogger = logStoreReadFailures(logger);
     const lease = await acquireServerProfile({
         logger,
         startedAt,
@@ -173,6 +175,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         stopPromise ??= (async () => {
             eventLoopMonitor.stop();
             detachExecutableLogger();
+            detachStoreReadLogger();
             try {
                 // Captures every live Terminal's snapshot via `host.shutdown` first: the Extension Host's own graceful
                 // shutdown can wait up to 5s for its child to exit, and under the previous ordering that delay let an

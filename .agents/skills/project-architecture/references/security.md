@@ -233,11 +233,19 @@ since its paths name files on the remote machine.
 the files it loads. `htmlPreview.url` (`local-only`) authorizes the page first: a Project page
 through Server Core's `files.authorizeOpen`, whose Project root becomes the grant, and an external
 document through the ID Main issued, whose own folder becomes the grant. Each grant is a random
-host, so a page cannot guess another grant's origin, and every request is canonicalized with
-`realpath` and must stay inside its grant and name a regular file, else 404. The Renderer CSP allows
-`frame-src caxri-html:` and nothing else, and the frame's sandbox withholds top-level navigation, so
-a page can neither replace the Workbench nor frame the web. Its popups are denied by Main's
-window-open handler like all passive page content. `terminal.revealFileLink`'s `openInBrowser` action hands only an HTML page
+host, so a page cannot guess another grant's origin. A Project grant judges containment on the
+workspace path (the request resolved lexically against the Project root must stay inside it, so a
+`..` climb is a 404) and reads through symbolic links, including ones that point outside the
+Project, as the editor does; an external-document grant canonicalizes every request with `realpath`
+and must resolve inside its folder. Either way the entry must be a regular file, else 404. The
+Renderer CSP allows `frame-src caxri-html:` and nothing else, and the frame's sandbox withholds
+top-level navigation, so a page can neither replace the Workbench nor navigate the frame to the
+web. Its popups are denied by Main's window-open handler like all passive page content. The frame
+is not otherwise contained: the `caxri-html:` origin carries no CSP header, so a page's `fetch`,
+XHR, and external loads reach the network, and its scripts can read any file under the grant (for
+a Project page the whole root, dotfiles such as `.env` and `.git` included). That is the accepted
+single-user tradeoff, since the page comes from the user's own Project or Agent.
+`terminal.revealFileLink`'s `openInBrowser` action hands only an HTML page
 to `shell.openPath`, so a link cannot launch another file type's default application. Behavior is
 in [File preview](../../../../docs/file-preview.md#html).
 

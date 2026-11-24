@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { StoreReadFailureReport } from '../diagnostics/store-read-failures';
+import { setStoreReadFailureSink } from '../diagnostics/store-read-failures';
 import {
     ANTIGRAVITY_USAGE_ARGUMENTS,
     antigravityGroupLabel,
@@ -125,5 +127,29 @@ describe('readAntigravityUsage', () => {
         await expect(readAntigravityUsage({ executable: '/bin/agy', run })).resolves.toEqual({
             status: 'unknown',
         });
+    });
+
+    it('reports why an unknown answer was unknown, as a closed reason', async () => {
+        const reports: StoreReadFailureReport[] = [];
+        setStoreReadFailureSink((report) => reports.push(report));
+        try {
+            const timedOut = vi.fn(() =>
+                Promise.reject(Object.assign(new Error('timeout'), { killed: true, stdout: '' })),
+            );
+            await readAntigravityUsage({ executable: '/bin/agy', run: timedOut });
+            const spawnFailed = vi.fn(() => Promise.reject(new Error('ENOENT')));
+            await readAntigravityUsage({ executable: '/bin/agy', run: spawnFailed });
+            parseAntigravityUsage('not json', NOW);
+            parseAntigravityUsage('{"status":"ERROR","error":"quota backend down"}', NOW);
+            expect(reports.map((report) => report.reason)).toEqual([
+                'timeout',
+                'spawn',
+                'parse',
+                'shape',
+            ]);
+            expect(reports.every((report) => report.site === 'usageCommand')).toBe(true);
+        } finally {
+            setStoreReadFailureSink(undefined);
+        }
     });
 });

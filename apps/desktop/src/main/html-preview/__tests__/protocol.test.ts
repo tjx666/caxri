@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { previewAssetMediaType } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({ protocol: { handle: vi.fn() } }));
@@ -113,7 +114,7 @@ describe('grant eviction', () => {
 });
 
 describe('htmlPreviewResponse', () => {
-    it('answers 404 for a path that climbs out of the grant, directly or through a symbolic link', async () => {
+    it('answers 404 for a path that climbs out of an external grant, directly or through a symbolic link', async () => {
         const root = join(fixture.directory, 'site');
         const url = await htmlPreviewUrl(join(root, 'pages', 'daily report.html'), root);
         const host = new URL(url).host;
@@ -122,6 +123,84 @@ describe('htmlPreviewResponse', () => {
         expect((await fetchFrom(`caxri-html://${host}/%2E%2E/secret.txt`)).status).toBe(404);
         expect((await fetchFrom(`caxri-html://${host}/assets/leak.txt`)).status).toBe(404);
         expect((await fetchFrom(`caxri-html://${host}/assets`)).status).toBe(404);
+    });
+
+    it('follows a symbolic link inside a Project grant but still refuses a climb out of the root', async () => {
+        const root = join(fixture.directory, 'site');
+        const url = await htmlPreviewUrl(join(root, 'pages', 'daily report.html'), root, {
+            workspace: true,
+        });
+        const host = new URL(url).host;
+        await symlink(join(fixture.directory, 'secret.txt'), join(root, 'assets', 'leak.txt'));
+
+        const leaf = await fetchFrom(`caxri-html://${host}/assets/leak.txt`);
+        expect(leaf.status).toBe(200);
+        expect(await leaf.text()).toBe('outside');
+        expect((await fetchFrom(`caxri-html://${host}/%2E%2E/secret.txt`)).status).toBe(404);
+        expect(
+            (await fetchFrom(`caxri-html://${host}/assets/%2e%2e/%2e%2e/secret.txt`)).status,
+        ).toBe(404);
+        expect((await fetchFrom(`caxri-html://${host}/assets`)).status).toBe(404);
+    });
+
+    it('serves a Project folder that links to a folder outside the Project', async () => {
+        const root = join(fixture.directory, 'project');
+        const shared = join(fixture.directory, 'shared-reports');
+        await mkdir(root);
+        await mkdir(shared);
+        await writeFile(join(shared, 'index.html'), '<link href="app.css">');
+        await writeFile(join(shared, 'app.css'), 'body { color: blue }');
+        await symlink(shared, join(root, 'docs'));
+
+        const url = await htmlPreviewUrl(join(root, 'docs', 'index.html'), root, {
+            workspace: true,
+        });
+
+        expect(new URL(url).pathname).toBe('/docs/index.html');
+        expect((await fetchFrom(url)).status).toBe(200);
+        const stylesheet = await fetchFrom(new URL('app.css', url).href);
+        expect(stylesheet.status).toBe(200);
+        expect(await stylesheet.text()).toBe('body { color: blue }');
+        expect((await fetchFrom(new URL('../../secret.txt', url).href)).status).toBe(404);
+    });
+
+    it('serves every media type the preview asset allowlist knows exactly as it names it', async () => {
+        const root = join(fixture.directory, 'media');
+        await mkdir(root);
+        await writeFile(join(root, 'index.html'), '');
+        const host = new URL(
+            await htmlPreviewUrl(join(root, 'index.html'), root, { workspace: true }),
+        ).host;
+        const extensions = [
+            'apng',
+            'avif',
+            'bmp',
+            'gif',
+            'ico',
+            'jpeg',
+            'jpg',
+            'pdf',
+            'png',
+            'svg',
+            'webp',
+        ];
+        await Promise.all(
+            extensions.map((extension) =>
+                writeFile(join(root, `file.${extension.toUpperCase()}`), 'x'),
+            ),
+        );
+        const responses = await Promise.all(
+            extensions.map((extension) =>
+                fetchFrom(`caxri-html://${host}/file.${extension.toUpperCase()}`),
+            ),
+        );
+        responses.forEach((response, index) => {
+            expect(response.headers.get('content-type')).toBe(
+                previewAssetMediaType(`file.${extensions[index]}`),
+            );
+        });
+        expect(previewAssetMediaType('file.apng')).toBe('image/apng');
+        expect(previewAssetMediaType('file.bmp')).toBe('image/bmp');
     });
 
     it('answers 404 for a host no page was granted', async () => {

@@ -1,12 +1,16 @@
 import type { Stats } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { AntigravityStoreReadFailureReason } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 
 import type { AgentEnvironment } from '../../contract';
 import { isOpaqueAgentSessionId } from '../../contract';
+import type { AntigravityStoreReadSite } from './diagnostics/store-read-failures';
+import { clearStoreReadFailure, reportStoreReadFailure } from './diagnostics/store-read-failures';
 import { antigravityStateDirectory } from './paths';
 import type { WireField } from './protobuf-wire';
 import {
@@ -149,17 +153,94 @@ async function walStats(path: string): Promise<Stats | undefined> {
     }
 }
 
-function withDatabase<T>(path: string, read: (database: Database.Database) => T): T | undefined {
+/**
+ * Why one read of an Antigravity database failed. Closed, so a diagnostic names the cause without a path or an error
+ * message: `missing` (no file), `locked` (another process holds it, transient), `schema` (a table or column `agy`
+ * renamed or dropped), `corrupt` (not a database or damaged), `unreadable` (anything else).
+ */
+export type AntigravityReadFailureReason = AntigravityStoreReadFailureReason;
+
+export type AntigravityReadResult<T> =
+    { ok: true; value: T } | { ok: false; reason: AntigravityReadFailureReason };
+
+/**
+ * `SQLITE_CANTOPEN` covers both an absent file and a permission failure, so the classifier checks the path. The reader
+ * is already synchronous (`better-sqlite3`), so one `existsSync` on the failure path adds no new blocking class.
+ */
+function isExistingPath(path: string): boolean {
+    // oxlint-disable-next-line node/no-sync -- the failing read is synchronous too
+    return existsSync(path);
+}
+
+/**
+ * Classifies a `better-sqlite3` error by its result code and message only.
+ */
+export function classifyAntigravityReadFailure(
+    error: unknown,
+    path: string,
+): AntigravityReadFailureReason {
+    const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown };
+    const text = typeof message === 'string' ? message : '';
+    switch (code) {
+        case 'SQLITE_BUSY':
+        case 'SQLITE_BUSY_SNAPSHOT':
+        case 'SQLITE_BUSY_RECOVERY':
+        case 'SQLITE_LOCKED':
+            return 'locked';
+        case 'SQLITE_CORRUPT':
+        case 'SQLITE_NOTADB':
+            return 'corrupt';
+        case 'ENOENT':
+            return 'missing';
+        case 'SQLITE_CANTOPEN':
+            return isExistingPath(path) ? 'unreadable' : 'missing';
+        case 'SQLITE_ERROR':
+            return /no such (?:table|column)/iu.test(text) ? 'schema' : 'unreadable';
+        default:
+            return /does not exist|no such file/iu.test(text) && !isExistingPath(path)
+                ? 'missing'
+                : 'unreadable';
+    }
+}
+
+function readDatabase<T>(
+    path: string,
+    read: (database: Database.Database) => T,
+): AntigravityReadResult<T> {
     let database: Database.Database | undefined;
     try {
         database = new Database(path, { fileMustExist: true, readonly: true });
-        return read(database);
-    } catch {
-        // A schema Antigravity changed, a lock, or a corrupt file all read as no conversation.
-        return undefined;
+        return { ok: true, value: read(database) };
+    } catch (error) {
+        return { ok: false, reason: classifyAntigravityReadFailure(error, path) };
     } finally {
         database?.close();
     }
+}
+
+/**
+ * Settles a read for the callers that only need a value: `undefined` on failure, with the closed reason reported once
+ * per read site so a failing reader is no longer invisible. A missing file is routine (a conversation not written yet)
+ * and is not reported.
+ */
+function settleRead<T>(
+    site: AntigravityStoreReadSite,
+    result: AntigravityReadResult<T>,
+): T | undefined {
+    if (result.ok) {
+        clearStoreReadFailure(site);
+        return result.value;
+    }
+    if (result.reason !== 'missing') reportStoreReadFailure(site, result.reason);
+    return undefined;
+}
+
+function withDatabase<T>(
+    site: AntigravityStoreReadSite,
+    path: string,
+    read: (database: Database.Database) => T,
+): T | undefined {
+    return settleRead(site, readDatabase(path, read));
 }
 
 function blob(value: unknown): Uint8Array | undefined {
@@ -243,7 +324,17 @@ function userStepText(payload: Uint8Array): string {
  * use `readAntigravityConversationUsage` or `readAntigravityConversationHead`, which skip the message payloads.
  */
 export function readAntigravityConversation(path: string): AntigravityConversation | undefined {
-    return withDatabase(path, (database) => {
+    return settleRead('conversation', readAntigravityConversationResult(path));
+}
+
+/**
+ * `readAntigravityConversation` with the closed reason of a failed read, for a caller that must tell a transient lock
+ * from a lasting failure.
+ */
+export function readAntigravityConversationResult(
+    path: string,
+): AntigravityReadResult<AntigravityConversation> {
+    return readDatabase(path, (database) => {
         const source = readSource(database);
         const steps = database
             .prepare(
@@ -289,7 +380,7 @@ export function readAntigravityConversation(path: string): AntigravityConversati
 export function readAntigravityConversationUsage(
     path: string,
 ): Pick<AntigravityConversation, 'activity' | 'generations'> | undefined {
-    return withDatabase(path, (database) => {
+    return withDatabase('usage', path, (database) => {
         const steps = database
             .prepare(`SELECT idx, metadata FROM steps ORDER BY idx LIMIT ${MAX_STEPS}`)
             .all() as Array<{ idx: number; metadata: unknown }>;
@@ -306,7 +397,7 @@ export function readAntigravityConversationUsage(
 export function readAntigravityUserStepTexts(
     path: string,
 ): Array<{ idx: number; text: string }> | undefined {
-    return withDatabase(path, (database) =>
+    return withDatabase('userSteps', path, (database) =>
         (
             database
                 .prepare(
@@ -333,10 +424,10 @@ export interface AntigravityConversationHead {
  * What external-conversation discovery needs: the source and the first prompt. Stops at the first prompt with text
  * instead of decoding every step.
  */
-export function readAntigravityConversationHead(
+export function readAntigravityConversationHeadResult(
     path: string,
-): AntigravityConversationHead | undefined {
-    return withDatabase(path, (database) => {
+): AntigravityReadResult<AntigravityConversationHead> {
+    return readDatabase(path, (database) => {
         const source = readSource(database);
         const prompts = database
             .prepare(
@@ -357,6 +448,15 @@ export function readAntigravityConversationHead(
             ...(firstPrompt !== undefined && { firstPrompt }),
         };
     });
+}
+
+/**
+ * `readAntigravityConversationHeadResult` without the reason: `undefined` when the database cannot be read.
+ */
+export function readAntigravityConversationHead(
+    path: string,
+): AntigravityConversationHead | undefined {
+    return settleRead('head', readAntigravityConversationHeadResult(path));
 }
 
 export interface AntigravityConversationSummary {
@@ -392,14 +492,15 @@ function firstWorkspaceFolder(source: unknown): string | undefined {
 
 /**
  * Reads a conversation's folder and generated title from `conversation_summaries.db`. Like the metadata probe in
- * `state.ts`, it never selects `preview`, the raw first prompt.
+ * `state.ts`, it never selects `preview`, the raw first prompt. A failed read carries its closed reason; a database
+ * with no row for the conversation is a successful read of `undefined`.
  */
-export function readAntigravityConversationSummary(
+export function readAntigravityConversationSummaryResult(
     environment: AgentEnvironment,
     conversationId: string,
-): AntigravityConversationSummary | undefined {
-    if (!isOpaqueAgentSessionId(conversationId)) return;
-    const row = withDatabase(
+): AntigravityReadResult<AntigravityConversationSummary | undefined> {
+    if (!isOpaqueAgentSessionId(conversationId)) return { ok: true, value: undefined };
+    const read = readDatabase(
         join(antigravityStateDirectory(environment), 'conversation_summaries.db'),
         (database) =>
             database
@@ -408,10 +509,28 @@ export function readAntigravityConversationSummary(
                 )
                 .get(conversationId) as { title?: unknown; workspace_uris?: unknown } | undefined,
     );
-    if (!row) return;
+    if (!read.ok) return read;
+    const row = read.value;
+    if (!row) return { ok: true, value: undefined };
     const cwd = firstWorkspaceFolder(row.workspace_uris);
     return {
-        ...(cwd && { cwd }),
-        ...(typeof row.title === 'string' && row.title.trim() && { title: row.title }),
+        ok: true,
+        value: {
+            ...(cwd && { cwd }),
+            ...(typeof row.title === 'string' && row.title.trim() && { title: row.title }),
+        },
     };
+}
+
+/**
+ * `readAntigravityConversationSummaryResult` without the reason: `undefined` when there is nothing to read.
+ */
+export function readAntigravityConversationSummary(
+    environment: AgentEnvironment,
+    conversationId: string,
+): AntigravityConversationSummary | undefined {
+    return settleRead(
+        'summary',
+        readAntigravityConversationSummaryResult(environment, conversationId),
+    );
 }

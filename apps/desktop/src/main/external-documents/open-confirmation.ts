@@ -1,5 +1,6 @@
 import { basename, dirname } from 'node:path';
 
+import { isHtmlPreviewPath } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { clipboard, dialog } from 'electron';
 
@@ -24,7 +25,12 @@ export async function confirmExternalOpen(
         type: 'question',
         title: translateMain('desktop.externalFile.title'),
         message: translateMain('desktop.externalFile.message', { name: basename(path) }),
-        detail: translateMain('desktop.externalFile.detail', { path, folder }),
+        detail: translateMain(
+            isHtmlPreviewPath(path)
+                ? 'desktop.externalFile.htmlDetail'
+                : 'desktop.externalFile.detail',
+            { path, folder },
+        ),
         buttons: [
             translateMain('desktop.dialog.open'),
             translateMain('desktop.externalFile.trustFolder'),

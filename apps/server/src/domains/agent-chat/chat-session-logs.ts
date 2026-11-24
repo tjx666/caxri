@@ -35,6 +35,7 @@ export function chatSessionLogCallbacks(
     | 'onProtocolRejected'
     | 'onProviderNotice'
     | 'onTurnFinished'
+    | 'onTurnHold'
 > {
     return {
         onTurnFinished: (status, durationMs, turnId) => {
@@ -64,6 +65,14 @@ export function chatSessionLogCallbacks(
             logger.write('info', logEventCatalog.agentChat.providerNotice, {
                 fields: { terminalId, ...notice },
             }),
+        onTurnHold: (event) =>
+            event.kind === 'held'
+                ? logger.write('info', logEventCatalog.agentChat.turnHeld, {
+                      fields: { terminalId, holdingCalls: event.holdingCalls },
+                  })
+                : logger.write('info', logEventCatalog.agentChat.turnHoldReleased, {
+                      fields: { terminalId, reason: event.reason, holdMs: event.holdMs },
+                  }),
         onForkReleaseFailed: (reason) =>
             logger.write('debug', logEventCatalog.agentChat.forkReleaseFailed, {
                 fields: { terminalId, reason },

@@ -98,17 +98,40 @@ export class QuitRestore {
     }
 
     /**
-     * Takes the record for one restore, or `undefined` when another restore runs or nothing is recorded. It is consumed
-     * synchronously, so a second request (or one from another client) restores nothing twice.
+     * Takes the record for one restore, or `undefined` when another restore runs or nothing is recorded. The in-memory
+     * `isRestoring` guard is set synchronously, so a second request (or one from another client) restores nothing
+     * twice. The durable record stays until each entry is done (see {@link persistRemaining}), so a crash partway
+     * through keeps the Sessions not yet relaunched for the next start or the launch notice.
      */
     private claim(): QuitStoppedSessions | undefined {
         if (this.isRestoring) return undefined;
         const { database } = this.options;
         const stored = database.getAppState('quitStoppedSessions');
         if (!stored || stored.sessions.length === 0) return undefined;
-        database.setAppState('quitStoppedSessions', { ...stored, sessions: [] });
         this.isRestoring = true;
         return stored;
+    }
+
+    /**
+     * Rewrites the durable record to the entries a restore still owes. A write failure is logged and ignored: the
+     * relaunch matters more than the bookkeeping, and the worst case is the pre-existing one of a crash losing the
+     * rest. `isFinal` drops the update marker, so Sessions whose relaunch failed go to the launch notice rather than
+     * another automatic restore.
+     */
+    private persistRemaining(
+        stored: QuitStoppedSessions,
+        sessions: QuitStoppedSessions['sessions'],
+        isFinal = false,
+    ): void {
+        try {
+            this.options.database.setAppState('quitStoppedSessions', {
+                stoppedAt: stored.stoppedAt,
+                ...(stored.restartedForUpdate && !isFinal && { restartedForUpdate: true as const }),
+                sessions,
+            });
+        } catch (error) {
+            this.logAutoRestoreFailed(error);
+        }
     }
 
     /**
@@ -127,8 +150,19 @@ export class QuitRestore {
         const failed: QuitStoppedSessions['sessions'] = [];
         try {
             await automatic?.beforeFirst();
-            for (const entry of stored.sessions) {
+            for (const [index, entry] of stored.sessions.entries()) {
                 const { sessionId, shouldContinue, terminalIds } = entry;
+                const settle = (): void => {
+                    // Nobody asked for an automatic restore, so nothing else would tell the user a relaunch failed: the
+                    // launch notice offers those Sessions instead. A manual restore reports its own skips.
+                    const keptFailures = automatic ? failed : [];
+                    const rest = stored.sessions.slice(index + 1);
+                    this.persistRemaining(stored, [...keptFailures, ...rest], rest.length === 0);
+                };
+                // Drops this entry from the durable record before relaunching it: if the relaunch itself takes Server
+                // Core down, the next start must not retry it automatically and loop. Only the in-flight Session is
+                // lost to a crash; the rest stay recorded.
+                settle();
                 const session = database.getSession(sessionId);
                 if (!session || session.archivedAt !== undefined) {
                     skipped += 1;
@@ -144,17 +178,11 @@ export class QuitRestore {
                     // The Session keeps its stopped Terminals, which the user can still restart by hand.
                     skipped += 1;
                     failed.push(entry);
+                    settle();
                 }
             }
         } finally {
             this.isRestoring = false;
-            // Nobody asked for an automatic restore, so nothing else would tell the user a relaunch failed: the launch
-            // notice offers those Sessions instead.
-            if (automatic && failed.length > 0)
-                database.setAppState('quitStoppedSessions', {
-                    stoppedAt: stored.stoppedAt,
-                    sessions: failed,
-                });
             this.options.logger.write('info', logEventCatalog.sessionQuitRestore.restored, {
                 fields: {
                     cause,
