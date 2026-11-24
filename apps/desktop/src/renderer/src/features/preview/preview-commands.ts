@@ -15,7 +15,7 @@ import {
     selectPaneTab,
     splitPaneTab,
 } from '../workbench/pane-actions';
-import { canPreviewPath, previewerForPath, shouldOpenAsPreview } from './preview-registry';
+import { canPreviewPath, previewerForPath } from './preview-registry';
 
 /**
  * The document a preview of this editor tab would show: the tab's own document when a previewer claims it, or, for a
@@ -56,10 +56,11 @@ export type PreviewTabSwitch =
 
 export function previewTabSwitch(tabPath: string): PreviewTabSwitch | undefined {
     const preview = parseFilePreviewTab(tabPath);
+    // A binary file's no-preview tab has no source either: opening it lands back on the same tab.
     if (preview)
-        return shouldOpenAsPreview(preview.path)
-            ? undefined
-            : { kind: 'openSource', path: preview.path };
+        return previewerForPath(preview.path)?.defaultView === 'source'
+            ? { kind: 'openSource', path: preview.path }
+            : undefined;
     const source = previewSourcePath(tabPath);
     return source ? { kind: 'openPreview', path: source } : undefined;
 }

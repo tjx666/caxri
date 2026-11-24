@@ -117,6 +117,10 @@ describe('previewTabSwitch', () => {
         expect(previewTabSwitch(filePreviewTabPath('/p/manual.pdf'))).toBeUndefined();
     });
 
+    it("offers no source for a binary file's no-preview tab, which opening the source lands back on", () => {
+        expect(previewTabSwitch(filePreviewTabPath('/p/sample.bin'))).toBeUndefined();
+    });
+
     it('offers nothing for a file no previewer claims', () => {
         expect(previewTabSwitch('/p/src/index.ts')).toBeUndefined();
     });
