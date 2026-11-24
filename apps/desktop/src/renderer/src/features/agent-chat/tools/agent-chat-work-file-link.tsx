@@ -1,6 +1,6 @@
 import { useFileLinkContextMenu } from '../../../components/markdown/file-link-context-menu';
 import { Tooltip } from '../../../components/ui/tooltip';
-import { useAgentChatRevealFileAction } from '../hooks/use-agent-chat-open-file';
+import { useAgentChatDesktopFileActions } from '../hooks/use-agent-chat-open-file';
 
 /**
  * The file a work row names, underlined like a link and opening in the editor. It sits above the row's stretched
@@ -17,7 +17,13 @@ export function AgentChatWorkFileLink({
     subject: string;
     onOpenFile: (target: string) => void;
 }) {
-    const onContextMenu = useFileLinkContextMenu(path, onOpenFile, useAgentChatRevealFileAction());
+    const desktop = useAgentChatDesktopFileActions();
+    const onContextMenu = useFileLinkContextMenu(
+        path,
+        onOpenFile,
+        desktop?.reveal,
+        desktop?.openInBrowser,
+    );
     return (
         <Tooltip content={path}>
             <button

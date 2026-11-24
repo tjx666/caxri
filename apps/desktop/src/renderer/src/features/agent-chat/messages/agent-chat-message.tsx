@@ -19,7 +19,7 @@ import { textClipboard } from '../../../lib/clipboard';
 import { cn } from '../../../lib/utilities';
 import { AgentChatGoalNotice } from '../activity/agent-chat-goal-notice';
 import { useAgentChatDiagrams } from '../hooks/use-agent-chat-diagrams';
-import { useAgentChatRevealFileAction } from '../hooks/use-agent-chat-open-file';
+import { useAgentChatDesktopFileActions } from '../hooks/use-agent-chat-open-file';
 import { useAgentChatPacedText } from '../hooks/use-agent-chat-paced-text';
 import { useAgentChatReplyMenu } from '../hooks/use-agent-chat-reply-menu';
 import { useAgentChatSkills } from '../hooks/use-agent-chat-skills';
@@ -68,7 +68,7 @@ export function AgentChatMessage({
     const diagrams = useAgentChatDiagrams();
     const skills = useAgentChatSkills();
     const references = useAgentChatReferences();
-    const revealFile = useAgentChatRevealFileAction();
+    const desktopFiles = useAgentChatDesktopFileActions();
     return (
         <div className={cn('flex flex-col gap-3 text-[13px] leading-5 wrap-anywhere', className)}>
             <MarkdownBlocks
@@ -79,7 +79,8 @@ export function AgentChatMessage({
                 variant="transcript"
                 onOpenFile={onOpenFile}
                 onOpenUrl={openAgentChatLink}
-                onRevealFile={onOpenFile && revealFile}
+                onRevealFile={onOpenFile && desktopFiles?.reveal}
+                onOpenFileInBrowser={onOpenFile && desktopFiles?.openInBrowser}
                 referenceTerminalId={terminalId}
                 references={references}
                 skills={skills}

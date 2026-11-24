@@ -12,14 +12,21 @@ const onError = (message: string): void => pushToast('error', message);
  * Terminal may reach. A path that resolves nowhere tries `fallbackTarget` once, as an open does, so a file the Agent
  * wrote outside every Project and cited by name is still found. Several matches, a miss, or a failure is reported as a
  * toast rather than revealing a guess. Never rejects.
+ *
+ * `openInBrowser` opens an HTML page in the browser instead, through the same resolution.
  */
 export async function revealTerminalFileTarget(
     terminalId: string,
     target: string,
-    { fallbackTarget }: Pick<OpenTerminalFileTargetOptions, 'fallbackTarget'> = {},
+    {
+        action = 'reveal',
+        fallbackTarget,
+    }: Pick<OpenTerminalFileTargetOptions, 'fallbackTarget'> & {
+        action?: 'openInBrowser' | 'reveal';
+    } = {},
 ): Promise<void> {
     try {
-        const result = await revealTerminalFileLink(terminalId, target);
+        const result = await revealTerminalFileLink(terminalId, target, action);
         if ('status' in result)
             onError(translate('terminal.links.fileAmbiguous', { name: target }));
     } catch (error) {
@@ -30,12 +37,20 @@ export async function revealTerminalFileTarget(
                 return;
             }
             if (fallback && fallback.path !== target) {
-                await revealTerminalFileTarget(terminalId, fallback.path);
+                await revealTerminalFileTarget(terminalId, fallback.path, { action });
                 return;
             }
             onError(translate('terminal.links.fileNotFound', { path: target }));
             return;
         }
-        onError(describeFailureKey(error, 'terminal.links.fileRevealFailed', translate));
+        onError(
+            describeFailureKey(
+                error,
+                action === 'reveal'
+                    ? 'terminal.links.fileRevealFailed'
+                    : 'core.files.openWithDefaultAppFailed',
+                translate,
+            ),
+        );
     }
 }

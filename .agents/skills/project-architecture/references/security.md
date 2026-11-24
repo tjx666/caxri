@@ -227,6 +227,20 @@ only the PNG QuickLook draws (the picture Finder's icon view shows) and never th
 SSH Host window never builds these URLs (`isAgentChatPlayableVideo`, `isOsFileReferenceRefused`),
 since its paths name files on the remote machine.
 
+## HTML preview scheme
+
+`caxri-html:` (`apps/desktop/src/main/html-preview/protocol.ts`) serves a rendered HTML preview and
+the files it loads. `htmlPreview.url` (`local-only`) authorizes the page first: a Project page
+through Server Core's `files.authorizeOpen`, whose Project root becomes the grant, and an external
+document through the ID Main issued, whose own folder becomes the grant. Each grant is a random
+host, so a page cannot guess another grant's origin, and every request is canonicalized with
+`realpath` and must stay inside its grant and name a regular file, else 404. The Renderer CSP allows
+`frame-src caxri-html:` and nothing else, and the frame's sandbox withholds top-level navigation, so
+a page can neither replace the Workbench nor frame the web. Its popups are denied by Main's
+window-open handler like all passive page content. `terminal.revealFileLink`'s `openInBrowser` action hands only an HTML page
+to `shell.openPath`, so a link cannot launch another file type's default application. Behavior is
+in [File preview](../../../../docs/file-preview.md#html).
+
 ## Accepted test seams
 
 - **Preload E2E bridge** (`apps/desktop/src/preload/index.ts`): `window.caxriE2E` (request gates,

@@ -1,5 +1,7 @@
 import type { MouseEvent } from 'react';
 
+import { isHtmlPreviewPath, parseFileLocation } from '@caxri/protocol';
+
 import { useContextMenu } from '../../hooks/use-context-menu';
 import { translate } from '../../i18n';
 import { writeClipboardText } from '../../lib/clipboard';
@@ -7,20 +9,31 @@ import type { ContextMenuEntries } from '../../lib/context-menu';
 import { pushToast, tryCommand } from '../../stores/toasts';
 
 /**
- * The right-click menu of a file path cited in Markdown: Open File, Reveal in Finder when the host can show the file on
- * this Mac, and Copy Path, so a path can be located or pasted elsewhere without opening an editor tab first.
+ * The right-click menu of a file path cited in Markdown: Open File, Open in Browser for an HTML page, Reveal in Finder
+ * when the host can show the file on this Mac, and Copy Path, so a path can be located or pasted elsewhere without
+ * opening an editor tab first.
  */
 export function fileLinkContextMenu({
     onCopy,
     onOpen,
+    onOpenInBrowser,
     onReveal,
 }: {
     onCopy: () => void;
     onOpen: () => void;
+    onOpenInBrowser?: () => void;
     onReveal?: () => void;
 }): ContextMenuEntries {
     return [
         { label: translate('core.markdown.fileMenu.open'), onSelect: onOpen },
+        ...(onOpenInBrowser
+            ? [
+                  {
+                      label: translate('core.markdown.fileMenu.openInBrowser'),
+                      onSelect: onOpenInBrowser,
+                  },
+              ]
+            : []),
         ...(onReveal
             ? [{ label: translate('core.markdown.fileMenu.revealInFinder'), onSelect: onReveal }]
             : []),
@@ -41,18 +54,23 @@ export function copyFilePathFromMenu(file: string): void {
 
 /**
  * The `onContextMenu` handler that opens {@link fileLinkContextMenu} for `file`. It claims the event, so a path inside a
- * message opens its own menu rather than the message's.
+ * message opens its own menu rather than the message's. `onOpenInBrowser` is offered only when `file` is an HTML page.
  */
 export function useFileLinkContextMenu(
     file: string,
     onOpen: (file: string) => void,
     onReveal: ((file: string) => void) | undefined,
+    onOpenInBrowser?: (file: string) => void,
 ): (event: MouseEvent) => void {
     return useContextMenu(() =>
         fileLinkContextMenu({
             onCopy: () => copyFilePathFromMenu(file),
             onOpen: () => onOpen(file),
             ...(onReveal && { onReveal: () => onReveal(file) }),
+            ...(onOpenInBrowser &&
+                isHtmlPreviewPath(parseFileLocation(file).target) && {
+                    onOpenInBrowser: () => onOpenInBrowser(file),
+                }),
         }),
     );
 }

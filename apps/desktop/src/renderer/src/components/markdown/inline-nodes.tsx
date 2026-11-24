@@ -24,7 +24,7 @@ export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
 
 function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> }) {
     const { t } = useTranslation();
-    const { onOpenFile, onRevealFile, skills, variant } = useMarkdownContext();
+    const { onOpenFile, onOpenFileInBrowser, onRevealFile, skills, variant } = useMarkdownContext();
     /**
      * A transcript sits on the pane background, where a `--surface` chip reads as a hole; the lifted `--elevated` chip
      * matches how the Codex app sets code apart in its Dracula transcript. Compact hover cards already sit on
@@ -56,6 +56,7 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
             file={file}
             tooltip={t('core.markdown.openFile', { file })}
             onOpen={onOpenFile}
+            onOpenInBrowser={onOpenFileInBrowser}
             onReveal={onRevealFile}
         >
             {node.value}
@@ -66,7 +67,14 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
 function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> }) {
     const { t } = useTranslation();
     const context = useMarkdownContext();
-    const { onOpenFile, onOpenUrl, onRevealFile, referenceTerminalId, variant } = context;
+    const {
+        onOpenFile,
+        onOpenFileInBrowser,
+        onOpenUrl,
+        onRevealFile,
+        referenceTerminalId,
+        variant,
+    } = context;
     // A `#123` inside a link's own text already opens that link; it must not nest a second one.
     const labelContext = useMemo(() => ({ ...context, references: undefined }), [context]);
     const { file, href } = node;
@@ -83,6 +91,7 @@ function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> 
                 file={file}
                 tooltip={t('core.markdown.openFile', { file })}
                 onOpen={onOpenFile}
+                onOpenInBrowser={onOpenFileInBrowser}
                 onReveal={onRevealFile}
             >
                 {label}

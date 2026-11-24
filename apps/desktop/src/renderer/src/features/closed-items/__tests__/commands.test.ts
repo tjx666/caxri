@@ -10,10 +10,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../reopen-client', () => ({ isReopenableFile: mocks.isReopenableFile }));
 vi.mock('../../session/session-commands', () => ({ didSelectSession: mocks.didSelectSession }));
 vi.mock('../../editor/document-commands', () => ({
-    didOpenEditorTabForSession: vi.fn(),
     openFileForSession: mocks.openFileForSession,
 }));
-vi.mock('../../editor/session-pane-state', () => ({ sessionStateOf: mocks.sessionStateOf }));
+vi.mock('../../editor/session-pane-state', () => ({
+    didOpenEditorTabForSession: vi.fn(),
+    sessionStateOf: mocks.sessionStateOf,
+}));
 vi.mock('../../../stores/toasts', () => ({ pushToast: vi.fn() }));
 
 import { useWorkbenchStore } from '../../../stores/workbench';

@@ -1,6 +1,6 @@
 import type { BigIntStats } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
-import { basename, dirname } from 'node:path';
+import { dirname } from 'node:path';
 
 import type {
     BootstrapState,
@@ -8,11 +8,12 @@ import type {
     ServerOperationParameters,
     TerminalFileLinkRefusalReason,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isHtmlPreviewPath } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
-import { clipboard, dialog, shell } from 'electron';
+import { dialog, shell } from 'electron';
 
 import type { DesktopServerConnection } from './connection/server-connection';
+import { confirmExternalOpen } from './external-documents/open-confirmation';
 import { readExternalFileSnapshot } from './external-documents/snapshot';
 import { translateMain } from './locale';
 import type { PathBrowserOpenTarget } from './path-browser/authority';
@@ -41,8 +42,6 @@ type RevealTerminalFileLinkParameters = Extract<
     MainRequest,
     { method: 'terminal.revealFileLink' }
 >['params'];
-type ExternalOpenDecision = 'cancel' | 'copy' | 'open' | 'trust';
-
 interface WorkbenchRootAuthorityOptions {
     /**
      * `ssh` serves an SSH Host window: every root path names a folder on the remote machine, so this authority never
@@ -105,6 +104,11 @@ async function captureRootIdentity(selectedPath: string): Promise<ProjectRootGra
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
     const isSshHost = options.environment === 'ssh';
+    /**
+     * A link to an HTML page opens on its rendered preview. An SSH Host window keeps the source: the preview is served
+     * by this Mac's Main (`htmlPreview.url` is local-only), and the page lives on the SSH Host.
+     */
+    const wantsHtmlPreview = (path: string) => !isSshHost && isHtmlPreviewPath(path);
     /**
      * The Session that should receive the file, or why it will not be opened. A refusal carries a reason so the
      * Renderer can say something; a user who dismissed the chooser gets `undefined` and no message, because they
@@ -213,7 +217,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             return { canceled: true as const, reason: 'outside_projects' as const };
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
-                const decision = await confirmExternalOpen(resolved.path);
+                const decision = await confirmExternalOpen(options.getWindow(), resolved.path);
                 if (decision === 'cancel' || decision === 'copy')
                     return { canceled: true as const };
                 if (decision === 'trust')
@@ -242,6 +246,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             launchIfNeeded: false,
             // Clicking a path link in a Terminal is a request to read that file, so the keyboard follows it.
             focusEditor: true,
+            ...(wantsHtmlPreview(resolved.path) && { showPreview: true }),
             ...(parameters.location && { location: parameters.location }),
         });
         return { opened: true as const };
@@ -342,7 +347,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const state = await server.request('app.bootstrap', { windowKey: PRIMARY_WINDOW_KEY });
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
-                const decision = await confirmExternalOpen(resolved.path);
+                const decision = await confirmExternalOpen(options.getWindow(), resolved.path);
                 if (decision === 'cancel' || decision === 'copy')
                     return { canceled: true as const };
                 if (decision === 'trust')
@@ -372,45 +377,25 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             sessionId: target.sessionId,
             launchIfNeeded: false,
             focusEditor: true,
+            ...(wantsHtmlPreview(resolved.path) && { showPreview: true }),
             ...(parameters.location && { location: parameters.location }),
         });
         return { opened: true as const };
     }
 
     /**
-     * Asks before reading a file outside every Project. Copy Path answers the click that only wanted the address, to
-     * paste into a Terminal or another tool: it puts the absolute path on the clipboard and opens nothing, like
-     * Cancel.
-     */
-    async function confirmExternalOpen(path: string): Promise<ExternalOpenDecision> {
-        const folder = dirname(path);
-        const decisions: readonly ExternalOpenDecision[] = ['open', 'trust', 'copy', 'cancel'];
-        const result = await showMessageBox(options.getWindow(), {
-            type: 'question',
-            title: translateMain('desktop.externalFile.title'),
-            message: translateMain('desktop.externalFile.message', { name: basename(path) }),
-            detail: translateMain('desktop.externalFile.detail', { path, folder }),
-            buttons: [
-                translateMain('desktop.dialog.open'),
-                translateMain('desktop.externalFile.trustFolder'),
-                translateMain('desktop.externalFile.copyPath'),
-                translateMain('desktop.dialog.cancel'),
-            ],
-            defaultId: 0,
-            cancelId: 3,
-            noLink: true,
-        });
-        const decision = decisions[result.response] ?? 'cancel';
-        if (decision === 'copy') await clipboard.writeText(path);
-        return decision;
-    }
-
-    /**
      * Shows a Terminal or Agent Chat file link in Finder, resolved by the same Server Core lookup an open uses. Both a
      * Project file and a path outside every Project are revealed without the external-file confirmation, because Finder
      * only selects the entry and nothing is read.
+     *
+     * `openInBrowser` opens an HTML page in the browser instead, also without that confirmation: Caxri reads nothing,
+     * and the browser shows the page as it would from Finder. Any other file type is refused, so a link cannot launch
+     * an application or script through its default handler.
      */
-    async function revealTerminalFileLink(parameters: RevealTerminalFileLinkParameters) {
+    async function revealTerminalFileLink({
+        action,
+        ...parameters
+    }: RevealTerminalFileLinkParameters) {
         const resolved = await options.getServer().request('terminal.fileLink.resolve', parameters);
         if (resolved.status === 'ambiguous')
             return {
@@ -418,6 +403,16 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 candidates: resolved.candidates,
                 truncated: resolved.truncated,
             };
+        if (action === 'openInBrowser') {
+            if (
+                (resolved.status === 'authorized' && resolved.kind !== 'file') ||
+                !isHtmlPreviewPath(resolved.path)
+            )
+                throw new CaxriError('VALIDATION', 'Only an HTML page opens in the browser');
+            const failure = await shell.openPath(resolved.path);
+            if (failure) throw new Error(failure);
+            return { revealed: true as const };
+        }
         shell.showItemInFolder(resolved.path);
         return { revealed: true as const };
     }

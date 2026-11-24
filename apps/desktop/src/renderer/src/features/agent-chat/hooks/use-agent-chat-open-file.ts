@@ -45,62 +45,76 @@ export function useAgentChatOpenFile(
 }
 
 /**
- * Shows a file an Agent cites in Finder, resolved exactly as {@link useAgentChatOpenFile} resolves it, falling back to
- * the file of that name the conversation's own work touched. `undefined` where Finder cannot show it: an SSH Host's
- * Session, whose files live on another machine, and the Caxri Bot window, whose Terminal links Main hands to the
- * Workbench instead.
+ * What this Mac can do with a file an Agent cites besides opening it in the editor: show it in Finder, and open an HTML
+ * page in the browser.
  */
-export function useAgentChatRevealFile(
+export interface AgentChatDesktopFileActions {
+    reveal: (reference: string) => void;
+    openInBrowser: (reference: string) => void;
+}
+
+/**
+ * Builds {@link AgentChatDesktopFileActions} for files cited in `terminalId`'s Chat, resolved exactly as
+ * {@link useAgentChatOpenFile} resolves them, falling back to the file of that name the conversation's own work touched.
+ * `undefined` where neither can run: an SSH Host's Session, whose files live on another machine, and the Caxri Bot
+ * window, whose Terminal links Main hands to the Workbench instead.
+ */
+export function useAgentChatDesktopFiles(
     terminalId: string,
     itemSources: ReadonlyArray<readonly AgentChatItem[]> = NO_ITEM_SOURCES,
-): ((reference: string) => void) | undefined {
+): AgentChatDesktopFileActions | undefined {
     const latestItemSources = useLatestReference(itemSources);
     const isLocal = useIsLocalOnlyAvailable();
-    const reveal = useCallback(
-        (reference: string) => {
+    const actions = useMemo(() => {
+        const run = (reference: string, action: 'openInBrowser' | 'reveal') => {
             const { target } = parseFileLocation(reference);
             void revealTerminalFileTarget(terminalId, target, {
+                action,
                 fallbackTarget: () =>
                     agentChatCitedFileFallback(
                         target,
                         agentChatTouchedFilePaths(latestItemSources.current),
                     ),
             });
-        },
-        [latestItemSources, terminalId],
-    );
-    return isLocal && terminalPaneHost().hasWorkbenchLinks ? reveal : undefined;
+        };
+        return {
+            reveal: (reference: string) => run(reference, 'reveal'),
+            openInBrowser: (reference: string) => run(reference, 'openInBrowser'),
+        };
+    }, [latestItemSources, terminalId]);
+    return isLocal && terminalPaneHost().hasWorkbenchLinks ? actions : undefined;
 }
 
 /**
- * The Reveal in Finder action for files cited in a Chat timeline, provided where the timeline's open action is built.
- * It travels by context rather than beside `onOpenFile` through every row, because only the Markdown renderer at the
- * bottom of the tree uses it.
+ * The desktop actions for files cited in a Chat timeline, provided where the timeline's open action is built. They
+ * travel by context rather than beside `onOpenFile` through every row, because only the file links at the bottom of the
+ * tree use them.
  */
-export const AgentChatRevealFileContext = createContext<((reference: string) => void) | undefined>(
+export const AgentChatDesktopFilesContext = createContext<AgentChatDesktopFileActions | undefined>(
     undefined,
 );
 
-export function useAgentChatRevealFileAction(): ((reference: string) => void) | undefined {
-    return useContext(AgentChatRevealFileContext);
+export function useAgentChatDesktopFileActions(): AgentChatDesktopFileActions | undefined {
+    return useContext(AgentChatDesktopFilesContext);
 }
 
 /**
- * What a Chat timeline does with a cited file: `open` it in the editor, and `reveal` it in Finder where this Mac can.
+ * What a Chat timeline does with a cited file: `open` it in the editor, and the `desktop` actions where this Mac can
+ * run them.
  */
 export interface AgentChatFileLinks {
     open: (reference: string) => void;
-    reveal: ((reference: string) => void) | undefined;
+    desktop: AgentChatDesktopFileActions | undefined;
 }
 
 /**
- * {@link useAgentChatOpenFile} and {@link useAgentChatRevealFile} together, for a timeline that hands both down.
+ * {@link useAgentChatOpenFile} and {@link useAgentChatDesktopFiles} together, for a timeline that hands both down.
  */
 export function useAgentChatFileLinks(
     terminalId: string,
     itemSources: ReadonlyArray<readonly AgentChatItem[]>,
 ): AgentChatFileLinks {
     const open = useAgentChatOpenFile(terminalId, itemSources);
-    const reveal = useAgentChatRevealFile(terminalId, itemSources);
-    return useMemo(() => ({ open, reveal }), [open, reveal]);
+    const desktop = useAgentChatDesktopFiles(terminalId, itemSources);
+    return useMemo(() => ({ open, desktop }), [open, desktop]);
 }

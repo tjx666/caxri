@@ -103,8 +103,15 @@ export const desktopHostMethods = {
          * this now", so the keyboard belongs in the editor; `caxri open <path>` from a shell is not, and stealing the
          * keyboard there would interrupt whatever the window was already doing. It is not window focus: that is
          * `desktop.focus`.
+         *
+         * `showPreview` asks for the file's rendered preview instead of its source, for a format that has one. A Chat
+         * or Terminal link to an HTML page sets it, because whoever clicks a generated report wants to read the page,
+         * while Files and Quick Open keep opening the source an Agent edits.
          */
-        params: desktopOpenParametersSchema.extend({ focusEditor: z.boolean().default(false) }),
+        params: desktopOpenParametersSchema.extend({
+            focusEditor: z.boolean().default(false),
+            showPreview: z.boolean().default(false),
+        }),
         result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'files.reveal': {

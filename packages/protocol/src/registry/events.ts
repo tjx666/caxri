@@ -497,7 +497,8 @@ export const serverEventPayloads = {
     'gpu.recoveryRequested': z.object({ correlationId: z.uuid() }),
     /**
      * `focusEditor` is the opening caller's intent, forwarded unchanged from `desktop.openFile`; see that method for
-     * why the same event can legitimately want the keyboard in the editor or want it left alone.
+     * why the same event can legitimately want the keyboard in the editor or want it left alone. `showPreview` is
+     * forwarded the same way and asks for the file's rendered preview instead of its source.
      */
     'desktop.openRequested': z.object({
         sessionId: identifierSchema,
@@ -505,6 +506,7 @@ export const serverEventPayloads = {
         path: pathSchema.optional(),
         location: editorNavigationTargetSchema.optional(),
         focusEditor: z.boolean().optional(),
+        showPreview: z.boolean().optional(),
     }),
     /**
      * Main-originated: files (and any text) the macOS Share menu handed to Caxri, already copied into the Share Inbox

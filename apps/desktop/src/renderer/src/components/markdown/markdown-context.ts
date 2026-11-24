@@ -77,6 +77,10 @@ export interface MarkdownRenderContext {
      */
     onRevealFile?: (target: string) => void;
     /**
+     * Opens a cited HTML page in the browser, offered in its right-click menu. Without it the menu has no such entry.
+     */
+    onOpenFileInBrowser?: (target: string) => void;
+    /**
      * The Terminal GitHub lookups for links are routed through, so a pull request link can show its state.
      */
     referenceTerminalId?: string;

@@ -26,13 +26,12 @@ const repositories = [
 describe('editorTabActionsPath', () => {
     const fileTab = (path: string) => ({ id: 'tab', resource: { kind: 'file' as const, path } });
 
-    it('gives Project files, diffs, and external documents a tab action slot', () => {
+    it('gives Project files, diffs, external documents, and previews a tab action slot', () => {
         const external = externalEditorTabPath('external-1', 'guide.md');
         const diff = gitFileDiffTabPath('primary', 'README.md');
-        for (const path of ['/project/README.md', diff, external])
+        const preview = filePreviewTabPath(external);
+        for (const path of ['/project/README.md', diff, external, preview])
             expect(editorTabActionsPath(fileTab(path))).toBe(path);
-        const preview = fileTab(filePreviewTabPath(external));
-        expect(editorTabActionsPath(preview)).toBeUndefined();
         expect(editorTabActionsPath(undefined)).toBeUndefined();
     });
 });

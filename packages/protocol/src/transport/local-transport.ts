@@ -274,6 +274,7 @@ const sessionDesktopTargetPayloadSchema = z.object({
     path: pathSchema,
     location: editorNavigationTargetSchema.optional(),
     focusEditor: z.boolean().optional(),
+    showPreview: z.boolean().optional(),
 });
 
 export const desktopTargetPayloadSchema = z.union([

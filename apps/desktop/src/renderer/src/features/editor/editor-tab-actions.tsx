@@ -2,7 +2,7 @@ import type { GitDiffTab } from '@caxri/protocol';
 import {
     gitCommitFileDiffTabPath,
     gitPullRequestFileDiffTabPath,
-    isExternalEditorTabPath,
+    isVirtualEditorTabPath,
     parseGitDiffTab,
 } from '@caxri/protocol';
 import { ArrowDown, ArrowUp, FileSymlink, GitCommitHorizontal, GitPullRequest } from 'lucide-react';
@@ -12,8 +12,10 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
+import { useIsLocalOnlyAvailable } from '../../stores/environment';
+import { htmlPageTarget } from '../preview/html/commands';
 import { previewTabSwitch } from '../preview/preview-commands';
-import { PreviewTabAction } from '../preview/preview-tab-action';
+import { HtmlBrowserTabAction, PreviewTabAction } from '../preview/preview-tab-action';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { openEditorTab, openFileForSession } from './document-commands';
 import {
@@ -31,6 +33,8 @@ import { GitReviewSend } from './git/git-review-send';
 export function EditorTabActions({ path, paneId }: { paneId?: string; path: string }) {
     const gitDiffTab = parseGitDiffTab(path);
     const session = usePaneViewSession();
+    // The browser runs on this Mac; an SSH Host window's pages live on the SSH Host.
+    const isLocal = useIsLocalOnlyAvailable();
     if (gitDiffTab) {
         return (
             <>
@@ -50,11 +54,16 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
         );
     }
     const tabSwitch = previewTabSwitch(path);
+    const htmlPage = isLocal ? htmlPageTarget(path) : undefined;
     return (
         <>
+            {htmlPage && <HtmlBrowserTabAction target={htmlPage} />}
             {tabSwitch && <PreviewTabAction tabSwitch={tabSwitch} />}
-            {/* An external document belongs to no Project repository, so it has no Git history to open. */}
-            {!isExternalEditorTabPath(path) && <FileEditorTabActions path={path} />}
+            {/*
+             * Git history belongs to a Project file's source tab: an external document has no repository, and a
+             * preview reaches its history through Open Source.
+             */}
+            {!isVirtualEditorTabPath(path) && <FileEditorTabActions path={path} />}
         </>
     );
 }

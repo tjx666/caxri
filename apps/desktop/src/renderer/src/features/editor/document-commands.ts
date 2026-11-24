@@ -5,7 +5,6 @@ import type {
     PaneTabCloseMode,
 } from '@caxri/protocol';
 import {
-    activePane,
     CaxriError,
     closeTabs,
     filePreviewTabPath,
@@ -14,7 +13,6 @@ import {
     isBinaryFileReadError,
     isUntitledEditorTabPath,
     isVirtualEditorTabPath,
-    openResource,
     paneTabIdsToClose,
     pinPaneTab,
 } from '@caxri/protocol';
@@ -31,7 +29,7 @@ import {
 import { tryCommand } from '../../stores/toasts';
 import { patchSessionState } from '../../stores/workbench';
 import { recordClosedTabs } from '../closed-items/recording';
-import { previewOnlyTabPath } from '../preview/preview-registry';
+import { canPreviewPath, previewOnlyTabPath } from '../preview/preview-registry';
 import { revealSelectedSessionWorkbench } from '../settings/settings-page-commands';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
@@ -48,7 +46,7 @@ import {
     supersedePendingFileOpens,
 } from './editor-open-intent';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
-import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
+import { focusEditor } from './editor-reveal';
 import { finishDocumentOperation, trackDocumentOperation } from './pending-document-operations';
 import { isRecordableRecentFile } from './recent-files';
 import { rememberRecentFile } from './recent-files-store';
@@ -59,7 +57,7 @@ import {
     subscribeSaveFailureCleanup,
     writeReportingNewFailures,
 } from './save-failure-tracker';
-import { persistOpenedEditorTab, sessionStateOf } from './session-pane-state';
+import { didOpenEditorTabForSession, sessionStateOf } from './session-pane-state';
 import { forgetUntitledLanguage } from './untitled/language-detection-client';
 import { untitledLanguageKey } from './untitled/language-store';
 import { untitledDisplayName } from './untitled/names';
@@ -73,6 +71,11 @@ interface OpenFileOptions {
      */
     paneId?: string;
     preview?: boolean;
+    /**
+     * Opens the file's rendered preview instead of its source when a previewer claims it (an HTML page clicked in a
+     * Chat or Terminal link). Unrelated to `preview`, which marks the tab as the pane's replaceable preview tab.
+     */
+    showPreview?: boolean;
 }
 
 function isDocumentDirty(
@@ -81,78 +84,6 @@ function isDocumentDirty(
     workbenchRootProjectId?: string,
 ): boolean {
     return getSessionDocuments(sessionId, workbenchRootProjectId)?.[path]?.dirty === true;
-}
-
-/**
- * Opens a Renderer-owned editor surface whose content has already been loaded or is virtual.
- */
-export function didOpenEditorTabForSession(
-    sessionId: string,
-    path: string,
-    options: {
-        location?: EditorNavigationTarget;
-        paneId?: string;
-        preview?: boolean;
-    } = {},
-): boolean {
-    const current = sessionStateOf(sessionId);
-    if (!current) return false;
-    const workbenchRootProjectId = current.workbenchRootProjectId;
-    const view = useSessionViewStore.getState();
-    const existing = findResourceTabs(current.paneLayout, { kind: 'file', path });
-    const wasOpen = existing.length > 0;
-    const wasMounted = existing.some(({ pane, tab }) => pane.activeTabId === tab.id);
-    // Resolved once, the same way `openResource` resolves it internally, so a background retry (see `persistOpenedEditorTab`) can pin this exact pane instead of re-resolving "the active pane" later.
-    const paneId = options.paneId ?? activePane(current.paneLayout).id;
-    const isPreview = options.preview === true;
-    const opened = openResource(
-        current.paneLayout,
-        { kind: 'file', path },
-        { paneId, preview: isPreview },
-    );
-    const didOpen = wasOpen || opened !== current.paneLayout;
-    if (!didOpen) return false;
-    /**
-     * Opening into a preview slot replaces whatever preview was there. Its buffer is released in the same update, but
-     * only once no other pane still shows that document.
-     */
-    const surviving = new Set(layoutCachedDocumentPaths(opened));
-    const replacedPaths = [
-        ...new Set(
-            layoutCachedDocumentPaths(current.paneLayout).filter((path) => !surviving.has(path)),
-        ),
-    ];
-    const replacedDocuments = replacedPaths.flatMap((replaced) => {
-        const document = getSessionDocuments(sessionId, workbenchRootProjectId)?.[replaced];
-        return document ? [document] : [];
-    });
-    if (options.location && (wasOpen || opened !== current.paneLayout)) {
-        const modelPath = editorModelPath(
-            sessionViewScope(sessionId, workbenchRootProjectId),
-            path,
-        );
-        if (wasMounted) revealEditorNavigation(modelPath, options.location);
-        else queueEditorNavigation(modelPath, options.location);
-    }
-    for (const replaced of replacedPaths)
-        view.evictDocument(sessionId, replaced, workbenchRootProjectId);
-    view.touchDocument(sessionId, path, workbenchRootProjectId);
-    if (opened === current.paneLayout) return true;
-    /**
-     * Fire-and-forget: the caller already sees this tab optimistically. Persisting continues in the background,
-     * retrying once against a refreshed snapshot on a lost revision race (see `persistOpenedEditorTab`).
-     */
-    void persistOpenedEditorTab(
-        sessionId,
-        path,
-        paneId,
-        isPreview,
-        { ...current, paneLayout: opened },
-        wasOpen,
-        replacedDocuments,
-        1,
-    );
-    return true;
 }
 
 /**
@@ -280,7 +211,10 @@ export async function openFileForSession(
      * A format with no text form (a PDF) opens as its preview tab: a text read could only fail on the binary content.
      * Routing here covers every open path at once (Files, Quick Open, project search, Terminal links).
      */
-    const previewTabPath = previewOnlyTabPath(path, sessionStateOf(session.id)?.paneLayout);
+    const previewTabPath =
+        options.showPreview && canPreviewPath(path)
+            ? filePreviewTabPath(path)
+            : previewOnlyTabPath(path, sessionStateOf(session.id)?.paneLayout);
     if (previewTabPath) {
         supersedePendingFileOpens();
         const didOpen = didOpenEditorTabForSession(session.id, previewTabPath, {

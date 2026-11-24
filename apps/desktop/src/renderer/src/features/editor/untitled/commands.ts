@@ -10,10 +10,9 @@ import {
 } from '../../../stores/session-view';
 import { pushToast } from '../../../stores/toasts';
 import { revealSelectedSessionWorkbench } from '../../settings/settings-page-commands';
-import { didOpenEditorTabForSession } from '../document-commands';
 import { layoutDocumentPaths } from '../document-layout-paths';
 import { focusEditor } from '../editor-reveal';
-import { sessionStateOf } from '../session-pane-state';
+import { didOpenEditorTabForSession, sessionStateOf } from '../session-pane-state';
 import { emptyUntitledDocument, nextUntitledIndex } from './names';
 
 /**

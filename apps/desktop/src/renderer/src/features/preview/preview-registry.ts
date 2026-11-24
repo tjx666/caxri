@@ -12,7 +12,7 @@ export const PREVIEW_LOADING_LABEL_KEY = 'preview.loading' satisfies Translation
 /**
  * Which rendered view a preview tab shows. One entry per registered format family.
  */
-type PreviewViewId = 'image' | 'markdown' | 'mermaid' | 'pdf' | 'table';
+type PreviewViewId = 'html' | 'image' | 'markdown' | 'mermaid' | 'pdf' | 'table';
 
 export interface PreviewerRegistration {
     id: PreviewViewId;
@@ -44,6 +44,9 @@ const PREVIEWERS: readonly PreviewerRegistration[] = [
     { id: 'table', extensions: ['csv', 'tsv'], defaultView: 'source' },
     { id: 'mermaid', extensions: ['mermaid', 'mmd'], defaultView: 'source' },
     { id: 'pdf', extensions: ['pdf'], defaultView: 'preview' },
+    // Source stays the default because Agents edit pages; a Chat or Terminal link opens the preview instead
+    // (`desktop.openFile`'s `showPreview`), since clicking a generated report means reading it.
+    { id: 'html', extensions: ['htm', 'html'], defaultView: 'source' },
 ];
 
 export function previewerForPath(path: string): PreviewerRegistration | undefined {

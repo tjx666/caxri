@@ -50,6 +50,7 @@ import {
     isExternalDocumentRequest,
 } from './external-documents/methods';
 import { openExternalUrl } from './external-links';
+import { resolveHtmlPreviewUrl } from './html-preview/protocol';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
 import { handleBugReportRequest, isBugReportRequest } from './main-bug-report-methods';
@@ -288,6 +289,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     nodes: await requireEnvironmentMonitor(options).readNodes(access.data),
                 };
             }
+            case 'htmlPreview.url':
+                return resolveHtmlPreviewUrl(request.params, (sessionId, path) =>
+                    supervisor.request('files.authorizeOpen', { sessionId, path }),
+                );
             case 'external.open':
                 return handleExternalUrl(request.params.url, {
                     allowTrust: true,

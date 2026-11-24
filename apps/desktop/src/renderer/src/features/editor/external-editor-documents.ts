@@ -15,10 +15,10 @@ import {
 import { describeFailureKey, pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { openFilePreview } from '../preview/preview-commands';
-import { shouldOpenAsPreview } from '../preview/preview-registry';
-import { didOpenEditorTabForSession } from './document-commands';
+import { canPreviewPath, shouldOpenAsPreview } from '../preview/preview-registry';
 import { focusEditor } from './editor-reveal';
 import { openLinkedExternalFile } from './external-document-client';
+import { didOpenEditorTabForSession } from './session-pane-state';
 
 interface ExternalEditorDocumentResult {
     content: string;
@@ -44,11 +44,17 @@ export function openExternalEditorDocument({
     workbenchRootProjectId,
     document,
     focus = false,
+    showPreview = false,
 }: {
     sessionId: string;
     workbenchRootProjectId: string;
     document: ExternalEditorDocumentResult;
     focus?: boolean;
+    /**
+     * Opens the rendered preview instead of the source when a previewer claims the file (an HTML page clicked in a Chat
+     * or Terminal link). A format with no text form always opens on its preview.
+     */
+    showPreview?: boolean;
 }): string | false {
     const sessionState = useWorkbenchStore
         .getState()
@@ -89,7 +95,10 @@ export function openExternalEditorDocument({
      * without a text read, and the preview fetches the bytes under that grant. The cached entry still carries the
      * display path and the ephemeral lifetime.
      */
-    const tabPath = shouldOpenAsPreview(document.name) ? filePreviewTabPath(path) : path;
+    const tabPath =
+        shouldOpenAsPreview(document.name) || (showPreview && canPreviewPath(document.name))
+            ? filePreviewTabPath(path)
+            : path;
     if (!didOpenEditorTabForSession(sessionId, tabPath)) {
         view.evictDocument(sessionId, path, workbenchRootProjectId);
         return false;
