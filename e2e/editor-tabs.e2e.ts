@@ -423,3 +423,57 @@ test('external replacement refreshes every open workspace alias model', async ()
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+/**
+ * A file tab kept in the background holds a retained Monaco model (#3940). When an Agent rewrites the file meanwhile,
+ * switching back remounts the editor on that retained model, which must take the newer disk text (issue #4171).
+ */
+test('a background file tab shows the newer disk text when brought back', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-background-reload-e2e-'));
+    const root = join(testDirectory, 'project');
+    await mkdir(root);
+    const target = join(root, 'config.json');
+    await writeFile(target, '{ "version": "before agent edit" }\n');
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page);
+        const tree = running.page.getByRole('tree', { name: 'Files' });
+        await tree.getByRole('treeitem', { name: /^config\.json/ }).dblclick();
+        const fileTab = running.page.locator('.work-tab', { hasText: 'config.json' });
+        const terminalTab = running.page.locator('.work-tab[data-terminal-id]').first();
+        const editorLines = running.page.locator('.monaco-editor .view-lines');
+        await expect(editorLines).toContainText('before agent edit');
+
+        await terminalTab.click();
+        await expect(running.page.locator('.monaco-editor')).toHaveCount(0);
+        await writeFile(target, '{ "version": "after agent edit" }\n');
+        // The rewrite reaches the document cache while the editor is unmounted.
+        await expect
+            .poll(() =>
+                running.page.evaluate(() =>
+                    JSON.stringify(
+                        (
+                            globalThis as unknown as {
+                                __caxriStores: { getState(name: string): unknown };
+                            }
+                        ).__caxriStores.getState('session-view'),
+                    ).includes('after agent edit'),
+                ),
+            )
+            .toBe(true);
+
+        await fileTab.click();
+        await expect(editorLines).toContainText('after agent edit');
+        await expect(fileTab).not.toContainText('●');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
