@@ -274,8 +274,9 @@ export class SessionSearchIndexer {
         };
         for (const entry of changed) {
             try {
-                // eslint-disable-next-line no-await-in-loop -- one file at a time bounds memory and open handles
-                const reason = await this.indexTranscript(entry, codex, held, onScanFailure);
+                // One file at a time bounds memory and open handles.
+                // react-doctor-disable-next-line react-doctor/async-await-in-loop -- sequential on purpose; see above
+                const reason = await this.indexTranscript(entry, codex, held, onScanFailure); // eslint-disable-line no-await-in-loop -- see above
                 if (reason) excluded[reason] = (excluded[reason] ?? 0) + 1;
             } catch {
                 failed += 1;

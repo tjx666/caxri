@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -421,6 +421,53 @@ test('previews a PDF and an image opened from outside every Project', async ({},
             .toBe(1);
         await expect(page.getByText('1 × 1', { exact: true })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('external-image.png') });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A Project page reached through a workspace symbolic link previews with its stylesheet, as the editor already opens
+ * it: the Project grant is judged on the lexical path and follows the link to its outside target.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('previews an HTML page reached through a workspace symbolic link', async ({}, testInfo) => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-html-preview-link-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    const outside = join(testDirectory, 'outside');
+    await mkdir(root, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await Promise.all([
+        writeFile(
+            join(outside, 'index.html'),
+            '<!doctype html><link rel="stylesheet" href="app.css"><h1 id="title">Linked page</h1>\n',
+            'utf8',
+        ),
+        writeFile(join(outside, 'app.css'), '#title { color: rgb(255, 0, 0); }\n', 'utf8'),
+        symlink(outside, join(root, 'docs')),
+    ]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const { page } = running;
+    try {
+        await createProjectSession(page);
+        await page.getByRole('treeitem', { name: 'docs', exact: true }).click();
+        await page.getByRole('treeitem', { name: 'index.html', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'index.html' })).toBeVisible();
+        await expect(page.locator('.monaco-editor').first()).toContainText('Linked page');
+
+        await page.keyboard.press('Meta+Shift+V');
+        const title = page.frameLocator('iframe').locator('#title');
+        await expect(title).toHaveText('Linked page');
+        // The stylesheet loads from the link's outside target too, not only the page.
+        await expect(title).toHaveCSS('color', 'rgb(255, 0, 0)');
+        await page.screenshot({ path: testInfo.outputPath('linked-html-preview.png') });
     } finally {
         try {
             await running.app.close();
