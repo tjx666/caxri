@@ -1,3 +1,5 @@
+import { stat } from 'node:fs/promises';
+
 import type { ServerEvent } from '@caxri/protocol';
 import { SingleFlight } from '@caxri/system';
 import type { GitHubRepoSlug } from '@caxri/utils';
@@ -6,6 +8,22 @@ import { parseGitHubRemote } from '@caxri/utils';
 import { parseGitRemoteHost } from './remote-host';
 import { deriveRepoKey } from './repo-key';
 import { sharedGitRequest } from './request-signal';
+
+/**
+ * Which repository group (canonical common Git directory) a root belongs to, or `undefined` when unknown: the Git
+ * topology registry.
+ */
+export interface OriginRemoteTopology {
+    repositoryKeyForRoot: (rootPath: string) => string | undefined;
+}
+
+async function isDirectoryPresent(rootPath: string): Promise<boolean> {
+    try {
+        return (await stat(rootPath)).isDirectory();
+    } catch {
+        return false;
+    }
+}
 
 /**
  * What a repository root's `origin` remote says, resolved once per root and kept until {@link revalidate}: the
@@ -26,10 +44,12 @@ export class OriginRemoteFacts {
     /**
      * @param originRemote Prints a root's `origin` URL, or an empty string when it has none.
      * @param emit Receives `state.changed` after {@link revalidate} moved any repository key, so Clients re-read them.
+     * @param isRootPresent Whether a root's directory still exists; a filesystem `stat` by default.
      */
     constructor(
         private readonly originRemote: (rootPath: string) => Promise<string>,
         private readonly emit?: (event: ServerEvent) => void,
+        private readonly isRootPresent: (rootPath: string) => Promise<boolean> = isDirectoryPresent,
     ) {}
 
     private async readRemote(rootPath: string): Promise<string> {
@@ -51,6 +71,52 @@ export class OriginRemoteFacts {
                 return remote;
             }),
         );
+    }
+
+    /**
+     * The cached roots to re-read, one list per Git read. Without `repoKey` every root is read on its own. With it,
+     * only that repository's roots are read, and once for all of them: linked worktrees share the common `.git/config`,
+     * so one `origin` answers the whole group (a per-worktree remote through `extensions.worktreeConfig` is not
+     * supported). A root whose group is unknown is dropped so its next use reads `origin` again, rather than spawning
+     * Git now. Production (v0.0.190) re-read every cached root on each `git worktree add`: ~800 roots, most of them
+     * removed worktrees failing with `ENOENT`, burst every few minutes, 38,000 failed `remote get-url` in 83 minutes.
+     */
+    private revalidationGroups(
+        repoKey: string | undefined,
+        topology: OriginRemoteTopology | undefined,
+    ): string[][] {
+        const roots = this.remoteByRoot.keys().toArray();
+        if (repoKey === undefined || !topology) return roots.map((root) => [root]);
+        const members: string[] = [];
+        for (const root of roots) {
+            const key = topology.repositoryKeyForRoot(root);
+            if (key === repoKey) members.push(root);
+            else if (key === undefined) this.remoteByRoot.delete(root);
+        }
+        return members.length > 0 ? [members] : [];
+    }
+
+    /**
+     * Reads `origin` once from the first member root still on disk and stores it for every member; a member whose
+     * directory is gone leaves the cache instead of caching the failed read.
+     */
+    private async revalidateGroup(members: readonly string[]): Promise<boolean> {
+        const isPresent = await Promise.all(members.map((root) => this.isRootPresent(root)));
+        const present = members.filter((_, index) => isPresent[index]);
+        for (const [index, root] of members.entries())
+            if (!isPresent[index]) this.remoteByRoot.delete(root);
+        const reader = present.at(0);
+        if (reader === undefined) return false;
+        const remote = await sharedGitRequest(() => this.readRemote(reader));
+        let isChanged = false;
+        for (const root of present) {
+            const previous = this.remoteByRoot.get(root);
+            // `clear()` may have run while the read was in flight; do not resurrect the root.
+            if (previous === undefined) continue;
+            this.remoteByRoot.set(root, remote);
+            if (deriveRepoKey(previous) !== deriveRepoKey(remote)) isChanged = true;
+        }
+        return isChanged;
     }
 
     /**
@@ -76,20 +142,16 @@ export class OriginRemoteFacts {
     }
 
     /**
-     * Re-reads `origin` for every cached root and replaces the cached URL.
+     * Re-reads `origin` and replaces the cached URL: for `repoKey`'s roots when given with the `topology` that maps
+     * roots to it (see {@link revalidationGroups}), otherwise for every cached root.
      *
      * Emits `state.changed` when any root's repository key changed.
      */
-    async revalidate(): Promise<void> {
+    async revalidate(repoKey?: string, topology?: OriginRemoteTopology): Promise<void> {
         const changes = await Promise.all(
-            this.remoteByRoot.keys().map(async (rootPath) => {
-                const remote = await sharedGitRequest(() => this.readRemote(rootPath));
-                const previous = this.remoteByRoot.get(rootPath);
-                // `clear()` may have run while the read was in flight; do not resurrect the root.
-                if (previous === undefined) return false;
-                this.remoteByRoot.set(rootPath, remote);
-                return deriveRepoKey(previous) !== deriveRepoKey(remote);
-            }),
+            this.revalidationGroups(repoKey, topology).map((members) =>
+                this.revalidateGroup(members),
+            ),
         );
         if (changes.includes(true))
             this.emit?.({
