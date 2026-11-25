@@ -192,7 +192,7 @@ test('the strip counts interruptions from an earlier run in its header and clear
         await fold.click();
 
         await strip
-            .getByRole('button', { name: 'Clear the delegations interrupted earlier' })
+            .getByRole('button', { name: 'Dismiss the Sessions interrupted earlier' })
             .click();
         await expect(earlier).toHaveCount(0);
         await expect(rowOf(failed.quota)).toBeVisible();

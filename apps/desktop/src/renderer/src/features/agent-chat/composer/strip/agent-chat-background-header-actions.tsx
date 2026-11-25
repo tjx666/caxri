@@ -99,8 +99,8 @@ function EarlierInterruptionsToggle({
 
 /**
  * What the Background work header carries after its toggle, in this order so the always-visible count holds the right
- * edge: Clear (dismisses every earlier interruption, as each row's own dismiss would) and Stop all (two or more running
- * tasks can be stopped), both shown on hover or focus, then the `N interrupted earlier` toggle.
+ * edge: Dismiss all (dismisses every earlier interruption, as each row's own dismiss would) and Stop all (two or more
+ * running tasks can be stopped), both shown on hover or focus, then the `N interrupted earlier` toggle.
  */
 export function AgentChatBackgroundHeaderActions({
     earlierCount,
@@ -123,15 +123,25 @@ export function AgentChatBackgroundHeaderActions({
     return (
         <>
             {earlierCount > 0 && (
-                <Button
-                    aria-label={t('agentChat.tasks.clearInterruptedEarlier')}
-                    className={HOVER_ACTION_CLASS_NAME}
-                    size="sm"
-                    variant="ghost"
-                    onClick={onClearEarlier}
-                >
-                    {t('agentChat.tasks.clear')}
-                </Button>
+                <Tooltip content={t('agentChat.tasks.dismissInterruptedEarlierDetail')}>
+                    <Button
+                        aria-label={t('agentChat.tasks.dismissInterruptedEarlier')}
+                        className={HOVER_ACTION_CLASS_NAME}
+                        size="sm"
+                        variant="ghost"
+                        onClick={(event) => {
+                            // The button and the count both leave with the rows, so focus moves to the section's fold
+                            // toggle first instead of falling to the document body.
+                            event.currentTarget
+                                .closest('section')
+                                ?.querySelector<HTMLElement>('[data-agent-chat-strip-fold]')
+                                ?.focus();
+                            onClearEarlier();
+                        }}
+                    >
+                        {t('agentChat.tasks.dismissAll')}
+                    </Button>
+                </Tooltip>
             )}
             {stoppableTaskIds.length >= 2 && (
                 <StopAllTasksButton taskIds={stoppableTaskIds} terminalId={terminalId} />

@@ -28,6 +28,7 @@ export function AgentChatStripSection({
     children,
     count,
     glyph,
+    hasBody = true,
     label,
     meta,
     section,
@@ -46,6 +47,12 @@ export function AgentChatStripSection({
      */
     count?: number;
     glyph?: ReactNode;
+    /**
+     * `false` when nothing is listed under the header right now (Background work holding only interruptions from before
+     * this window opened, whose rows show on request): the header stays, without a fold chevron that would open onto an
+     * empty list. The chevron's slot is kept so the header's right edge does not move when rows arrive.
+     */
+    hasBody?: boolean;
     label: string;
     meta?: ReactNode;
     section: AgentChatStripSectionName;
@@ -59,7 +66,8 @@ export function AgentChatStripSection({
     summary?: ReactNode;
     terminalId: string;
 }) {
-    const isCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, section);
+    const isFoldCollapsed = useIsAgentChatStripSectionCollapsed(terminalId, section);
+    const isCollapsed = isFoldCollapsed || !hasBody;
     const [hasToggled, setToggled] = useState(false);
     const bodyId = useId();
     const toggleReference = useRef<HTMLButtonElement>(null);
@@ -81,11 +89,12 @@ export function AgentChatStripSection({
             <div className="sticky top-0 z-10 flex h-8 items-center bg-surface px-1 text-[12px] text-muted">
                 <div className="group flex h-7 min-w-0 flex-1 items-center gap-1 rounded hover:bg-list-hover-background">
                     <button
-                        aria-controls={bodyId}
-                        aria-expanded={!isCollapsed}
+                        aria-controls={hasBody ? bodyId : undefined}
+                        aria-expanded={hasBody ? !isCollapsed : undefined}
+                        disabled={!hasBody}
                         aria-label={ariaLabel}
                         data-agent-chat-strip-fold=""
-                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted group-hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted group-hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-default"
                         ref={toggleReference}
                         type="button"
                         onClick={toggle}
@@ -104,24 +113,28 @@ export function AgentChatStripSection({
                         )}
                     </button>
                     {actions}
-                    <button
-                        aria-hidden="true"
-                        className="flex h-full w-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted group-hover:text-foreground"
-                        tabIndex={-1}
-                        type="button"
-                        onClick={() => {
-                            toggleReference.current?.focus();
-                            toggle();
-                        }}
-                    >
-                        <ChevronRight
-                            className={cn(
-                                'size-3.5',
-                                agentChatChevronMotion(!isCollapsed),
-                                !isCollapsed && 'rotate-90',
-                            )}
-                        />
-                    </button>
+                    {hasBody ? (
+                        <button
+                            aria-hidden="true"
+                            className="flex h-full w-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted group-hover:text-foreground"
+                            tabIndex={-1}
+                            type="button"
+                            onClick={() => {
+                                toggleReference.current?.focus();
+                                toggle();
+                            }}
+                        >
+                            <ChevronRight
+                                className={cn(
+                                    'size-3.5',
+                                    agentChatChevronMotion(!isCollapsed),
+                                    !isCollapsed && 'rotate-90',
+                                )}
+                            />
+                        </button>
+                    ) : (
+                        <span aria-hidden="true" className="w-7 shrink-0" />
+                    )}
                 </div>
             </div>
             <DisclosureMotion
