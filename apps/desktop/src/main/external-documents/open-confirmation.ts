@@ -1,5 +1,3 @@
-import { basename, dirname } from 'node:path';
-
 import { isHtmlPreviewPath } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { clipboard, dialog } from 'electron';
@@ -19,17 +17,22 @@ export async function confirmExternalOpen(
     window: BrowserWindow | undefined,
     path: string,
 ): Promise<ExternalOpenDecision> {
-    const folder = dirname(path);
     const decisions: readonly ExternalOpenDecision[] = ['open', 'trust', 'copy', 'cancel'];
+    const isPage = isHtmlPreviewPath(path);
+    const message = translateMain(
+        isPage ? 'desktop.externalFile.htmlMessage' : 'desktop.externalFile.message',
+    );
+    /*
+     * One short line each (DESIGN.md, Confirmations): with four buttons the alert is narrow, and any wrapped or second
+     * line, a path or a file name included, flips macOS 26 to the left-aligned layout. The user just clicked the link,
+     * so the dialog names only the consequence; Copy Path still hands over the full address.
+     */
     const options: Electron.MessageBoxOptions = {
         type: 'question',
-        title: translateMain('desktop.externalFile.title'),
-        message: translateMain('desktop.externalFile.message', { name: basename(path) }),
+        title: message,
+        message,
         detail: translateMain(
-            isHtmlPreviewPath(path)
-                ? 'desktop.externalFile.htmlDetail'
-                : 'desktop.externalFile.detail',
-            { path, folder },
+            isPage ? 'desktop.externalFile.htmlDetail' : 'desktop.externalFile.detail',
         ),
         buttons: [
             translateMain('desktop.dialog.open'),

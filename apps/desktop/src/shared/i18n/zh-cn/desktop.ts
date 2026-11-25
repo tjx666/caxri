@@ -243,12 +243,10 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.chooseSession.detail': '文件将在所选会话中打开，不会启动终端。',
     'desktop.chooseSession.untitled': '未命名',
     'desktop.chooseSession.fallbackProject': '项目',
-    'desktop.externalFile.title': '打开已添加项目之外的文件？',
-    'desktop.externalFile.message': '要打开项目之外的 {{name}} 吗？',
-    'desktop.externalFile.detail':
-        '{{path}}\n\n此文件不在任何已添加的项目中。Caxri 会在编辑器中打开它而不添加项目，保存时会写回此文件。信任该文件夹后，打开 {{folder}} 下的文件将不再提示。',
-    'desktop.externalFile.htmlDetail':
-        '{{path}}\n\n此页面不在任何已添加的项目中。Caxri 会以实时预览打开它，页面中的脚本会运行，并可读取 {{folder}} 中的文件。信任该文件夹后，打开 {{folder}} 下的文件将不再提示。',
+    'desktop.externalFile.message': '打开项目之外的文件？',
+    'desktop.externalFile.htmlMessage': '打开项目之外的页面？',
+    'desktop.externalFile.detail': '保存时会写回此文件。',
+    'desktop.externalFile.htmlDetail': '页面中的脚本会运行。',
     'desktop.externalFile.trustFolder': '信任文件夹并打开',
     'desktop.externalFile.copyPath': '复制路径',
     'desktop.delegationImport.title': '导入 dianjiang 预设',
