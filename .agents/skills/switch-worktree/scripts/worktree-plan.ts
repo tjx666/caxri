@@ -4,7 +4,12 @@ import { resolve } from 'node:path';
 import { CommandError, runCapture } from './process';
 import { isPathPresent, listWorktrees, repoContext, withRepoLock, worktreeDirectory } from './repo';
 import { assertSemanticBranch } from './worktree';
-import { assertBranchContainsBase, assertRemoteBranchAbsent, hasBranch } from './worktree-branch';
+import {
+    assertBranchContainsBase,
+    assertExistingBranchUndelivered,
+    assertRemoteBranchAbsent,
+    hasBranch,
+} from './worktree-branch';
 
 export interface PlanOptions {
     base?: string;
@@ -68,6 +73,7 @@ export async function planWorktree(options: PlanOptions): Promise<WorktreePlan> 
             throw new CommandError(`Worktree path already exists: ${path}`);
         }
         if (await hasBranch(context.root, options.branch)) {
+            await assertExistingBranchUndelivered(context.root, options.branch);
             return {
                 branch: options.branch,
                 command: ['git', 'worktree', 'add', path, options.branch],

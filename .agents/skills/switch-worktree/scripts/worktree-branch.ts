@@ -1,4 +1,5 @@
 import { CommandError, runCapture } from './process';
+import { isRevisionMerged } from './worktree-safety';
 
 async function didGitSucceed(root: string, arguments_: string[]): Promise<boolean> {
     try {
@@ -31,6 +32,29 @@ export async function assertBranchContainsBase(
     throw new CommandError(
         `Branch ${branch} already exists and does not contain ${base}, so --base would be ignored. ` +
             `Choose a new branch name, or run \`plan ${branch}\` without --base to resume the existing branch.`,
+        2,
+    );
+}
+
+/**
+ * `plan` resumes an existing local branch with no checkout, and without `--base` nothing checked whether that branch
+ * still holds work: a reused name silently checked out a weeks-old branch whose pull request had already been
+ * squash-merged, and only a manual `git log` noticed. Refuse a branch whose content `origin/main` already has. A branch
+ * still at the current `origin/main` tip is a dormant branch created for this delivery and stays resumable, as does any
+ * branch carrying commits main lacks.
+ */
+export async function assertExistingBranchUndelivered(root: string, branch: string): Promise<void> {
+    await runCapture('git', ['fetch', '--quiet', 'origin', 'main'], root);
+    const reference = `refs/heads/${branch}`;
+    const [tip, main] = await Promise.all([
+        runCapture('git', ['rev-parse', reference], root),
+        runCapture('git', ['rev-parse', 'origin/main'], root),
+    ]);
+    if (tip.trim() === main.trim()) return;
+    if (!(await isRevisionMerged(root, reference))) return;
+    throw new CommandError(
+        `Branch ${branch} already exists locally and origin/main already contains its work, so resuming it would ` +
+            `check out a finished delivery. Choose a new branch name.`,
         2,
     );
 }

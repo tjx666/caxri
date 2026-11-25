@@ -6,7 +6,7 @@ import type { ResolvedWorktree, WorktreeStatus } from './worktree';
 import { assertSemanticBranch, finishManagedWorktree, resolveExistingTarget } from './worktree';
 import { assertRemoteBranchAbsent, hasBranch } from './worktree-branch';
 import { installWorktreeDependencies, prepareManagedWorktree } from './worktree-install';
-import { assertWorktreeIdle, isWorktreeHeadMerged } from './worktree-safety';
+import { assertWorktreeIdle, isRevisionMerged } from './worktree-safety';
 
 export interface ReuseOptions {
     branch: string;
@@ -47,7 +47,7 @@ export async function reuseWorktree(options: ReuseOptions): Promise<WorktreeStat
         await assertRemoteBranchAbsent(context.root, options.branch);
         await assertWorktreeIdle(context, worktree, 'reuse');
         await runCapture('git', ['fetch', '--quiet', 'origin', 'main'], context.root);
-        if (!(await isWorktreeHeadMerged(worktree.path))) {
+        if (!(await isRevisionMerged(worktree.path, 'HEAD'))) {
             throw new CommandError(
                 `Refusing to reuse worktree whose ${worktree.branch ?? 'HEAD'} is not merged into origin/main: ${worktree.path}`,
             );

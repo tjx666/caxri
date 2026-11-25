@@ -126,7 +126,10 @@ bun run <absolute script path> create feat/example              # the second pri
 Use `--base <ref>` on `plan` only when the task explicitly requires another baseline. Allowed
 new-branch prefixes are `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `test/`, and `chore/`. A new
 name that already exists on `origin` is refused, since its push would be rejected or overwrite that
-branch.
+branch. An existing local branch whose work `origin/main` already contains (merged, squash-merged, or
+simply behind main with no commits of its own) is refused too, because resuming it checks out a
+finished delivery; pick a new name. A branch at the current `origin/main` tip or with commits main
+lacks still resumes.
 
 `plan` and `create` hold the shared repository lock while they fetch or prepare the checkout, and
 another session waits for it only 10 seconds before failing with `Timed out waiting for

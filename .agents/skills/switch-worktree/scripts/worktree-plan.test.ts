@@ -95,6 +95,59 @@ describe('switch-worktree plan', () => {
         expect((await planWorktree({ branch: 'feat/dormant', cwd: root })).command).toBeNull();
     });
 
+    describe('an existing local branch with no checkout', () => {
+        async function commitOn(root: string, branch: string, file: string): Promise<void> {
+            await git(root, 'switch', '--quiet', branch);
+            await writeFile(join(root, file), `${file}\n`, 'utf8');
+            await git(root, 'add', file);
+            await git(root, 'commit', '-m', file);
+            await git(root, 'switch', '--quiet', 'main');
+        }
+
+        it('refuses a branch whose pull request was squash-merged', async () => {
+            const root = await createFixture();
+            await git(root, 'branch', 'fix/finished', 'main');
+            await commitOn(root, 'fix/finished', 'fix.txt');
+            await git(root, 'merge', '--squash', 'fix/finished');
+            await git(root, 'commit', '-m', 'fix (#1)');
+            await commitOn(root, 'main', 'later.txt');
+            await git(root, 'push', 'origin', 'main');
+
+            await expect(planWorktree({ branch: 'fix/finished', cwd: root })).rejects.toThrow(
+                'origin/main already contains its work',
+            );
+        });
+
+        it('refuses a branch main has already moved past', async () => {
+            const root = await createFixture();
+            await git(root, 'branch', 'fix/behind', 'main');
+            await commitOn(root, 'main', 'later.txt');
+            await git(root, 'push', 'origin', 'main');
+
+            await expect(planWorktree({ branch: 'fix/behind', cwd: root })).rejects.toThrow(
+                'origin/main already contains its work',
+            );
+        });
+
+        it('resumes a branch carrying commits main lacks, even after an earlier merge', async () => {
+            const root = await createFixture();
+            await git(root, 'branch', 'fix/unmerged', 'main');
+            await commitOn(root, 'fix/unmerged', 'unmerged.txt');
+            await git(root, 'branch', 'fix/continued', 'main');
+            await commitOn(root, 'fix/continued', 'first.txt');
+            await git(root, 'merge', '--squash', 'fix/continued');
+            await git(root, 'commit', '-m', 'first (#2)');
+            await git(root, 'push', 'origin', 'main');
+            await commitOn(root, 'fix/continued', 'second.txt');
+
+            for (const branch of ['fix/unmerged', 'fix/continued']) {
+                // eslint-disable-next-line no-await-in-loop -- each plan takes the shared repository lock
+                const plan = await planWorktree({ branch, cwd: root });
+                expect(plan.command).toEqual(['git', 'worktree', 'add', plan.path, branch]);
+            }
+        });
+    });
+
     it('refuses to adopt a checkout outside the managed directory', async () => {
         const root = await createFixture();
         await git(root, 'worktree', 'add', '-b', 'feat/elsewhere', join(root, '..', 'elsewhere'));

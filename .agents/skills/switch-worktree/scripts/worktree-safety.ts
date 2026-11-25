@@ -13,10 +13,10 @@ import { inspectWorktreeProcesses } from './worktree-processes';
  * True when merging HEAD into `origin/main` would leave main's tree unchanged. This covers squash merges without
  * treating a later revert as preservation of the content.
  */
-async function isHeadContentInMain(path: string): Promise<boolean> {
+async function isHeadContentInMain(path: string, revision: string): Promise<boolean> {
     try {
         const [mergedTree, mainTree] = await Promise.all([
-            runCapture('git', ['merge-tree', '--write-tree', 'origin/main', 'HEAD'], path),
+            runCapture('git', ['merge-tree', '--write-tree', 'origin/main', revision], path),
             runCapture('git', ['rev-parse', 'origin/main^{tree}'], path),
         ]);
         return mergedTree.trim().split('\n', 1)[0] === mainTree.trim();
@@ -41,7 +41,7 @@ export async function isWorktreeHeadPreserved(worktree: WorktreeRecord): Promise
     } catch {
         // Fall through to the content-preservation check and fail closed if that also fails.
     }
-    return isHeadContentInMain(worktree.path);
+    return isHeadContentInMain(worktree.path, 'HEAD');
 }
 
 /**
@@ -50,10 +50,12 @@ export async function isWorktreeHeadPreserved(worktree: WorktreeRecord): Promise
  * the three-way merge then conflicts. A later revert still counts, which is acceptable for reuse because the old branch
  * and its commits are kept.
  */
-async function wasHeadSquashedIntoMain(path: string): Promise<boolean> {
+async function wasHeadSquashedIntoMain(path: string, revision: string): Promise<boolean> {
     try {
-        const base = (await runCapture('git', ['merge-base', 'HEAD', 'origin/main'], path)).trim();
-        const changed = (await runCapture('git', ['diff', '--name-only', base, 'HEAD'], path))
+        const base = (
+            await runCapture('git', ['merge-base', revision, 'origin/main'], path)
+        ).trim();
+        const changed = (await runCapture('git', ['diff', '--name-only', base, revision], path))
             .split('\n')
             .filter(Boolean);
         if (changed.length === 0) return false;
@@ -68,7 +70,11 @@ async function wasHeadSquashedIntoMain(path: string): Promise<boolean> {
             .filter(Boolean);
         const differences = await Promise.all(
             candidates.map((commit) =>
-                runCapture('git', ['diff', '--name-only', commit, 'HEAD', '--', ...changed], path),
+                runCapture(
+                    'git',
+                    ['diff', '--name-only', commit, revision, '--', ...changed],
+                    path,
+                ),
             ),
         );
         return differences.some((difference) => !difference.trim());
@@ -79,14 +85,19 @@ async function wasHeadSquashedIntoMain(path: string): Promise<boolean> {
 
 /**
  * Stricter than `isWorktreeHeadPreserved`: a branch pushed to origin but never merged still holds an unfinished
- * delivery, so reusing its checkout requires the HEAD content to be in `origin/main` itself.
+ * delivery, so reusing its checkout requires the revision's content to be in `origin/main` itself.
+ *
+ * @param path Directory Git runs in: the checkout itself, or the repository root for a branch.
+ * @param revision `HEAD` for a checkout, or `refs/heads/<branch>` for a local branch no worktree has checked out.
  */
-export async function isWorktreeHeadMerged(path: string): Promise<boolean> {
+export async function isRevisionMerged(path: string, revision: string): Promise<boolean> {
     try {
-        await runCapture('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main'], path);
+        await runCapture('git', ['merge-base', '--is-ancestor', revision, 'origin/main'], path);
         return true;
     } catch {
-        return (await isHeadContentInMain(path)) || wasHeadSquashedIntoMain(path);
+        return (
+            (await isHeadContentInMain(path, revision)) || wasHeadSquashedIntoMain(path, revision)
+        );
     }
 }
 
