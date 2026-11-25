@@ -118,11 +118,13 @@ export const agentChatChanges = {
     'agentChat.tasks.needsYouOther': '{{count}} need you',
     'agentChat.tasks.interruptedEarlier': '{{count}} interrupted earlier',
     'agentChat.tasks.showInterruptedEarlier':
-        'Show the delegations interrupted before this window opened',
+        'Show the Sessions interrupted before this window opened',
     'agentChat.tasks.hideInterruptedEarlier':
-        'Hide the delegations interrupted before this window opened',
-    'agentChat.tasks.clear': 'Clear',
-    'agentChat.tasks.clearInterruptedEarlier': 'Clear the delegations interrupted earlier',
+        'Hide the Sessions interrupted before this window opened',
+    'agentChat.tasks.dismissAll': 'Dismiss all',
+    'agentChat.tasks.dismissInterruptedEarlier': 'Dismiss the Sessions interrupted earlier',
+    'agentChat.tasks.dismissInterruptedEarlierDetail':
+        'Dismiss them all; the Sessions stay in the sidebar',
     'agentChat.tasks.dismissTask': 'Dismiss {{title}}',
     'agentChat.tasks.dismissDetail': 'Dismiss; it stays in the conversation',
     'agentChat.tasks.dismissDelegatedDetail': 'Dismiss; the Session stays in the sidebar',

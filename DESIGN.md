@@ -1967,7 +1967,10 @@ popup itself hold focus until then.
   uses that same one.
 - `Command+0` moves focus into the PrimarySidebar tree, revealing the side bar first when it is
   hidden. Double-clicking a Session row opens its inline rename editor; `Enter` does the same while
-  that row holds focus, and `F2` renames the selected Session from anywhere. The shortcuts exist
+  that row holds focus, and `F2` renames the selected Session from anywhere. Clicking the selected
+  Session's row (or `Space` on it) brings its Primary Agent tab back to the front, in the
+  PrimarySidebar and the Activity view alike, so the row is the way back to the conversation after
+  a file tab covered it. The shortcuts exist
   because showing the side bar has never moved focus into it, so neither the context menu nor the
   command palette could otherwise advertise a chord that worked from anywhere.
 - A right-click menu's order never changes with usage: people reach its entries by position, so a

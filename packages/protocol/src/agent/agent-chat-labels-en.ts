@@ -445,7 +445,7 @@ export const agentChatLabelsEn = {
     // Memory cards (`agentChatMemoryActionLabel`, `agentChatMemoryTypeLabel`)
     'agentChat.memory.created': 'Saved memory',
     'agentChat.memory.updated': 'Updated memory',
-    'agentChat.memory.deleted': 'Forgot memory',
+    'agentChat.memory.deleted': 'Removed memory',
     'agentChat.memory.type.user': 'User',
     'agentChat.memory.type.feedback': 'Feedback',
     'agentChat.memory.type.project': 'Project',

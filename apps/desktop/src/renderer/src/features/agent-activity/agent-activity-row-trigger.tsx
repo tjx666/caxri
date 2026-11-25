@@ -11,7 +11,7 @@ import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-ti
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
-import { didSelectSession } from '../session/session-commands';
+import { activateSessionRow } from '../session/session-commands';
 import { sessionTitleForDisplay } from '../session/session-title';
 import { AgentActivityRowTitle } from './agent-activity-row-title';
 import type { AgentActivityRow } from './agent-activity-rows';
@@ -250,8 +250,8 @@ export function AgentActivityRowTrigger({
                 setFocused(event.currentTarget.matches(':focus-visible'));
             }}
             onClick={() => {
-                // Fire-and-forget: the selection reports its own failures through a toast.
-                if (!isRenaming && !selected) void didSelectSession(session.id);
+                // The sidebar row's gesture: selects the Session, or on the selected row brings its Agent tab forward.
+                if (!isRenaming) activateSessionRow(session.id);
             }}
             onDoubleClick={beginRename}
             onKeyDown={(event) => {
@@ -260,10 +260,7 @@ export function AgentActivityRowTrigger({
                     canMarkDone,
                     canSuggest,
                     onMarkDone,
-                    onSelect: () => {
-                        // Fire-and-forget: the selection reports its own failures through a toast.
-                        if (!selected) void didSelectSession(session.id);
-                    },
+                    onSelect: () => activateSessionRow(session.id),
                     onSuggest: () =>
                         sessionRename.suggestRename(session.id, session.title, row.rowId),
                 });

@@ -124,7 +124,7 @@ export class GitService {
             onTopologyChanged: (repoKey) => {
                 this.ignoredChanges.forgetAll();
                 this.repositoryService.observeMetadataTopology(repoKey);
-                void this.originFacts.revalidate();
+                void this.originFacts.revalidate(repoKey, this.topologyRegistry);
             },
             subscribe: options.subscribe,
             watchHub: options.watchHub,

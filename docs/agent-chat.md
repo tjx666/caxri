@@ -1290,7 +1290,7 @@ changes` (or `Hide changes`) and previews every diff, and a click discloses them
   A Claude Code memory file the turn wrote (`<hidden config dir>/projects/<project>/memory/<name>.md`)
   leaves the edited-files card and shows as its own memory card instead of a frontmatter diff: its
   `description` as the title, its `type` (User, Feedback, Project, Reference) beside `Saved memory`,
-  `Updated memory`, or `Forgot memory`, and on click the new memory's Markdown body, or the diff
+  `Updated memory`, or `Removed memory`, and on click the new memory's Markdown body, or the diff
   of an update, whose hunks alone do not hold the whole file. A `MEMORY.md` index edit in the same
   turn folds into that card; memory files stay out of Undo and Review, which cover the Project.
   Collection lives in

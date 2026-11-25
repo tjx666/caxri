@@ -143,6 +143,25 @@ export function agentChatMemoryArtifact(file: AgentChatEditedFile): AgentChatMem
     };
 }
 
+/**
+ * A file-name slug: lowercase words joined by `-` or `_` (`keep-worktrees`, `feedback_testing_style`).
+ */
+const SLUG_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/u;
+
+/**
+ * The card's title: the memory's one-line description, or failing that its name. An update whose hunks missed the
+ * frontmatter leaves only the file name, so a slug reads as words (`keep-worktrees` → `Keep worktrees`) instead of an
+ * identifier.
+ */
+export function agentChatMemoryTitle(
+    memory: Pick<AgentChatMemoryArtifact, 'description' | 'name'>,
+): string {
+    if (memory.description) return memory.description;
+    if (!SLUG_PATTERN.test(memory.name)) return memory.name;
+    const words = memory.name.replaceAll(/[-_]+/gu, ' ');
+    return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+}
+
 const ACTION_LABEL = {
     created: 'agentChat.memory.created',
     updated: 'agentChat.memory.updated',
@@ -157,7 +176,7 @@ const TYPE_LABEL = {
 } as const satisfies Record<AgentChatMemoryType, string>;
 
 /**
- * `Saved memory`, `Updated memory`, `Forgot memory`.
+ * `Saved memory`, `Updated memory`, `Removed memory`.
  */
 export function agentChatMemoryActionLabel(
     memory: Pick<AgentChatMemoryArtifact, 'action'>,

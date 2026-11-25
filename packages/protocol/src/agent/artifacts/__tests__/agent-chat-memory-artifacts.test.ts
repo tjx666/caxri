@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentChatItem } from '../../agent-chat-contract';
 import {
     agentChatMemoryActionLabel,
+    agentChatMemoryTitle,
     agentChatMemoryTypeLabel,
     isAgentChatMemoryIndexPath,
     isAgentChatMemoryPath,
@@ -121,5 +122,19 @@ describe('memory labels', () => {
         expect(agentChatMemoryActionLabel({ action: 'created' })).toBe('Saved memory');
         expect(agentChatMemoryTypeLabel({ type: 'feedback' })).toBe('Feedback');
         expect(agentChatMemoryTypeLabel({})).toBeUndefined();
+    });
+});
+
+describe('agentChatMemoryTitle', () => {
+    it('prefers the description, and reads a file-name slug as words', () => {
+        expect(
+            agentChatMemoryTitle({ name: 'keep-worktrees', description: 'Never prune worktrees' }),
+        ).toBe('Never prune worktrees');
+        expect(agentChatMemoryTitle({ name: 'keep-worktrees' })).toBe('Keep worktrees');
+        expect(agentChatMemoryTitle({ name: 'feedback_testing_style' })).toBe(
+            'Feedback testing style',
+        );
+        expect(agentChatMemoryTitle({ name: 'Release checklist' })).toBe('Release checklist');
+        expect(agentChatMemoryTitle({ name: 'notes' })).toBe('notes');
     });
 });

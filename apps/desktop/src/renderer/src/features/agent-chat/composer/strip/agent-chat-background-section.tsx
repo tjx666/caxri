@@ -112,6 +112,7 @@ function BackgroundList({
                     }}
                 />
             }
+            hasBody={rows.length > 0}
             label={t('agentChat.tasks.backgroundWork')}
             section="background"
             status={
