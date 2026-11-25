@@ -110,9 +110,8 @@ async function scrollDraftToTop(serial: string): Promise<void> {
  * `MOB-CHAT-10`: the phone's Codex Chat composer and timeline. It covers the permission trigger and sheet, fenced code
  * highlighted by language with Copy shown on a tap on the block, a finished multi-step turn whose one-line reply leaves
  * `Worked for` open with a failed command's exit code, following the user's own send to the latest message, slash
- * commands, the visible Queue button, a queued command that waits for the turn, editing a long queued message, editing
- * a queued message that cites a file in place, a message shown as `Sending…` before Server Core accepts it, and a draft
- * taller than the composer.
+ * commands, the visible Queue button, editing a long queued message, editing a queued message that cites a file in
+ * place, a message shown as `Sending…` before Server Core accepts it, and a draft taller than the composer.
  */
 export async function executeMobileChatComposerScenario(
     environment: MobileAgentScenarioEnvironment & { remoteVideoPath?: string },
@@ -501,15 +500,6 @@ export async function executeMobileChatComposerScenario(
             () => chat.read(),
             (snapshot) => (snapshot.queue?.length ?? 0) === 1,
         );
-        // A command cannot join the running turn (#4185): its row says it sends after this turn instead of a dimmed
-        // Steer. It runs once the question's turn ends, before the wait below sees an idle, empty queue.
-        await chat.runCommand({ name: 'compact' });
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => (snapshot.queue?.length ?? 0) === 2,
-        );
-        await waitForCheck(serial, 'agent-chat-queue-waits');
-        await capture(environment, 'queued-command-waits', artifacts);
         // One question: the tap on an option sends it; the card shows no Submit.
         await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
         await waitForMobile(

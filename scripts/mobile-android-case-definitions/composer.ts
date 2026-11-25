@@ -54,4 +54,10 @@ export const cases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat-clear-after-send',
     },
+    'MOB-CHAT-QUEUE-WAITS-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-queued-command-waits',
+    },
 } as const satisfies Record<string, MobileAndroidCaseDefinition>;
