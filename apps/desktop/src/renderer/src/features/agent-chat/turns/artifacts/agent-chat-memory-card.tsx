@@ -5,6 +5,7 @@ import type { AgentChatMemoryArtifact } from '@caxri/protocol';
 import {
     agentChatEditedFileLines,
     agentChatMemoryActionLabel,
+    agentChatMemoryTitle,
     agentChatMemoryTypeLabel,
 } from '@caxri/protocol';
 import { Brain, ChevronDown } from 'lucide-react';
@@ -70,7 +71,7 @@ export function AgentChatMemoryCard({ memory }: { memory: AgentChatMemoryArtifac
     const detailId = useId();
     const action = agentChatMemoryActionLabel(memory, t);
     const type = agentChatMemoryTypeLabel(memory, t);
-    const title = memory.description ?? memory.name;
+    const title = agentChatMemoryTitle(memory);
     return (
         <div
             className="overflow-hidden rounded-lg border border-border bg-surface"

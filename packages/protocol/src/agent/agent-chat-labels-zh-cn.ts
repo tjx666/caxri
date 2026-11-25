@@ -440,7 +440,7 @@ export const agentChatLabelsZhCN: TranslatedNamespace<typeof agentChatLabelsEn> 
 
     'agentChat.memory.created': '已保存记忆',
     'agentChat.memory.updated': '已更新记忆',
-    'agentChat.memory.deleted': '已删除记忆',
+    'agentChat.memory.deleted': '已移除记忆',
     'agentChat.memory.type.user': '用户',
     'agentChat.memory.type.feedback': '反馈',
     'agentChat.memory.type.project': '项目',

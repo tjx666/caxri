@@ -6,6 +6,7 @@ import type { AgentChatMemoryArtifact } from '@caxri/protocol';
 import {
     agentChatEditedFileLines,
     agentChatMemoryActionLabel,
+    agentChatMemoryTitle,
     agentChatMemoryTypeLabel,
 } from '@caxri/protocol';
 import { useRecyclingState } from '@shopify/flash-list';
@@ -53,7 +54,7 @@ export const AgentChatMemoryCard = ({
     const digits = useMemo(() => diffLineNumberDigits(rows), [rows]);
     const action = agentChatMemoryActionLabel(memory, t);
     const type = agentChatMemoryTypeLabel(memory, t);
-    const title = memory.description ?? memory.name;
+    const title = agentChatMemoryTitle(memory);
     return (
         <Card padded={false} theme={theme}>
             <AgentChatResultRow
