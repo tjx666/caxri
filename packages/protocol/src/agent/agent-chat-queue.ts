@@ -22,7 +22,13 @@ export interface AgentChatQueueEntry {
      */
     sendNowLabel: 'Send now' | 'Steer';
     /**
-     * A command cannot join a running turn, so it waits for its own.
+     * A command cannot join a running turn, so it waits for its own. The row then says so in place of its Steer action,
+     * instead of showing a disabled Steer whose reason only a tooltip explains.
+     */
+    waitsForTurn: boolean;
+    /**
+     * False while the entry waits for the turn (`waitsForTurn`); a Client may clear it further, for a message still on
+     * its way to Server Core.
      */
     canSendNow: boolean;
     /**
@@ -39,6 +45,7 @@ export function agentChatQueueEntry(
     isTurnRunning: boolean,
 ): AgentChatQueueEntry {
     const imageCount = message.imageCount ?? 0;
+    const isWaitsForTurn = isTurnRunning && message.command !== undefined;
     return {
         id: message.id,
         preview: (message.command
@@ -51,7 +58,8 @@ export function agentChatQueueEntry(
         imageLabel:
             imageCount === 0 ? undefined : imageCount === 1 ? '1 image' : `${imageCount} images`,
         sendNowLabel: isTurnRunning ? 'Steer' : 'Send now',
-        canSendNow: !(isTurnRunning && message.command),
+        waitsForTurn: isWaitsForTurn,
+        canSendNow: !isWaitsForTurn,
         canEdit: true,
     };
 }

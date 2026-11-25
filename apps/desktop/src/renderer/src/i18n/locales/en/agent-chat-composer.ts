@@ -176,7 +176,7 @@ export const agentChatComposer = {
     'agentChat.queue.steer': 'Steer',
     'agentChat.queue.steerNow': 'Steer now',
     'agentChat.queue.steerTooltip': 'Add to the running turn now',
-    'agentChat.queue.commandWaits': 'A command waits for the running turn to end',
+    'agentChat.queue.commandWaits': 'Sends after this turn',
     'agentChat.queue.imagesAttachedOne': '1 image attached',
     'agentChat.queue.imagesAttachedOther': '{{count}} images attached',
     'agentChat.queue.editLabel': 'Queued message text',

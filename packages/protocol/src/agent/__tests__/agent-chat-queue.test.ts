@@ -42,6 +42,14 @@ describe('agentChatQueueEntry', () => {
             Array.from({ length: 5 }, () => 'Steer'),
         );
         expect(running.map((entry) => entry.canSendNow)).toEqual([true, true, true, false, false]);
+        expect(running.map((entry) => entry.waitsForTurn)).toEqual([
+            false,
+            false,
+            false,
+            true,
+            true,
+        ]);
+        expect(entries(false).some((entry) => entry.waitsForTurn)).toBe(false);
         const idle = entries(false);
         expect(idle.map((entry) => entry.sendNowLabel)).toEqual(
             Array.from({ length: 5 }, () => 'Send now'),

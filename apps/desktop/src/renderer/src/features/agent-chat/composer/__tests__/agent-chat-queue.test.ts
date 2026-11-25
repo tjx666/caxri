@@ -133,7 +133,7 @@ describe('agentChatQueueHeader', () => {
 });
 
 describe('agentChatQueueCardLabels', () => {
-    const message = { canSendNow: true, sendNowLabel: 'Steer' as const };
+    const message = { sendNowLabel: 'Steer' as const };
 
     it('names each action, steering while a turn runs', () => {
         expect(agentChatQueueCardLabels(message, translate)).toEqual({
@@ -151,20 +151,11 @@ describe('agentChatQueueCardLabels', () => {
         });
     });
 
-    it('says why an action is unavailable', () => {
-        expect(
-            agentChatQueueCardLabels({ ...message, canSendNow: false }, translate),
-        ).toMatchObject({
-            sendTooltip: 'A command waits for the running turn to end',
-        });
-    });
-
     it('says every action waits while the message is still sending', () => {
         expect(
             agentChatQueueCardLabels(
                 {
                     ...message,
-                    canSendNow: false,
                     isPending: true,
                 },
                 translate,
@@ -193,7 +184,7 @@ describe('agentChatQueueDeleteOutcome', () => {
     });
 
     it('words the delete tooltip and accessible name by the outcome', () => {
-        const entry = { canSendNow: true, sendNowLabel: 'Steer' as const };
+        const entry = { sendNowLabel: 'Steer' as const };
         expect(agentChatQueueCardLabels(entry, translate, 'restore')).toMatchObject({
             deleteAriaLabel: 'Move queued message back to the composer',
             deleteTooltip: 'Remove from the queue and move back to the composer',

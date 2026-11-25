@@ -165,7 +165,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.queue.steer': '插入本轮',
     'agentChat.queue.steerNow': '立即插入本轮',
     'agentChat.queue.steerTooltip': '立即加入正在运行的这一轮',
-    'agentChat.queue.commandWaits': '命令会等待当前这一轮结束',
+    'agentChat.queue.commandWaits': '本轮结束后发送',
     'agentChat.queue.imagesAttachedOne': '已附 1 张图片',
     'agentChat.queue.imagesAttachedOther': '已附 {{count}} 张图片',
     'agentChat.queue.editLabel': '排队消息文字',

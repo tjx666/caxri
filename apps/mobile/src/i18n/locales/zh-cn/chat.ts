@@ -346,7 +346,7 @@ export const chat: TranslatedNamespace<typeof source> = {
     'chat.question.tabAnswered': '第 {{index}} 个问题，共 {{count}} 个：{{question}}，已回答',
     'chat.question.tabUnanswered': '第 {{index}} 个问题，共 {{count}} 个：{{question}}，尚未回答',
     'chat.question.yourAnswer': '你的回答',
-    'chat.queue.commandWaits': '命令会等待当前这一轮结束。',
+    'chat.queue.commandWaits': '本轮结束后发送',
     'chat.queue.countLabel': '{{count}} 条已排队',
     'chat.queue.delete': '删除',
     'chat.queue.deleteMessage': '删除排队的消息',

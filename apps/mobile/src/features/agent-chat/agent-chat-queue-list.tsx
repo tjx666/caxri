@@ -9,6 +9,7 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import {
     ChevronDown,
     ChevronUp,
+    Clock,
     CornerDownLeft,
     Image as ImageIcon,
     Pause,
@@ -150,32 +151,42 @@ const QueueRowActions = ({
     const hints = agentChatQueueRowHints(entry, t);
     return (
         <>
-            <Pressable
-                accessibilityHint={hints.sendNow}
-                accessibilityLabel={t(isSteer ? 'chat.queue.steerNow' : 'chat.queue.sendNow')}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !canSendNow }}
-                disabled={!canSendNow}
-                // 32dp pill plus 8dp above and below is the 48dp target; the 52dp row holds the slop, which Android
-                // clips to the parent's bounds.
-                hitSlop={STEER_HIT_SLOP}
-                onPress={() => {
-                    void onSendNow(entry.id);
-                }}
-                style={({ pressed }) => [
-                    styles.steer,
-                    {
-                        backgroundColor: theme.primary,
-                        opacity: canSendNow ? (pressed ? 0.7 : 1) : 0.38,
-                    },
-                ]}
-                testID="agent-chat-queue-send-now"
-            >
-                <CornerDownLeft color={theme.primaryForeground} size={14} strokeWidth={2.5} />
-                <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
-                    {agentChatQueueSendNowText(entry, t)}
-                </Text>
-            </Pressable>
+            {entry.waitsForTurn ? (
+                // A command cannot join the running turn, so the row says when it goes instead of a dimmed Steer.
+                <View style={styles.waits} testID="agent-chat-queue-waits">
+                    <Clock color={theme.muted} size={14} strokeWidth={2.25} />
+                    <Text style={[styles.waitsText, { color: theme.muted }]}>
+                        {t('chat.queue.commandWaits')}
+                    </Text>
+                </View>
+            ) : (
+                <Pressable
+                    accessibilityHint={hints.sendNow}
+                    accessibilityLabel={t(isSteer ? 'chat.queue.steerNow' : 'chat.queue.sendNow')}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canSendNow }}
+                    disabled={!canSendNow}
+                    // 32dp pill plus 8dp above and below is the 48dp target; the 52dp row holds the slop, which Android
+                    // clips to the parent's bounds.
+                    hitSlop={STEER_HIT_SLOP}
+                    onPress={() => {
+                        void onSendNow(entry.id);
+                    }}
+                    style={({ pressed }) => [
+                        styles.steer,
+                        {
+                            backgroundColor: theme.primary,
+                            opacity: canSendNow ? (pressed ? 0.7 : 1) : 0.38,
+                        },
+                    ]}
+                    testID="agent-chat-queue-send-now"
+                >
+                    <CornerDownLeft color={theme.primaryForeground} size={14} strokeWidth={2.5} />
+                    <Text style={[styles.steerText, { color: theme.primaryForeground }]}>
+                        {agentChatQueueSendNowText(entry, t)}
+                    </Text>
+                </Pressable>
+            )}
             <IconButton
                 accessibilityHint={hints.edit}
                 accessibilityLabel={t('chat.queue.editMessage')}
@@ -504,6 +515,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     steerText: { ...mobileType.meta, fontWeight: '700' },
+    waits: { alignItems: 'center', flexDirection: 'row', gap: 4, marginLeft: 4 },
+    waitsText: { ...mobileType.meta },
     swipeAction: {
         alignItems: 'center',
         gap: 4,
