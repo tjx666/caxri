@@ -1,8 +1,8 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import { MAX_AGENT_CHAT_OUTPUT_LENGTH } from '@caxri/protocol';
 
-import { isRecord, tail } from '../../chat-items';
-import type { AgentChatSessionHost } from '../../chat-provider';
+import { isRecord, tail } from '../../../chat-items';
+import type { AgentChatSessionHost } from '../../../chat-provider';
 
 /**
  * How often a running background shell's output tail is re-read while it runs.

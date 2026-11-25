@@ -6,7 +6,7 @@ import {
 } from '@caxri/protocol';
 
 import { clip, isRecord, stringField } from '../../../chat-items';
-import { claudeTaskStatus } from '../task-fields';
+import { claudeTaskStatus } from '../tasks/fields';
 
 /**
  * Maps a Claude Code workflow run (the `Workflow` tool, a `local_workflow` task) onto `AgentChatTask.workflow`. Two

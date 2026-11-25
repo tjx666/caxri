@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentChatSessionHost } from '../../../chat-provider';
-import { ClaudeTaskFeedback } from '../task-feedback';
+import type { AgentChatSessionHost } from '../../../../chat-provider';
+import { ClaudeTaskFeedback } from '../feedback';
 
 const hook = (name: string) => ({
     type: 'system',

@@ -1,17 +1,16 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentChatTask } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, stringField } from '../../chat-items';
-import type { AgentChatSessionHost } from '../../chat-provider';
-import { ChatTaskList } from '../../tasks/task-list';
-import { claudeAssistantItems, text } from './items';
+import { clip, closeDanglingItem, isRecord, stringField } from '../../../chat-items';
+import type { AgentChatSessionHost } from '../../../chat-provider';
+import { ChatTaskList } from '../../../tasks/task-list';
+import { text } from '../items';
+import { ClaudeWorkflowRuns, settleClaudeWorkflow } from '../workflow';
+import { ClaudeChildConversations } from './child-conversations';
+import { ClaudeTaskFeedback } from './feedback';
+import { claudeShellCall, claudeShellRow, claudeTaskStatus, claudeTaskUsage } from './fields';
 import { ClaudeShellOutput } from './shell-output';
-import { ClaudeStream } from './stream';
-import { ClaudeTaskFeedback } from './task-feedback';
-import { claudeShellCall, claudeShellRow, claudeTaskStatus, claudeTaskUsage } from './task-fields';
-import { settleClaudeToolItem } from './tool-results';
-import { ClaudeWorkflowRuns, settleClaudeWorkflow } from './workflow';
 
 /**
  * Background work a Claude Code Chat lists: subagents (`Agent`, formerly `Task`), workflows (`Workflow`, a
@@ -20,7 +19,7 @@ import { ClaudeWorkflowRuns, settleClaudeWorkflow } from './workflow';
  * the spawning tool call's id as `parent_tool_use_id`. Caxri keys a subagent by that tool call id (the timeline row's
  * id, so the row opens the tab), and a background shell by Claude Code's `task_id` with `itemId` naming its Bash row. A
  * workflow is listed as a background `agent` task named by its script's `workflow_name`, whose `workflow` field follows
- * the phases and members its `task_progress` frames report (see `./workflow.ts`). Inputs are untrusted JSON.
+ * the phases and members its `task_progress` frames report (see `../workflow`). Inputs are untrusted JSON.
  *
  * @see https://code.claude.com/docs/en/agent-sdk/typescript
  */
@@ -42,6 +41,11 @@ interface KnownTask {
     toolUseId?: string;
     description: string;
     /**
+     * The command line of a background shell's Bash row, remembered once found: a subagent's projection, which holds
+     * the row of a shell the subagent started, can be evicted after that subagent ends while the shell keeps running.
+     */
+    command?: string;
+    /**
      * A workflow keeps its name as its title; a `task_updated` description does not rename it.
      */
     isWorkflow?: boolean;
@@ -50,10 +54,7 @@ interface KnownTask {
 export class ClaudeTasks {
     private readonly list: ChatTaskList;
 
-    /**
-     * Streaming state per subagent, keyed by the parent tool call, so a subagent never corrupts the parent's stream.
-     */
-    private readonly streams = new Map<string, ClaudeStream>();
+    private readonly children: ClaudeChildConversations;
 
     private readonly feedback: ClaudeTaskFeedback;
 
@@ -71,11 +72,6 @@ export class ClaudeTasks {
      * Claude Code task ids seen in a `background_tasks_changed` payload; only those can end by leaving the level.
      */
     private readonly inLevel = new Set<string>();
-
-    /**
-     * A subagent frame's `parent_tool_use_id` to the listed task it belongs to, when they differ (a resumed subagent).
-     */
-    private readonly childRoutes = new Map<string, string>();
 
     private readonly shellOutput: ClaudeShellOutput;
 
@@ -99,22 +95,20 @@ export class ClaudeTasks {
         this.list = new ChatTaskList(options.host);
         this.workflowRuns = new ClaudeWorkflowRuns(this.list);
         this.feedback = new ClaudeTaskFeedback(options.host);
+        this.children = new ClaudeChildConversations({
+            host: options.host,
+            list: this.list,
+            feedback: this.feedback,
+            takeDeclined: options.takeDeclined,
+            listedId: (claudeId) => this.listedId(claudeId),
+            onAssistant: (body, taskId) => this.onAssistant(body, taskId),
+            settleAgentResult: (toolUseId, block) => this.settleAgentResult(toolUseId, block),
+        });
         this.shellOutput = new ClaudeShellOutput({
             host: options.host,
             query: options.query,
             claudeId: (id) => this.claudeIds.get(id),
         });
-    }
-
-    private stream(taskId: string): ClaudeStream {
-        let stream = this.streams.get(taskId);
-        if (!stream) {
-            stream = new ClaudeStream((operations) =>
-                this.options.host.applyTask(taskId, operations),
-            );
-            this.streams.set(taskId, stream);
-        }
-        return stream;
     }
 
     /**
@@ -184,7 +178,7 @@ export class ClaudeTasks {
                 return settled ? [{ op: 'upsertItem' as const, item: settled }] : [];
             });
             if (closed.length > 0) this.options.host.applyTask(id, closed);
-            this.streams.delete(id);
+            this.children.forget(id);
         }
     }
 
@@ -192,12 +186,36 @@ export class ClaudeTasks {
         return this.known.get(claudeId)?.id;
     }
 
+    /**
+     * The row of the tool call that started a background shell: in the parent timeline, or in the conversation of the
+     * subagent that ran it. A shell a subagent starts outlives that subagent and still wakes the main Agent, so its
+     * command must be known for the turn to wait on it.
+     */
+    private shellRow(toolUseId: string | undefined): AgentChatItem | undefined {
+        if (!toolUseId) return undefined;
+        const { host } = this.options;
+        const snapshot = host.read();
+        const parentRow = claudeShellRow(snapshot.items, toolUseId);
+        if (parentRow) return parentRow;
+        const subagents = (snapshot.tasks ?? []).filter((task) => task.kind === 'agent');
+        for (const task of subagents) {
+            const row = claudeShellRow(host.readTask(task.id)?.items ?? [], toolUseId);
+            if (row) return row;
+        }
+        return undefined;
+    }
+
     private listShell(claudeId: string, known: KnownTask): void {
         const id = clip(claudeId, 200);
-        this.known.set(claudeId, { ...known, id });
-        this.claudeIds.set(id, claudeId);
-        const row = claudeShellCall(this.options.host.read().items, known.toolUseId);
+        const shellRow = this.shellRow(known.toolUseId);
+        const row = claudeShellCall(shellRow);
         const command = stringField(row?.command);
+        this.known.set(claudeId, {
+            ...known,
+            id,
+            ...(shellRow?.type === 'command' && command && { command }),
+        });
+        this.claudeIds.set(id, claudeId);
         // The call's description names the shell the way the Agent did; the command line stays for its tab, and its
         // presence tells the Renderer the title is words, not a command (`isAgentChatTaskTitleCommand`).
         const description =
@@ -405,49 +423,19 @@ export class ClaudeTasks {
     }
 
     /**
-     * The listed task a subagent frame belongs to. A resumed subagent (`SendMessage` to a finished or orphaned one) is
-     * listed under the resuming call, but its frames still name the original `Agent` call as `parent_tool_use_id`;
-     * keying by that alone left a phantom task running forever. Assistant and user frames carry the subagent's
-     * `agent_id` (its unchanging `task_id`), which names the run actually listed; `stream_event` frames carry none, so
-     * they follow the route an earlier frame of the same parent established.
-     */
-    private childTaskId(message: Json, parent: string): string {
-        const agentId = stringField(message.agent_id);
-        const listed = agentId === undefined ? undefined : this.listedId(agentId);
-        if (listed) {
-            if (listed === parent) this.childRoutes.delete(parent);
-            else this.childRoutes.set(parent, listed);
-            return listed;
-        }
-        return this.childRoutes.get(parent) ?? parent;
-    }
-
-    /**
-     * Records the model a subagent's response actually came from. The spawning call names a model only when the parent
-     * overrides it, and then only as an alias (`haiku`); without one the subagent inherits a model the call never
-     * states, so its own responses are the only source for the resolved id. `<synthetic>` marks a CLI-made message, not
-     * a model.
-     */
-    private noteChildModel(taskId: string, body: Json): void {
-        const model = stringField(body.model);
-        if (!model || model === '<synthetic>') return;
-        const clipped = clip(model, 200);
-        if (this.list.get(taskId)?.model !== clipped) this.list.upsert(taskId, { model: clipped });
-    }
-
-    /**
-     * The command line of a listed background shell, read from the Bash or Monitor row that started it. A shell whose
-     * row is not in the parent timeline has no known command, even when the Agent named it.
+     * The command line of a listed background shell, read from the Bash row that started it in the parent timeline or a
+     * subagent's conversation. A shell whose row is in neither has no known command, even when the Agent named it.
      */
     shellCommand(taskId: string): string | undefined {
         const claudeId = this.claudeIds.get(taskId);
         const known = claudeId === undefined ? undefined : this.known.get(claudeId);
+        if (claudeId === undefined || known?.kind !== 'shell') return undefined;
+        if (known.command) return known.command;
         // Only a Bash row: a Monitor watch keeps its unknown-command standing, so it never starts holding the turn.
-        const row =
-            known?.kind === 'shell'
-                ? claudeShellRow(this.options.host.read().items, known.toolUseId)
-                : undefined;
-        return row?.type === 'command' ? stringField(row.command) : undefined;
+        const row = this.shellRow(known.toolUseId);
+        const command = row?.type === 'command' ? stringField(row.command) : undefined;
+        if (command) this.known.set(claudeId, { ...known, command });
+        return command;
     }
 
     /**
@@ -480,76 +468,7 @@ export class ClaudeTasks {
      * Routes one frame of a subagent's own conversation into the task projection of the run it belongs to.
      */
     onChildMessage(message: Json): void {
-        const parent = stringField(message.parent_tool_use_id);
-        if (!parent) return;
-        const taskId = this.childTaskId(message, clip(parent, 200));
-        if (!this.list.get(taskId)) {
-            // A partial frame names no `agent_id`, so it cannot tell a resumed run from a new one; its full frame follows.
-            if (message.type === 'stream_event') return;
-            const row = this.options.host.read().items.find((item) => item.id === taskId);
-            this.list.upsert(taskId, {
-                kind: 'agent',
-                // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty summary names nothing
-                title: (row?.type === 'toolCall' && row.summary) || 'Agent',
-                itemId: taskId,
-            });
-        }
-        switch (message.type) {
-            case 'stream_event': {
-                this.stream(taskId).onEvent(message.event);
-                return;
-            }
-            case 'assistant': {
-                if (this.feedback.onTaskMessage(taskId, message)) return;
-                const body = isRecord(message.message) ? message.message : undefined;
-                if (!body) return;
-                this.noteChildModel(taskId, body);
-                const stream = this.stream(taskId);
-                const { items } = claudeAssistantItems(body, undefined, stream.ids);
-                if (items.length > 0) {
-                    this.feedback.note(taskId, items);
-                    this.options.host.applyTask(
-                        taskId,
-                        items.map((item) => ({ op: 'upsertItem', item })),
-                    );
-                }
-                stream.settle(items);
-                // A subagent may spawn its own subagents.
-                this.onAssistant(body, taskId);
-                return;
-            }
-            case 'user': {
-                const body = isRecord(message.message) ? message.message : undefined;
-                const content = Array.isArray(body?.content) ? body.content : [];
-                this.feedback.observeToolResults(content);
-                const items = new Map(
-                    (this.options.host.readTask(taskId)?.items ?? []).map((item) => [
-                        item.id,
-                        item,
-                    ]),
-                );
-                for (const block of content) {
-                    if (!isRecord(block) || block.type !== 'tool_result') continue;
-                    const toolUseId = stringField(block.tool_use_id);
-                    if (!toolUseId) continue;
-                    const id = clip(toolUseId, 200);
-                    const item = items.get(id);
-                    const settled =
-                        item &&
-                        settleClaudeToolItem(item, block, {
-                            structured: message.tool_use_result,
-                            wasDeclined: this.options.takeDeclined(id),
-                        });
-                    if (settled)
-                        this.options.host.applyTask(taskId, [{ op: 'upsertItem', item: settled }]);
-                    this.settleAgentResult(id, block);
-                }
-                return;
-            }
-            default: {
-                // Tool progress and other subagent frames are not conversation content.
-            }
-        }
+        this.children.onMessage(message);
     }
 
     /**

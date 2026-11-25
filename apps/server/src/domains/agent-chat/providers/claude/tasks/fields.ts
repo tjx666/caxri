@@ -1,6 +1,6 @@
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
 
-import { clip, isRecord } from '../../chat-items';
+import { clip, isRecord } from '../../../chat-items';
 
 /**
  * Maps the fields of Claude Code's `system/task_*` frames, and of the timeline rows that started them, onto a listed
@@ -51,7 +51,7 @@ export function claudeTaskUsage(usage: unknown): AgentChatTask['usage'] | undefi
 }
 
 /**
- * The parent timeline row of the tool call that started a background shell, when that row is there.
+ * The row of the tool call that started a background shell within one timeline, when that row is there.
  */
 export function claudeShellRow(
     items: readonly AgentChatItem[],
@@ -66,10 +66,8 @@ export function claudeShellRow(
  * generic tool row whose summary is the command it watches.
  */
 export function claudeShellCall(
-    items: readonly AgentChatItem[],
-    toolUseId: string | undefined,
+    item: AgentChatItem | undefined,
 ): { command?: string; description?: string } | undefined {
-    const item = claudeShellRow(items, toolUseId);
     if (item?.type === 'command') return { command: item.command, description: item.description };
     return item?.type === 'toolCall' && item.name === 'Monitor'
         ? { command: item.summary }
