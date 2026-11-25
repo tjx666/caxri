@@ -236,7 +236,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             }),
         ).toBeVisible();
         await detectedLinkSearch.press('Enter');
-        await expect(running.page.locator('.toast')).toContainText('File not found');
+        await expect(running.page.locator('.toast')).toContainText('Could not find .../services');
         await expect(running.page.locator('.toast')).not.toContainText('ENOENT');
         await expect(running.page.locator('.toast')).not.toContainText('realpath');
         await running.page.getByLabel('Dismiss notification').click();
@@ -780,7 +780,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         await printTerminalLink(missingLink);
         await openLink(missingLink, `Open file link ${missingLink}`);
         await expect(
-            running.page.locator('.toast').filter({ hasText: 'File not found' }),
+            running.page.locator('.toast').filter({ hasText: `Could not find ${missingLink}` }),
         ).toBeVisible();
         await expect(terminalInput).toBeFocused();
         const afterRejectedLinks = await pageRequest<{
