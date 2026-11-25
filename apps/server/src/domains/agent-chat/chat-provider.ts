@@ -230,12 +230,6 @@ export interface AgentChatSessionHost extends ChatTurnHoldHost {
      * Bound on a request that starts or steers a turn. Tests shorten it to exercise a provider that answers late.
      */
     turnRequestTimeoutMs?: number;
-    /**
-     * Shell command patterns whose background shells are expected to outlive a turn
-     * (`agents.longRunningShellCommands`), read when a turn finishes. Any other running background shell holds the
-     * turn's completion. Without it, a background shell never holds completion.
-     */
-    longRunningShellCommands?: () => readonly string[];
     read(): AgentChatSnapshot;
     apply(operations: AgentChatPatchOperation[]): void;
     /**

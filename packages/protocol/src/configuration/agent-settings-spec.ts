@@ -45,24 +45,6 @@ export const agentSettingsSpec = [
         default: true,
     },
     {
-        kind: 'complex',
-        key: 'agents.longRunningShellCommands',
-        title: 'Long-running background commands',
-        description:
-            "Commands that keep running on purpose, like a dev server. Caxri won't wait for them to finish before treating the Agent's turn as done",
-        category: 'agents',
-        keywords: [
-            'background',
-            'shell',
-            'command',
-            'dev server',
-            'pattern',
-            'running',
-            'wait',
-            'bash',
-        ],
-    },
-    {
         kind: 'boolean',
         key: 'agents.sessionInstructions.includeBuiltIn',
         title: 'Caxri Session instructions',

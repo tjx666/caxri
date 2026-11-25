@@ -218,27 +218,14 @@ you" to its second line and a failed row a `✕` and "Failed", since those two t
 that block the Agent. Only the failure carries a second-line mark: a question's leading glyph is
 already a `?`, while a failed result's glyph is the same amber dot as a finished one.
 
-A Claude Code turn that
-ended while background subagents, workflows, or monitors it started still run stays under
-**Working** but swaps the spinner for a slow, muted dotted ring: it is waiting for that work to
-wake it, not busy, and it is not ready for review. A background shell holds the turn the same way
-(a test run or a CI watch whose result the Agent still needs), unless its command matches
-`agents.longRunningShellCommands` (Settings > Agents > Long-running background commands): a dev
-server, log tail, or emulator can outlive the turn by hours, so those settle it as usual. The
-default list names the common development servers; add a project's own, such as
-`bun run *switch-worktree.ts dev`. Patterns follow the shared shell command pattern syntax in
-`packages/protocol/src/configuration/shell-command-patterns.ts`: a text pattern is a prefix that ends
-at whitespace (`bun run dev` matches `bun run dev --port 3000`, not `bun run devtools`), `*` matches
-any characters, a bare command name matches it from any directory, `/source/flags` is a regular
-expression, and each sub-command joined by `&&`, `;`, or `|` is checked on its own after leading
-`NAME=value` assignments and wrappers such as `env`, `nohup`, and `timeout` are skipped. The
-Terminal hook bridge matches the command locally and sends Server Core only the resulting boolean,
-so command text never crosses the bridge; a Chat matches its own task list the same way. A shell
-whose command is unknown (only the Agent's description of it, or an unreadable pattern file) does
-not hold the turn, so a misclassified dev server never leaves a Session working. Orca's
-quiet monitoring sub-mode is the precedent for keeping this inside running instead of adding a
-state; VS Code's `chat.tools.terminal.autoApprove` keys and Claude Code's `Bash(...)` permission
-rules are the precedent for the pattern syntax.
+A Claude Code turn that ended while background subagents or workflows it started still run stays
+under **Working** but swaps the spinner for a slow, muted dotted ring: it is waiting for that work
+to wake it, not busy, and it is not ready for review. Background shells and monitors never hold the
+turn. Once only they remain, the turn's reply is usually the result the user needs to read, and a
+dev server, log tail, or CI watcher may outlive the turn by hours, so the turn settles as usual and
+the Session turns unread. A shell that later wakes the Agent starts a new turn. Orca's quiet
+monitoring sub-mode is the precedent for keeping the subagent wait inside running instead of adding
+a state.
 
 Color follows the two-tier rule: only attention (the amber status glyph and the "Waiting for you" phrase) and
 failure (the `✕` mark) are tinted, warning or danger, so that weight always means "this one wants

@@ -29,7 +29,6 @@ import { HostsSettingsForm, ShowHostNamesSwitch } from './hosts-settings-form';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { LaunchArgumentsField } from './launch-arguments-field';
-import { LongRunningCommandsForm } from './long-running-commands-form';
 import { MobileAccessForm } from './mobile-access-form';
 import { NotificationHelperStatus } from './notification-helper-status';
 import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './provider-health';
@@ -451,17 +450,6 @@ function rowControl(
                     <SessionMenuForm
                         value={settings['primarySidebar.sessionMenu']}
                         onChange={(layout) => onFieldChange('primarySidebar.sessionMenu', layout)}
-                    />
-                ),
-            };
-        case 'long-running-commands':
-            return {
-                control: (
-                    <LongRunningCommandsForm
-                        rules={settings['agents.longRunningShellCommands']}
-                        onChange={(rules) =>
-                            onFieldChange('agents.longRunningShellCommands', rules)
-                        }
                     />
                 ),
             };

@@ -40,10 +40,6 @@ export interface AgentChatServiceOptions {
      */
     launchSettings(provider: AgentProvider, terminal: TerminalRecord): AgentLaunchSettings;
     /**
-     * The current `agents.longRunningShellCommands`, read by each Chat when a turn finishes.
-     */
-    longRunningShellCommands?: () => readonly string[];
-    /**
      * The current `agents.sessionInstructions.*` settings, read when each Chat starts. Omitted, a Chat adds no
      * instructions.
      */

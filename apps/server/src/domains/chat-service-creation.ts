@@ -136,8 +136,6 @@ export function createAgentChatService({
         usage,
         usageLimitWaits,
         isStartFenced: () => isAirplaneModeHolding(database.getAppState('airplaneMode')),
-        longRunningShellCommands: () =>
-            configuration.getSettings().value['agents.longRunningShellCommands'],
         sessionInstructions: () =>
             agentSessionInstructionSettings(configuration.getSettings().value),
         displayLocale: displayLocaleReader(configuration, dependencies),

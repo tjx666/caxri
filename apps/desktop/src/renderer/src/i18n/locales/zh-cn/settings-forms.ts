@@ -48,18 +48,6 @@ export const settingsForms: TranslatedNamespace<typeof source> = {
     'settings.sessionMenuForm.item.switchSurface': '以终端 / 对话打开',
     'settings.sessionMenuForm.item.handOverToBot': '转交给 / 收回 Caxri Bot',
     'settings.sessionMenuForm.item.openPullRequest': '打开 Pull Request',
-    'settings.longRunningCommandsForm.ariaLabel': '长期运行的后台命令编辑器',
-    'settings.longRunningCommandsForm.description':
-        '按命令开头匹配；只写命令名时在任何目录都能匹配，用 &&、; 或 | 连接的每一段会分别检查。可用 * 作通配符，或写成 /regex/。',
-    'settings.longRunningCommandsForm.inputLabel': '长期运行命令模式',
-    'settings.longRunningCommandsForm.listLabel': '长期运行命令模式列表',
-    'settings.longRunningCommandsForm.empty':
-        '没有模式。所有后台命令都会让会话保持工作中，直到命令结束。',
-    'settings.longRunningCommandsForm.invalid':
-        '请输入命令（如 npm run dev）或有效的 /正则表达式/。',
-    'settings.longRunningCommandsForm.duplicate': '该模式已在列表中。',
-    'settings.longRunningCommandsForm.maximum': '最多只能添加 {{maximum}} 个模式。',
-    'settings.longRunningCommandsForm.remove': '移除模式 {{rule}}',
     'settings.referenceLinksForm.ariaLabel': '终端引用链接编辑器',
     'settings.referenceLinksForm.descriptionBeforeToken':
         '匹配固定前缀，并将其标识符替换到 HTTP(S) URL 中的 ',

@@ -50,8 +50,8 @@ function harness() {
 const COMMAND = 'until [ "$(uptime)" ]; do sleep 20; done; git push';
 
 describe('ClaudeTasks background shells', () => {
-    it('knows the command of a background shell a subagent started, after the subagent leaves', () => {
-        const { claudeTasks, tasks, taskItems } = harness();
+    it('titles a background shell a subagent started from its Bash row', () => {
+        const { claudeTasks, tasks } = harness();
         claudeTasks.onAssistant({
             content: [
                 {
@@ -93,13 +93,10 @@ describe('ClaudeTasks background shells', () => {
             title: 'Push when load drops',
             command: COMMAND,
         });
-        // The subagent's projection may be evicted once it ends; the shell it started keeps running.
-        taskItems.clear();
-        expect(claudeTasks.shellCommand('shell-1')).toBe(COMMAND);
     });
 
-    it('leaves a shell with no Bash row in any timeline without a command', () => {
-        const { claudeTasks } = harness();
+    it('titles a shell with no Bash row in any timeline from its description alone', () => {
+        const { claudeTasks, tasks } = harness();
         claudeTasks.onSystem({
             subtype: 'task_started',
             task_id: 'shell-2',
@@ -107,6 +104,8 @@ describe('ClaudeTasks background shells', () => {
             tool_use_id: 'unknown-call',
             description: 'watch',
         });
-        expect(claudeTasks.shellCommand('shell-2')).toBeUndefined();
+        const shell = tasks().find((task) => task.id === 'shell-2');
+        expect(shell).toMatchObject({ kind: 'shell', title: 'watch' });
+        expect(shell).not.toHaveProperty('command');
     });
 });

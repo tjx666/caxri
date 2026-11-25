@@ -33,7 +33,6 @@ const HOOK_TURN_ID_KEYS: Record<AgentProvider, readonly string[]> = {
 const BRIDGE_SCRIPT = String.raw`'use strict';
 const net = require('node:net');
 const { createHash } = require('node:crypto');
-const { readFileSync } = require('node:fs');
 // The shell wrapper maps these private exit codes to fixed diagnostics so runtime paths and arbitrary child stderr
 // never escape the bridge boundary.
 const exitCodes = {
@@ -107,33 +106,15 @@ function firstPresent(payload, keys) {
   const key = keys.find((candidate) => payload[candidate] !== undefined && payload[candidate] !== null);
   return key === undefined ? undefined : payload[key];
 }
-// Claude's Stop lists in-flight background work (v2.1.145+). Subagents, workflows, monitors, and background shells hold
-// completion, except a shell whose command matches the user's long-running patterns (a dev server that never ends).
-// Server Core writes those patterns to the file named by CAXRI_HOOK_LONG_RUNNING_COMMANDS; without the variable (an
-// older Server Core), an unreadable file, or a shell with no command, the shell does not hold completion. Commands are matched here and
-// only the resulting boolean is sent, so command text never crosses this boundary.
-const WAKING_BACKGROUND_TASK_TYPES = ['subagent', 'workflow', 'monitor'];
-function readLongRunningShellCommands() {
-  const path = process.env.CAXRI_HOOK_LONG_RUNNING_COMMANDS;
-  if (!path) return;
-  try {
-    const patterns = JSON.parse(readFileSync(path, 'utf8'));
-    return Array.isArray(patterns) ? patterns : undefined;
-  } catch {
-    return;
-  }
-}
+// Claude's Stop lists in-flight background work (v2.1.145+). Only subagents and workflows hold completion. Once a turn
+// leaves only background shells or monitors running, its reply is usually the result the user needs to read, and a dev
+// server or watcher may never exit; one that later wakes the Agent starts a new turn.
+const WAKING_BACKGROUND_TASK_TYPES = ['subagent', 'workflow'];
 function hasWakingBackgroundWork(tasks) {
   if (!Array.isArray(tasks)) return false;
-  let longRunning;
-  return tasks.some((task) => {
-    if (!task || !(task.status === undefined || task.status === 'running' || task.status === 'pending')) return false;
-    if (WAKING_BACKGROUND_TASK_TYPES.includes(task.type)) return true;
-    if (task.type !== 'shell') return false;
-    if (longRunning === undefined) longRunning = readLongRunningShellCommands() || null;
-    return longRunning !== null && typeof task.command === 'string' && task.command.length > 0 &&
-      !shellCommandMatchesAny(task.command, longRunning);
-  });
+  return tasks.some((task) =>
+    task && (task.status === undefined || task.status === 'running' || task.status === 'pending') &&
+    WAKING_BACKGROUND_TASK_TYPES.includes(task.type));
 }
 function readIdentifiers(callback) {
   let source = '';

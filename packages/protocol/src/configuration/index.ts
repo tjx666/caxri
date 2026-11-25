@@ -10,7 +10,6 @@ export * from './session-menu-layout.js';
 export * from './settings-changes.js';
 export * from './settings-schema.js';
 export * from './settings-spec.js';
-export * from './shell-command-patterns.js';
 export * from './shortcuts.js';
 export * from './terminal-reference-links.js';
 export * from './theme-appearance.js';

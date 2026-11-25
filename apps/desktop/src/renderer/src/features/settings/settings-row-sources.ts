@@ -353,10 +353,6 @@ export const settingRowSources: SettingRowSource[] = [
             'idle',
         ]),
     },
-    specRow('agents.longRunningShellCommands', {
-        advanced: true,
-        binding: { type: 'long-running-commands' },
-    }),
     specRow('agents.sessionInstructions.includeBuiltIn', { advanced: true }),
     specRow('agents.sessionInstructions.custom', { advanced: true }),
     specRow('agents.suggestLifecycleHooks', { advanced: true }),

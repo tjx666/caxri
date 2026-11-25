@@ -369,10 +369,6 @@ export const settingsCatalog: TranslatedNamespace<typeof source> = {
     'settings.agents.providers.description':
         '每个 Agent 提供方的启动命令、生命周期 Hook、对等消息和输出恢复',
 
-    'settings.agents.longRunningShellCommands.title': '长期运行的后台命令',
-    'settings.agents.longRunningShellCommands.description':
-        '本来就会一直运行的命令，例如开发服务器。判断 Agent 这一轮是否结束时，Caxri 不会等它们退出',
-
     'settings.agents.sessionInstructions.includeBuiltIn.title': 'Caxri 会话说明',
     'settings.agents.sessionInstructions.includeBuiltIn.description':
         'Agent 启动时，在它自己的系统提示词之后追加 Caxri 内置说明，让它知道自己运行在 Caxri 中，以及如何在另一个会话中开始工作。内置说明随 Caxri 版本更新；修改只对之后启动的 Agent 生效',

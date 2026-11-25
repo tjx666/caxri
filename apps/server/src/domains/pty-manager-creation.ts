@@ -38,7 +38,6 @@ export async function createDomainTerminalManager({
         | 'agentOutputRecoverySettings'
         | 'coordinator'
         | 'dispatchState'
-        | 'hookLaunchEnvironment'
     >;
     botHooks: Pick<BotTerminalHooks, 'input' | 'launchArguments' | 'launchPrompt' | 'launched'>;
     compactionReadiness: Pick<CompactionReadiness, 'forget' | 'input'>;
@@ -58,7 +57,6 @@ export async function createDomainTerminalManager({
         agentOutputRecoverySettings,
         coordinator,
         dispatchState,
-        hookLaunchEnvironment,
     } = agentRuntime;
     const shellIntegration = await createShellIntegration(dependencies.userDataPath, logger);
     const terminals = new TerminalManager(database, send, logger, {
@@ -69,10 +67,10 @@ export async function createDomainTerminalManager({
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
-        shellEnvironment: (terminal) => hookLaunchEnvironment.shellEnvironment(terminal.id),
+        shellEnvironment: (terminal) => agentHooks.shellEnvironment(terminal.id),
         onShellRetired: (terminalId) => agentHooks.endShellLaunch(terminalId),
         lifecycleEnvironment: createLifecycleEnvironment({
-            agentHooks: hookLaunchEnvironment,
+            agentHooks,
             configuration,
             database,
             delegationState,

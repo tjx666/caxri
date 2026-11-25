@@ -35,12 +35,6 @@ import {
 } from './session-menu-layout.js';
 import type { IntegerSettingSpec, SettingKey, StringSettingSpec } from './settings-spec.js';
 import { settingsSpecByKey } from './settings-spec.js';
-import {
-    DEFAULT_LONG_RUNNING_SHELL_COMMANDS,
-    MAX_SHELL_COMMAND_PATTERN_LENGTH,
-    MAX_SHELL_COMMAND_PATTERNS,
-    normalizeShellCommandPattern,
-} from './shell-command-patterns.js';
 import { terminalReferenceLinksSchema } from './terminal-reference-links.js';
 import {
     MAX_TRUSTED_DOMAIN_LENGTH,
@@ -173,13 +167,6 @@ const sessionMenuLayoutFileSchema = z
     .nullable()
     .default(null)
     .transform((value) => (value ? normalizeSessionMenuLayout(value) : null));
-
-const shellCommandPatternSchema = z.string().min(1).max(MAX_SHELL_COMMAND_PATTERN_LENGTH);
-
-const longRunningShellCommandsSchema = z
-    .array(shellCommandPatternSchema)
-    .max(MAX_SHELL_COMMAND_PATTERNS)
-    .default([...DEFAULT_LONG_RUNNING_SHELL_COMMANDS]);
 
 /**
  * Maps a spec's option tuple to the literal value tuple `z.enum` needs, preserving inference.
@@ -317,7 +304,6 @@ export const appSettingsSchema = z.object({
     ),
     'agents.providers': agentProvidersSchema,
     'agents.delegation': agentDelegationSettingsSchema,
-    'agents.longRunningShellCommands': longRunningShellCommandsSchema,
     'agents.sessionInstructions.includeBuiltIn': booleanField(
         spec['agents.sessionInstructions.includeBuiltIn'],
     ),
@@ -532,19 +518,6 @@ const ignoredChecksFileSchema = z
         ),
     );
 
-const longRunningShellCommandsFileSchema = z
-    .array(shellCommandPatternSchema)
-    .max(MAX_SHELL_COMMAND_PATTERNS)
-    .default([...DEFAULT_LONG_RUNNING_SHELL_COMMANDS])
-    .transform((values, context) =>
-        normalizedRuleList(
-            values,
-            context,
-            normalizeShellCommandPattern,
-            'Expected a shell command pattern or a valid /regular expression/',
-        ),
-    );
-
 /**
  * Lenient parser for the user-authored `settings.jsonc`: a partial provider record fills from defaults, `files.exclude`
  * merges on top of the shipped exclusions, and trusted-domain rules are normalized and deduplicated. The output always
@@ -553,7 +526,6 @@ const longRunningShellCommandsFileSchema = z
  */
 export const appSettingsFileSchema = appSettingsSchema.extend({
     'agents.providers': agentProvidersFileSchema,
-    'agents.longRunningShellCommands': longRunningShellCommandsFileSchema,
     'projectStatus.ignoredChecks': ignoredChecksFileSchema,
     'primarySidebar.sessionMenu': sessionMenuLayoutFileSchema,
     'environmentMonitor.expectedTimeZone': expectedEnvironmentTimeZoneFileSchema,
