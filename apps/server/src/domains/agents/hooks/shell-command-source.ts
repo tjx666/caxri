@@ -1,19 +1,14 @@
 /**
- * The Shell command parser and pattern matcher shared by the standalone hook bridge and Server Core's hook classifiers.
+ * The Shell command parser shared by the standalone hook bridge and Server Core's hook classifiers.
  *
  * Presentation code parses commands its own way and is not bound to this parser's semantics: the tool-row word splitter
  * (`@caxri/protocol` `tool-rows/shell/words.ts`) refuses input it cannot split faithfully, and the Chat trackers keep
  * `$(...)` whole. A change here therefore does not change how a command is labeled in Chat.
  *
  * It is plain JavaScript source rather than TypeScript because the hook bridge (`bridge.cjs`) embeds it verbatim, while
- * Server Core compiles the same source through {@link shellCommandMatchesAny}, so a command the Terminal path classifies
- * is classified identically in Chat. Serializing a compiled function instead is unsafe: the bundler may rename its
- * helpers (`basename` collides with `node:path`). Classifiers built on it, such as `worktree-command.ts`, append their
- * own source after this one.
- *
- * Pattern syntax is owned by `@caxri/protocol` (`shell-command-patterns.ts`): text patterns are prefixes of a
- * sub-command that end at whitespace, `*` stands for any run of characters, and `/source/flags` is a regular
- * expression.
+ * Server Core compiles the same source, so a command the Terminal path classifies is classified identically in Chat.
+ * Serializing a compiled function instead is unsafe: the bundler may rename its helpers (`basename` collides with
+ * `node:path`). Classifiers built on it, such as `worktree-command.ts`, append their own source after this one.
  */
 export const SHELL_COMMAND_SOURCE = String.raw`function splitShellSegments(command) {
   const segments = [];
@@ -122,54 +117,4 @@ function findCommandIndex(tokens) {
   return index;
 }
 const MAX_SHELL_COMMAND_LENGTH = 32768;
-const MAX_SHELL_COMMAND_PATTERNS = 64;
-function compileShellCommandPattern(pattern) {
-  if (typeof pattern !== 'string') return;
-  const value = pattern.trim();
-  if (!value || value.length > 256) return;
-  const regex = /^\/(.+)\/([imsu]*)$/su.exec(value);
-  try {
-    if (regex) return new RegExp(regex[1], regex[2]);
-    const source = value.split(/\s+/u).map((word) =>
-      word.split('*').map((part) => part.replace(/[.*+?^$|{}()[\]\\]/gu, '\\$&')).join('.*')).join('\\s+');
-    return new RegExp('^' + source + '(?=\\s|$)', 'su');
-  } catch {
-    return;
-  }
-}
-function compileShellCommandPatterns(patterns) {
-  if (!Array.isArray(patterns)) return [];
-  return patterns.slice(0, MAX_SHELL_COMMAND_PATTERNS).map(compileShellCommandPattern).filter(Boolean);
-}
-function shellSegmentTexts(segment) {
-  const tokens = tokenizeShellSegment(segment);
-  const command = tokens.slice(findCommandIndex(tokens));
-  if (command.length === 0) return [];
-  const text = command.join(' ');
-  const name = basename(command[0]);
-  return name === command[0] ? [text] : [text, [name, ...command.slice(1)].join(' ')];
-}
-function shellCommandMatchesAny(command, patterns) {
-  if (typeof command !== 'string' || command.length === 0 || command.length > MAX_SHELL_COMMAND_LENGTH) return false;
-  const compiled = compileShellCommandPatterns(patterns);
-  if (compiled.length === 0) return false;
-  return splitShellSegments(command).some((segment) =>
-    shellSegmentTexts(segment).some((text) => compiled.some((pattern) => pattern.test(text))));
-}
 `;
-
-// Both linters flag the Function constructor; each suppression must sit directly above it, so oxlint uses a range.
-// See the JSDoc: the source is a repository constant shared with `bridge.cjs`.
-/* oxlint-disable typescript/no-implied-eval */
-// react-doctor-disable-next-line react-doctor/no-eval
-const loadMatcher = new Function(
-    `${SHELL_COMMAND_SOURCE}\nreturn shellCommandMatchesAny;`,
-) as () => (command: unknown, patterns: readonly string[]) => boolean;
-/* oxlint-enable typescript/no-implied-eval */
-
-/**
- * Whether any sub-command of a Shell command line matches one of the patterns, judged by the same source the hook
- * bridge embeds. A command with no matching sub-command, an empty or oversized command, and an empty list all return
- * `false`.
- */
-export const shellCommandMatchesAny = loadMatcher();

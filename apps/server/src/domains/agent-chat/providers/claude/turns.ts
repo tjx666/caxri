@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import type { SDKRateLimitInfo, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatSnapshot, AgentChatTurn } from '@caxri/protocol';
 
-import { shellCommandMatchesAny } from '../../../agents';
 import { startedTurnOperation } from '../../chat-items';
 import type { AgentChatSessionHost } from '../../chat-provider';
 import { chatTextDigest, chatTurnFinalMessage } from '../../chat-turn-answer';
@@ -15,22 +14,14 @@ import { claudeRateLimitEvent } from './plan-limits';
 import { isClaudeErrorReply, startClaudeCompacting } from './system-notices';
 
 /**
- * Whether background work that holds the turn is still running: a subagent or workflow (both listed as `agent`), or a
- * background shell whose command matches none of `longRunning`. A shell matching one, such as a dev server, can run for
- * hours; without `longRunning`, or for a shell whose command is unknown, no shell holds the turn.
+ * Whether background work that holds the turn is still running: a subagent or workflow (both listed as `agent`). A
+ * background shell never holds it: once only shells remain, the turn's reply is usually the result the user needs to
+ * read, and a dev server or watcher may never exit. A shell that later wakes the Agent starts a new turn.
  */
-function hasWakingBackgroundWork(
-    snapshot: AgentChatSnapshot,
-    longRunning: readonly string[] | undefined,
-    shellCommand: ((taskId: string) => string | undefined) | undefined,
-): boolean {
-    return (snapshot.tasks ?? []).some((task) => {
-        if (!task.isBackground || task.status !== 'running') return false;
-        if (task.kind === 'agent') return true;
-        if (longRunning === undefined) return false;
-        const command = shellCommand?.(task.id);
-        return command !== undefined && !shellCommandMatchesAny(command, longRunning);
-    });
+function hasWakingBackgroundWork(snapshot: AgentChatSnapshot): boolean {
+    return (snapshot.tasks ?? []).some(
+        (task) => task.isBackground && task.status === 'running' && task.kind === 'agent',
+    );
 }
 
 /**
@@ -85,11 +76,6 @@ export class ClaudeTurns {
              * Settles requests still pending when a turn ends.
              */
             settleRequests: () => void;
-            /**
-             * The command line of a listed background shell, when its Bash row is known. A shell's title may be the
-             * Agent's description of it instead.
-             */
-            shellCommand?: (taskId: string) => string | undefined;
         },
     ) {
         this.goals = new ClaudeGoals(options.host);
@@ -129,12 +115,7 @@ export class ClaudeTurns {
         for (const resolve of waiters) resolve();
         const agentSessionId = this.options.sessionId();
         const isWaitingOnBackground =
-            status === 'completed' &&
-            hasWakingBackgroundWork(
-                host.read(),
-                host.longRunningShellCommands?.(),
-                this.options.shellCommand,
-            );
+            status === 'completed' && hasWakingBackgroundWork(host.read());
         this.backgroundTurnId = isWaitingOnBackground ? id : undefined;
         this.goals.onTurnEnded(
             { id, status, startedAt: snapshot.turns.find((turn) => turn.id === id)?.startedAt },
@@ -247,16 +228,7 @@ export class ClaudeTurns {
     onTasksChanged(): void {
         const id = this.backgroundTurnId;
         const snapshot = this.options.host.read();
-        if (
-            !id ||
-            snapshot.activeTurnId ||
-            hasWakingBackgroundWork(
-                snapshot,
-                this.options.host.longRunningShellCommands?.(),
-                this.options.shellCommand,
-            )
-        )
-            return;
+        if (!id || snapshot.activeTurnId || hasWakingBackgroundWork(snapshot)) return;
         this.backgroundTurnId = undefined;
         this.options.host.lifecycle({
             phase: 'turnFinished',

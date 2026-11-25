@@ -41,11 +41,6 @@ interface KnownTask {
     toolUseId?: string;
     description: string;
     /**
-     * The command line of a background shell's Bash row, remembered once found: a subagent's projection, which holds
-     * the row of a shell the subagent started, can be evicted after that subagent ends while the shell keeps running.
-     */
-    command?: string;
-    /**
      * A workflow keeps its name as its title; a `task_updated` description does not rename it.
      */
     isWorkflow?: boolean;
@@ -188,8 +183,7 @@ export class ClaudeTasks {
 
     /**
      * The row of the tool call that started a background shell: in the parent timeline, or in the conversation of the
-     * subagent that ran it. A shell a subagent starts outlives that subagent and still wakes the main Agent, so its
-     * command must be known for the turn to wait on it.
+     * subagent that ran it. A shell a subagent starts outlives that subagent, so its title still comes from that row.
      */
     private shellRow(toolUseId: string | undefined): AgentChatItem | undefined {
         if (!toolUseId) return undefined;
@@ -210,11 +204,7 @@ export class ClaudeTasks {
         const shellRow = this.shellRow(known.toolUseId);
         const row = claudeShellCall(shellRow);
         const command = stringField(row?.command);
-        this.known.set(claudeId, {
-            ...known,
-            id,
-            ...(shellRow?.type === 'command' && command && { command }),
-        });
+        this.known.set(claudeId, { ...known, id });
         this.claudeIds.set(id, claudeId);
         // The call's description names the shell the way the Agent did; the command line stays for its tab, and its
         // presence tells the Renderer the title is words, not a command (`isAgentChatTaskTitleCommand`).
@@ -420,22 +410,6 @@ export class ClaudeTasks {
                 return false;
             }
         }
-    }
-
-    /**
-     * The command line of a listed background shell, read from the Bash row that started it in the parent timeline or a
-     * subagent's conversation. A shell whose row is in neither has no known command, even when the Agent named it.
-     */
-    shellCommand(taskId: string): string | undefined {
-        const claudeId = this.claudeIds.get(taskId);
-        const known = claudeId === undefined ? undefined : this.known.get(claudeId);
-        if (claudeId === undefined || known?.kind !== 'shell') return undefined;
-        if (known.command) return known.command;
-        // Only a Bash row: a Monitor watch keeps its unknown-command standing, so it never starts holding the turn.
-        const row = this.shellRow(known.toolUseId);
-        const command = row?.type === 'command' ? stringField(row.command) : undefined;
-        if (command) this.known.set(claudeId, { ...known, command });
-        return command;
     }
 
     /**

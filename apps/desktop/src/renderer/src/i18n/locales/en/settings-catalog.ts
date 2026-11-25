@@ -396,10 +396,6 @@ export const settingsCatalog = {
     'settings.agents.providers.description':
         'Launch commands, lifecycle hooks, peer messaging, and output recovery per Agent provider',
 
-    'settings.agents.longRunningShellCommands.title': 'Long-running background commands',
-    'settings.agents.longRunningShellCommands.description':
-        "Commands that keep running on purpose, like a dev server. Caxri won't wait for them to finish before treating the Agent's turn as done",
-
     'settings.agents.sessionInstructions.includeBuiltIn.title': 'Caxri Session instructions',
     'settings.agents.sessionInstructions.includeBuiltIn.description':
         "Add Caxri's built-in instructions after each Agent's own system prompt, so it knows it runs inside Caxri and how to start work in another Session. They update with Caxri; changes apply to Agents started afterward",

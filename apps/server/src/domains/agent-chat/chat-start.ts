@@ -163,7 +163,6 @@ async function startChat(
                 spawnProcess: options.spawnProcess,
                 processGroups: { terminalId, ledger: chatStateStore(database).processGroups },
                 turnRequestTimeoutMs: options.turnRequestTimeoutMs,
-                longRunningShellCommands: options.longRunningShellCommands,
                 read: () => state.projection.snapshot,
                 apply: (operations) => {
                     if (!isCurrent()) return;

@@ -36,12 +36,6 @@ export {
     type AgentLifecycleSignal,
     type AgentSignalDecision,
 } from './hooks/contract';
-export {
-    longRunningCommandsPath,
-    withLongRunningCommands,
-    writeLongRunningCommands,
-} from './hooks/long-running-commands';
-export { shellCommandMatchesAny } from './hooks/shell-command-source';
 export { commandCreatesWorktree, commandWorktreeAddPath } from './hooks/worktree-command';
 export {
     isLateMidTurnSignalAfterInterrupt,

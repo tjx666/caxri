@@ -220,11 +220,6 @@ const settingsProjection: SettingsProjection = {
             : { configured: true, scheme: value.startsWith('wss:') ? 'wss' : 'ws' },
     'agents.providers': projectAgentProviders,
     'agents.delegation': projectDelegation,
-    /**
-     * Patterns are command lines the user typed, so credential flags go through the same rule as launch arguments.
-     */
-    'agents.longRunningShellCommands': (patterns) =>
-        patterns.map((pattern) => redactCommandLine(pattern)),
     'agents.sessionInstructions.includeBuiltIn': exportAsIs,
     /**
      * Free text written for an Agent: support learns only whether and how much the user added, never the wording.

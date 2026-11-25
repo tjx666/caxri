@@ -77,11 +77,6 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return settings['projectStatus.ignoredChecks'].length > 0;
         case 'session-menu':
             return settings['primarySidebar.sessionMenu'] !== null;
-        case 'long-running-commands':
-            return !isEqual(
-                settings['agents.longRunningShellCommands'],
-                defaultAppSettings['agents.longRunningShellCommands'],
-            );
         case 'files-exclude':
             return !isEqual(settings[binding.key], defaultAppSettings[binding.key]);
         case 'delegation-field':
@@ -218,12 +213,6 @@ export function rowResetAction(
             return { kind: 'field', key: 'projectStatus.ignoredChecks', value: [] };
         case 'session-menu':
             return { kind: 'field', key: 'primarySidebar.sessionMenu', value: null };
-        case 'long-running-commands':
-            return {
-                kind: 'field',
-                key: 'agents.longRunningShellCommands',
-                value: [...defaultAppSettings['agents.longRunningShellCommands']],
-            };
         case 'files-exclude':
             return {
                 kind: 'field',

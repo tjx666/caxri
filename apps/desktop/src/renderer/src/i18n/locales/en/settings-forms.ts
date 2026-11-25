@@ -45,18 +45,6 @@ export const settingsForms = {
     'settings.sessionMenuForm.item.switchSurface': 'Open as Terminal or Chat',
     'settings.sessionMenuForm.item.handOverToBot': 'Hand Over to or Take Back from Caxri Bot',
     'settings.sessionMenuForm.item.openPullRequest': 'Open Pull Request',
-    'settings.longRunningCommandsForm.ariaLabel': 'Long-running background commands editor',
-    'settings.longRunningCommandsForm.description':
-        'Matches the start of a command; a bare command name matches from any directory, and each part joined by &&, ;, or | is checked on its own. Use * as a wildcard or /regex/.',
-    'settings.longRunningCommandsForm.inputLabel': 'Long-running command pattern',
-    'settings.longRunningCommandsForm.listLabel': 'Long-running command patterns',
-    'settings.longRunningCommandsForm.empty':
-        'No patterns. Every background command keeps its Session working until it ends.',
-    'settings.longRunningCommandsForm.invalid':
-        'Enter a command such as npm run dev, or a valid /regular expression/.',
-    'settings.longRunningCommandsForm.duplicate': 'This pattern is already listed.',
-    'settings.longRunningCommandsForm.maximum': 'You can add at most {{maximum}} patterns.',
-    'settings.longRunningCommandsForm.remove': 'Remove pattern {{rule}}',
     'settings.referenceLinksForm.ariaLabel': 'Terminal Reference Links editor',
     'settings.referenceLinksForm.descriptionBeforeToken':
         'Match a fixed prefix and substitute its identifier into ',

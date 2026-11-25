@@ -2315,13 +2315,12 @@ after its turn would otherwise read as a running turn. A `session/load` replay r
 shared classifier unwraps one `sh`/`bash`/`zsh -c` layer, because Codex reports every command as
 `/bin/zsh -lc "<script>"`.
 
-A Claude Chat whose turn ends while a background subagent, workflow, or shell task is still running reports
+A Claude Chat whose turn ends while a background subagent or workflow is still running reports
 `turnFinished` with `agentBackgroundWork`, the same evidence the Terminal hook bridge derives from
 Claude's `background_tasks`, so the Session stays running in the quiet background sub-mode instead
-of turning unread. When the task list later drains without Claude Code starting a new turn, the Chat
-reports a plain `turnFinished` for the same turn, which settles it. A background shell whose command
-matches `agents.longRunningShellCommands` (a dev server) never holds completion; see
-[Activity view](activity-view.md). Monitors are not listed as Chat tasks, so they do not hold it in a Chat yet.
+of turning unread. When no subagent or workflow is left running without Claude Code starting a new
+turn, the Chat reports a plain `turnFinished` for the same turn, which settles it. Background shells
+and monitors never hold completion; see [Activity view](activity-view.md).
 
 ## Observability
 
