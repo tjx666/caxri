@@ -111,7 +111,7 @@ describe('mergeGitHubPullRequest', () => {
         await expect(merge()).rejects.toMatchObject({
             code: 'GIT',
             message:
-                'Pull request acme/widget#42 is not mergeable: the base branch policy prohibits the merge.',
+                'GitHub refused the merge: Pull request acme/widget#42 is not mergeable: the base branch policy prohibits the merge.',
         });
         expect(forget).toHaveBeenCalledWith('acme', 'widget', 42);
     });
@@ -273,13 +273,87 @@ describe('mergeGitHubPullRequest', () => {
 
         expect(failureRecords()).toEqual([
             expect.objectContaining({
-                fields: { operation: 'pr.merge', step: 'pr.merge', reason: 'other', exitCode: 1 },
+                fields: {
+                    operation: 'pr.merge',
+                    step: 'pr.merge',
+                    reason: 'other',
+                    refusal: 'base-policy',
+                    exitCode: 1,
+                },
             }),
         ]);
         const serialized = JSON.stringify(failureRecords());
         expect(serialized).not.toContain('acme');
         expect(serialized).not.toContain('widget');
         expect(serialized).not.toContain('base branch policy');
+    });
+
+    it.each([
+        [
+            'GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)',
+            'head-moved',
+        ],
+        [
+            'GraphQL: Required status check "guards" is expected. (mergePullRequest)',
+            'required-check',
+        ],
+        [
+            'GraphQL: At least 1 approving review is required by reviewers with write access. (mergePullRequest)',
+            'review-required',
+        ],
+        ['GraphQL: Repository rule violations found (mergePullRequest)', 'rule-violation'],
+        [
+            'X Pull request acme/widget#42 is not mergeable: the merge commit cannot be cleanly created.',
+            'conflict',
+        ],
+        [
+            'X Pull request acme/widget#42 is not mergeable: the head branch is not up to date with the base branch.',
+            'behind',
+        ],
+        ['GraphQL: Pull Request is not mergeable (mergePullRequest)', 'not-mergeable'],
+        ['GraphQL: Something new (mergePullRequest)', 'unrecognized'],
+    ])('logs the refusal %j as the closed category %s', async (stderr, refusal) => {
+        const { failureRecords, merge } = harness(
+            { squashMergeAllowed: true },
+            new ExternalStatusCliError('gh', 'other', stderr, 1),
+        );
+
+        await expect(merge()).rejects.toMatchObject({ code: 'GIT' });
+
+        const [record] = failureRecords() as Array<{ fields: { refusal?: string } }>;
+        expect(record.fields.refusal).toBe(refusal);
+    });
+
+    it('does not call a failed merge-settings read a GitHub refusal', async () => {
+        const write = vi.fn<StructuredLogger['write']>();
+        await expect(
+            mergeGitHubPullRequest(
+                repo,
+                { number: 42, headSha: HEAD },
+                {
+                    forget: vi.fn(),
+                    logger: { write } as unknown as StructuredLogger,
+                    originRemote: () => Promise.resolve('git@github.com:acme/widget.git'),
+                    run: () =>
+                        Promise.reject(
+                            new ExternalStatusCliError(
+                                'gh',
+                                'other',
+                                'GraphQL: Something broke',
+                                1,
+                            ),
+                        ),
+                },
+            ),
+        ).rejects.toMatchObject({ code: 'GIT', message: 'GraphQL: Something broke' });
+
+        expect(write).toHaveBeenCalledWith(
+            'warn',
+            logEventCatalog.git.githubCommandFailed,
+            expect.objectContaining({
+                fields: { operation: 'pr.merge', step: 'repo.view', reason: 'other', exitCode: 1 },
+            }),
+        );
     });
 
     it('logs an unreadable merge-settings response as a closed invalid-response cause', async () => {

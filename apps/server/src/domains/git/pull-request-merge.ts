@@ -50,6 +50,50 @@ class NoMergeMethodError extends CaxriError {
     }
 }
 
+/**
+ * Closed category of GitHub's own refusal text for a `gh pr merge` that failed for a non-transport reason. The shared
+ * CLI classifier files every such refusal under `other`, so production logs could not tell a branch policy block from a
+ * moved head or a conflict, and the user's report "the web page merges but Caxri does not" had nothing to go on.
+ */
+type MergeRefusal =
+    | 'already-merged'
+    | 'base-policy'
+    | 'behind'
+    | 'conflict'
+    | 'head-moved'
+    | 'not-mergeable'
+    | 'required-check'
+    | 'review-required'
+    | 'rule-violation'
+    | 'unrecognized';
+
+/**
+ * Ordered most specific first: GitHub's generic "is not mergeable" prefix also introduces the policy, behind, and
+ * conflict sentences `gh` prints.
+ */
+const MERGE_REFUSALS: ReadonlyArray<readonly [RegExp, MergeRefusal]> = [
+    [/Head branch was modified/iu, 'head-moved'],
+    [/already merged/iu, 'already-merged'],
+    [/base branch policy prohibits/iu, 'base-policy'],
+    [/not up to date with the base branch/iu, 'behind'],
+    [/cannot be cleanly created|merge conflict/iu, 'conflict'],
+    [/status checks? .*(?:expected|required|failing)/iu, 'required-check'],
+    [/review is required|approving review/iu, 'review-required'],
+    [/rule violations?/iu, 'rule-violation'],
+    [/not mergeable/iu, 'not-mergeable'],
+];
+
+function classifyMergeRefusal(message: string): MergeRefusal {
+    return MERGE_REFUSALS.find(([pattern]) => pattern.test(message))?.[1] ?? 'unrecognized';
+}
+
+/**
+ * Prefix of the `GIT` error message that carries GitHub's refusal sentence. The Renderer quotes the sentence after it
+ * in every locale, because no translated reason says more than GitHub's own words; matched by text until merge failures
+ * carry a structured reason (https://github.com/tjx666/caxri/issues/1921).
+ */
+const GITHUB_MERGE_REFUSED_PREFIX = 'GitHub refused the merge: ';
+
 function mergeFailureReason(error: unknown): MergeFailureReason {
     if (error instanceof ExternalStatusCliError) return error.kind;
     if (error instanceof NoMergeMethodError) return 'no-merge-method';
@@ -125,7 +169,7 @@ async function readMergeSettings(
     }
 }
 
-function mergeFailure(error: unknown): CaxriError {
+function mergeFailure(error: unknown, step: MergeStep): CaxriError {
     if (error instanceof ExternalStatusCliError) {
         if (error.kind === 'network')
             return new CaxriError(
@@ -145,7 +189,9 @@ function mergeFailure(error: unknown): CaxriError {
                 'GitHub API rate limit reached; retry after it resets',
             );
     }
-    return new CaxriError('GIT', githubFailureMessage(error));
+    // Only the merge call itself is GitHub refusing the merge; a failed settings read keeps its bare message.
+    const prefix = step === 'pr.merge' ? GITHUB_MERGE_REFUSED_PREFIX : '';
+    return new CaxriError('GIT', `${prefix}${githubFailureMessage(error)}`);
 }
 
 /**
@@ -207,16 +253,22 @@ export async function mergeGitHubPullRequestAt(
             recoveredFrom = mergeFailureReason(error);
         }
     } catch (error) {
+        const reason = mergeFailureReason(error);
         dependencies.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
             durationMs: performance.now() - startedAt,
             fields: {
                 operation: 'pr.merge',
                 step,
-                reason: mergeFailureReason(error),
+                reason,
+                // Only the closed category: the refusal text itself names the repository and the pull request.
+                ...(step === 'pr.merge' &&
+                    reason === 'other' && {
+                        refusal: classifyMergeRefusal(githubFailureMessage(error)),
+                    }),
                 exitCode: error instanceof ExternalStatusCliError ? error.exitCode : null,
             },
         });
-        throw error instanceof CaxriError ? error : mergeFailure(error);
+        throw error instanceof CaxriError ? error : mergeFailure(error, step);
     } finally {
         // A rejected merge may still have changed GitHub's view (a stale head, a new conflict), so the next read must
         // not serve the record that made the merge look possible.

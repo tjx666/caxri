@@ -35,6 +35,7 @@ export const toasts: TranslatedNamespace<typeof source> = {
     'toasts.failure.errno.ECONNREFUSED': '服务拒绝了连接。',
     'toasts.failure.binaryFile': '二进制文件无法在编辑器中打开。',
     'toasts.failure.pullRequestHeadMoved': '这个 Pull Request 有新的提交，请确认后重新合并。',
+    'toasts.failure.githubMergeRefused': 'GitHub 拒绝了合并：{{reason}}。',
     'toasts.failure.githubUnreachable': '无法连接 GitHub，请检查网络后重试。',
     'toasts.failure.githubRateLimited': '已达到 GitHub API 限额，请等额度恢复后重试。',
     'toasts.failure.githubSignedOut': 'GitHub CLI 未登录，请运行 gh auth login 后重试。',

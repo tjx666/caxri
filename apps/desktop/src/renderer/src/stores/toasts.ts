@@ -288,6 +288,14 @@ const messageReasons: ReadonlyArray<readonly [RegExp, TranslationKey]> = [
 ];
 
 /**
+ * The Server's `GIT` message for a merge GitHub refused for a reason no entry in {@link messageReasons} names, such as a
+ * branch policy or a required check. GitHub's sentence is quoted in every locale: the localized `GIT` reason "the Git
+ * operation failed" hid it behind Copy details, so a user whose merge worked on github.com could not see why Caxri's
+ * did not, and the toast was gone before anyone copied it.
+ */
+const githubMergeRefusal = /\bGitHub refused the merge: (.+)$/su;
+
+/**
  * Keeps a rejected filesystem path out of fallback copy while retaining the rest of an unknown reason. A lone `/name`
  * word is a slash command such as `/review`, not a path that can carry a directory or user name, so it stays readable.
  */
@@ -360,6 +368,7 @@ export function describeFailureNotice(error: unknown, label: string, t: Translat
     // A full Terminal limit says how many are running and what frees one, in every locale, instead of a bare "limit".
     const terminalCapacity = terminalCapacityDetails(error);
     const isServerTextShown = t.locale === 'en';
+    const mergeRefusal = githubMergeRefusal.exec(rawMessage)?.[1]?.trim();
     let reason: string;
     let detail: string | undefined;
     // Load shedding is a CAPACITY code too, but no limit the user can act on was reached: name it a busy Server.
@@ -372,6 +381,10 @@ export function describeFailureNotice(error: unknown, label: string, t: Translat
             { limit: terminalCapacity.limit },
         );
     else if (knownReason) reason = t(knownReason);
+    else if (mergeRefusal)
+        reason = t('toasts.failure.githubMergeRefused', {
+            reason: redactAbsolutePaths(mergeRefusal).replace(/[.。]$/u, ''),
+        });
     else if (isServerTextShown)
         reason =
             redactAbsolutePaths(rawMessage)
