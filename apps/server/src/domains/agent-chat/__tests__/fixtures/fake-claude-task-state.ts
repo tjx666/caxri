@@ -21,6 +21,11 @@ export const tasks = {
     outputs: new Map<string, string>(),
 };
 
+/**
+ * The resolved model id a subagent's responses carry, unlike the `fake-haiku` alias its spawning call asks for.
+ */
+export const FAKE_SUBAGENT_MODEL = 'fake-haiku-1-0';
+
 export function childFrame(io: FakeClaudeIo, parent: string, entry: Json): Json {
     return io.frame({ ...entry, parent_tool_use_id: parent });
 }
@@ -34,7 +39,7 @@ export function childAssistant(io: FakeClaudeIo, parent: string, messageId: stri
                 id: messageId,
                 type: 'message',
                 role: 'assistant',
-                model: 'fake-haiku',
+                model: FAKE_SUBAGENT_MODEL,
                 content: [block],
                 stop_reason: null,
                 usage: { input_tokens: 10, output_tokens: 5 },

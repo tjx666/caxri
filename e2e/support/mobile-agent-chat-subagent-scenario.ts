@@ -111,7 +111,7 @@ export async function executeMobileChatSubagentScenario(
         await waitForCheck(serial, 'agent-chat-task-transcript');
         const facts = await observeMobileNode(serial, 'agent-chat-task-facts', {
             kind: 'includes',
-            value: 'general-purpose · fake-haiku · 12.3k tokens · 2 tool uses',
+            value: 'general-purpose · fake-haiku-1-0 · 12.3k tokens · 2 tool uses',
         });
         if (!facts.exists || facts.textMatches !== true)
             throw new Error('The subagent detail does not name its type, model, and usage');
