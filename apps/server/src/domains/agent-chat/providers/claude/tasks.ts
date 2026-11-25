@@ -423,6 +423,19 @@ export class ClaudeTasks {
     }
 
     /**
+     * Records the model a subagent's response actually came from. The spawning call names a model only when the parent
+     * overrides it, and then only as an alias (`haiku`); without one the subagent inherits a model the call never
+     * states, so its own responses are the only source for the resolved id. `<synthetic>` marks a CLI-made message, not
+     * a model.
+     */
+    private noteChildModel(taskId: string, body: Json): void {
+        const model = stringField(body.model);
+        if (!model || model === '<synthetic>') return;
+        const clipped = clip(model, 200);
+        if (this.list.get(taskId)?.model !== clipped) this.list.upsert(taskId, { model: clipped });
+    }
+
+    /**
      * The command line of a listed background shell, read from the Bash or Monitor row that started it. A shell whose
      * row is not in the parent timeline has no known command, even when the Agent named it.
      */
@@ -490,6 +503,7 @@ export class ClaudeTasks {
                 if (this.feedback.onTaskMessage(taskId, message)) return;
                 const body = isRecord(message.message) ? message.message : undefined;
                 if (!body) return;
+                this.noteChildModel(taskId, body);
                 const stream = this.stream(taskId);
                 const { items } = claudeAssistantItems(body, undefined, stream.ids);
                 if (items.length > 0) {

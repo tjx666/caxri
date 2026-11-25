@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
+import { FAKE_SUBAGENT_MODEL } from './fixtures/fake-claude-task-state';
 
 describe('Claude Code background work in Agent Chat', () => {
     it('routes a subagent into its own task projection and lists its lifecycle', async () => {
@@ -31,7 +32,7 @@ describe('Claude Code background work in Agent Chat', () => {
                 kind: 'agent',
                 title: 'Survey the project',
                 agentType: 'general-purpose',
-                model: 'fake-haiku',
+                model: FAKE_SUBAGENT_MODEL,
                 status: 'completed',
                 isBackground: false,
                 canStop: false,
@@ -200,7 +201,7 @@ describe('Claude Code background work in Agent Chat', () => {
         const progressed = await until((snapshot) => snapshot.tasks?.[0]?.lastToolName === 'Grep');
         expect(progressed.tasks?.[0]).toMatchObject({
             agentType: 'general-purpose',
-            model: 'fake-haiku',
+            model: FAKE_SUBAGENT_MODEL,
             usage: { totalTokens: 12_300, toolUses: 2 },
         });
 
