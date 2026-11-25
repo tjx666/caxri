@@ -111,6 +111,17 @@ describe('failure notice in a locale the Server does not write', () => {
         );
     });
 
+    it("quotes GitHub's refusal instead of the bare Git reason when a merge is refused", () => {
+        const error = new CaxriError(
+            'GIT',
+            'GitHub refused the merge: Pull request acme/widget#42 is not mergeable: the base branch policy prohibits the merge.',
+        );
+        expect(describeFailureNotice(error, '无法合并 #42', translate)).toEqual({
+            message:
+                '无法合并 #42：GitHub 拒绝了合并：Pull request acme/widget#42 is not mergeable: the base branch policy prohibits the merge。',
+        });
+    });
+
     it('names an unreachable GitHub instead of a not-ready Server when a merge lost the network', () => {
         const error = new CaxriError(
             'UNAVAILABLE',

@@ -422,7 +422,25 @@ describe('a failed action in a locale the Server does not write', () => {
         applyLanguagePreference(null);
     });
 
-    it("keeps GitHub's own reason behind Copy details beside Open on GitHub", async () => {
+    it("shows GitHub's refusal in the toast beside Open on GitHub", async () => {
+        mocks.request.mockRejectedValueOnce(
+            new CaxriError(
+                'GIT',
+                'GitHub refused the merge: Required status check "guards" is expected.',
+            ),
+        );
+        await dispatchExtensionViewAction('publisher.fixture.merge', 'Merge', [], feedback);
+
+        const [entry] = useNotificationStore.getState().entries;
+        expect(entry).toMatchObject({
+            message:
+                '无法合并 #42：GitHub 拒绝了合并：Required status check "guards" is expected。',
+            action: { id: 'github.open', params: { url: feedback.githubUrl } },
+        });
+        expect(entry.secondaryAction).toBeUndefined();
+    });
+
+    it('keeps any other Server reason behind Copy details beside Open on GitHub', async () => {
         mocks.request.mockRejectedValueOnce(
             new CaxriError('GIT', 'Required status check "guards" is expected.'),
         );

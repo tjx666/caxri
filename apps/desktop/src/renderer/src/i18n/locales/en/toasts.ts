@@ -36,6 +36,7 @@ export const toasts = {
     'toasts.failure.binaryFile': "Binary files can't be opened in the editor.",
     'toasts.failure.pullRequestHeadMoved':
         'The pull request has new commits. Review them, then merge again.',
+    'toasts.failure.githubMergeRefused': 'GitHub refused the merge: {{reason}}.',
     'toasts.failure.githubUnreachable': "Couldn't reach GitHub. Check the network, then try again.",
     'toasts.failure.githubRateLimited':
         'The GitHub API rate limit was reached. Try again after it resets.',
