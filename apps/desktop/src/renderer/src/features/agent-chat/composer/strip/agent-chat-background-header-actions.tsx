@@ -130,12 +130,25 @@ export function AgentChatBackgroundHeaderActions({
                         size="sm"
                         variant="ghost"
                         onClick={(event) => {
-                            // The button and the count both leave with the rows, so focus moves to the section's fold
-                            // toggle first instead of falling to the document body.
-                            event.currentTarget
+                            /*
+                             * The button and the count both leave with the rows, so focus moves to the section's fold
+                             * toggle first instead of falling to the document body. When these were the section's only
+                             * rows, the toggle is disabled and the whole strip leaves too, so focus goes to the
+                             * composer's message editor below it.
+                             */
+                            const button = event.currentTarget;
+                            const fold = button
                                 .closest('section')
-                                ?.querySelector<HTMLElement>('[data-agent-chat-strip-fold]')
-                                ?.focus();
+                                ?.querySelector<HTMLButtonElement>('[data-agent-chat-strip-fold]');
+                            const target =
+                                fold && !fold.disabled
+                                    ? fold
+                                    : button
+                                          .closest('[data-agent-chat-composer-strip]')
+                                          ?.parentElement?.querySelector<HTMLElement>(
+                                              ':scope form [contenteditable="true"]',
+                                          );
+                            target?.focus();
                             onClearEarlier();
                         }}
                     >

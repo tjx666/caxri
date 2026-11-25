@@ -196,6 +196,8 @@ test('the strip counts interruptions from an earlier run in its header and clear
             .click();
         await expect(earlier).toHaveCount(0);
         await expect(rowOf(failed.quota)).toBeVisible();
+        // The button left with the count, so keyboard focus lands on the header rather than the document body.
+        await expect(fold).toBeFocused();
 
         // The dismissal outlives the window.
         await page.reload();
