@@ -5,6 +5,7 @@ import type { AgentChatQueuedMessage, AgentChatSnapshot } from '@caxri/protocol'
 import { agentChatQueuedTextAfterEdit, agentChatQueuedTextEdit } from '@caxri/protocol';
 import {
     CircleAlert,
+    Clock,
     CornerDownRight,
     ListEnd,
     Pause,
@@ -228,16 +229,27 @@ function QueueCard({
                 )}
             </span>
             <span className="flex shrink-0 items-center gap-0.5">
-                <QueueCardAction
-                    ariaLabel={labels.sendAriaLabel}
-                    isDisabled={!entry.canSendNow}
-                    label={t(isTurnRunning ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow')}
-                    tooltip={labels.sendTooltip}
-                    onAction={onAction}
-                    onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
-                >
-                    <CornerDownRight aria-hidden="true" className="size-3.5" />
-                </QueueCardAction>
+                {entry.waitsForTurn ? (
+                    // A command cannot join the running turn, so the row says when it goes instead of offering a
+                    // disabled Steer whose reason only a hover would reveal.
+                    <span className="flex min-h-6 items-center gap-1 px-1.5 text-[12px] text-muted">
+                        <Clock aria-hidden="true" className="size-3.5" />
+                        {t('agentChat.queue.commandWaits')}
+                    </span>
+                ) : (
+                    <QueueCardAction
+                        ariaLabel={labels.sendAriaLabel}
+                        isDisabled={!entry.canSendNow}
+                        label={t(
+                            isTurnRunning ? 'agentChat.queue.steer' : 'agentChat.queue.sendNow',
+                        )}
+                        tooltip={labels.sendTooltip}
+                        onAction={onAction}
+                        onRun={() => sendAgentChatQueuedNow(terminalId, entry.id)}
+                    >
+                        <CornerDownRight aria-hidden="true" className="size-3.5" />
+                    </QueueCardAction>
+                )}
                 <QueueCardAction
                     ariaLabel={t('agentChat.queue.editMessage')}
                     isDisabled={!entry.canEdit || isPending}

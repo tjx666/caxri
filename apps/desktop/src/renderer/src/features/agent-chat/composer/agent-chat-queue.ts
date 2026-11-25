@@ -120,7 +120,7 @@ export interface AgentChatQueueCardLabels {
 }
 
 export function agentChatQueueCardLabels(
-    entry: Pick<AgentChatQueueEntryView, 'canSendNow' | 'isPending' | 'sendNowLabel'>,
+    entry: Pick<AgentChatQueueEntryView, 'isPending' | 'sendNowLabel'>,
     t: Translate,
     deleteOutcome: AgentChatQueueDeleteOutcome = 'drop',
 ): AgentChatQueueCardLabels {
@@ -147,9 +147,7 @@ export function agentChatQueueCardLabels(
             deleteOutcome === 'restore' ? 'agentChat.queue.deleteRestoreTooltip' : 'common.delete',
         ),
         editTooltip: t('common.edit'),
-        sendTooltip: entry.canSendNow
-            ? t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow')
-            : t('agentChat.queue.commandWaits'),
+        sendTooltip: t(isSteer ? 'agentChat.queue.steerTooltip' : 'agentChat.queue.sendNow'),
         ...sendLabels,
     };
 }

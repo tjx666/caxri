@@ -10,6 +10,7 @@ import {
     executeMobileComposerCapsuleLayoutScenario,
     executeMobileComposerOfflineScenario,
     executeMobileComposerRunningScenario,
+    executeMobileQueuedCommandWaitsScenario,
 } from '../mobile-agent-chat-composer-capsule-scenario';
 import {
     mobileSemantics,
@@ -185,4 +186,5 @@ export const handlers = {
     'MOB-COMPOSER-CAPSULE-03': executeMobileComposerRunningScenario,
     'MOB-COMPOSER-CAPSULE-04': executeMobileComposerOfflineScenario,
     'MOB-CHAT-CLEAR-01': executeMobileChatClearAfterSendScenario,
+    'MOB-CHAT-QUEUE-WAITS-01': executeMobileQueuedCommandWaitsScenario,
 } satisfies Record<string, MobileAndroidCaseHandler>;

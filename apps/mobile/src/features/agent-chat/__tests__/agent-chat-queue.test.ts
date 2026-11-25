@@ -205,9 +205,8 @@ describe('agentChatQueueRowHints', () => {
             edit: undefined,
         });
         expect(agentChatQueueRowHints(images).edit).toBeUndefined();
-        expect(agentChatQueueRowHints(command).sendNow).toBe(
-            'A command waits for the running turn to end.',
-        );
+        // A command that waits for the turn shows no Steer at all, only `chat.queue.commandWaits` in its place.
+        expect(command.waitsForTurn).toBe(true);
         const [, pending] = agentChatQueueEntries(queue.slice(0, 1), true, new Set(), [
             { id: 'p1', text: 'Then lint', imageUris: [] },
         ]);

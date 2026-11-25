@@ -244,3 +244,41 @@ export const executeMobileComposerOfflineScenario = (
             await setMobileNetworkAvailable(serial, true);
         }
     });
+
+/**
+ * `MOB-CHAT-QUEUE-WAITS-01` (#4185): a slash command cannot join the running turn, so its queue row says it sends after
+ * this turn instead of offering a dimmed Steer. The turn waits on a question, which holds the screen still for
+ * UIAutomator; a streaming turn's shimmer would not.
+ */
+export const executeMobileQueuedCommandWaitsScenario = (
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> =>
+    withEmptyChat(environment, async (chat) => {
+        const { serial } = environment;
+        await chat.send({ text: 'ask' });
+        await waitForCheck(serial, 'agent-chat-question-0-option-1');
+        await chat.runCommand({ name: 'compact' });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => (snapshot.queue?.length ?? 0) === 1,
+        );
+        const queued = await waitForCheck(serial, 'agent-chat-queue-waits');
+        await capture(environment, 'queued-command-waits', artifacts);
+        await chat.interrupt();
+        await concludeScenario(
+            environment,
+            artifacts,
+            {},
+            {
+                'the queued command says it sends after this turn': hasCheck(
+                    queued,
+                    'agent-chat-queue-waits',
+                ),
+                'the queued command offers no Steer': !hasCheck(
+                    queued,
+                    'agent-chat-queue-send-now',
+                ),
+            },
+        );
+    });

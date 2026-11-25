@@ -366,7 +366,7 @@ export const chat = {
     'chat.question.tabUnanswered':
         'Question {{index}} of {{count}}: {{question}}, not answered yet',
     'chat.question.yourAnswer': 'Your answer',
-    'chat.queue.commandWaits': 'A command waits for the running turn to end.',
+    'chat.queue.commandWaits': 'Sends after this turn',
     'chat.queue.countLabel': '{{count}} queued',
     'chat.queue.delete': 'Delete',
     'chat.queue.deleteMessage': 'Delete queued message',

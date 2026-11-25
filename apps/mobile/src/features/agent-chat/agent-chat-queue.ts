@@ -124,11 +124,7 @@ export const agentChatQueueRowHints = (
         const waiting = t('chat.queue.pendingHint');
         return { sendNow: waiting, edit: waiting };
     }
-    const sendNow = entry.canSendNow
-        ? entry.sendNowLabel === 'Steer'
-            ? t('chat.queue.steerHint')
-            : undefined
-        : t('chat.queue.commandWaits');
+    const sendNow = entry.sendNowLabel === 'Steer' ? t('chat.queue.steerHint') : undefined;
     return { sendNow, edit: undefined };
 };
 
