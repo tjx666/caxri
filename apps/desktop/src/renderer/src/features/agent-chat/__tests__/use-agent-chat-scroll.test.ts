@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentChatFollowEntry } from '../hooks/use-agent-chat-scroll';
 import {
     AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+    AGENT_CHAT_FOLLOW_TRACE_CAPACITY,
     agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
+    agentChatFollowTrace,
     agentChatSettledSpacerHeight,
     agentChatTrailingInView,
     agentChatTurnSpacerHeight,
+    createAgentChatFollowTrace,
     isAgentChatCatchUpScroll,
     isFollowingAfterScroll,
     isLatestInView,
@@ -313,5 +317,49 @@ describe('isAgentChatCatchUpScroll', () => {
         expect(
             isAgentChatCatchUpScroll({ from: 4000, hasMoved: true, to: 4600, viewHeight: 600 }),
         ).toBe(false);
+    });
+});
+
+const geometry: Omit<AgentChatFollowEntry, 'isFollowing' | 'reason' | 't'> = {
+    view: 'abcd1234',
+    scrollTop: 4200,
+    lastScrollTop: 4450,
+    scrollHeight: 5250,
+    clientHeight: 800,
+    spacerHeight: 0,
+    isTurnLive: false,
+    isViewVisible: true,
+    isDocumentVisible: true,
+};
+
+describe('createAgentChatFollowTrace', () => {
+    it('stamps each transition with its time and cause', () => {
+        let t = 1000;
+        const trace = createAgentChatFollowTrace(() => t);
+        trace.record({ ...geometry, isFollowing: false, reason: 'scroll-up' });
+        t = 1500;
+        trace.record({ ...geometry, isFollowing: true, reason: 'jump' });
+        expect(trace.entries()).toEqual([
+            { t: 1000, ...geometry, isFollowing: false, reason: 'scroll-up' },
+            { t: 1500, ...geometry, isFollowing: true, reason: 'jump' },
+        ]);
+    });
+
+    it('keeps only the most recent transitions', () => {
+        const trace = createAgentChatFollowTrace(() => 0);
+        for (let index = 0; index <= AGENT_CHAT_FOLLOW_TRACE_CAPACITY; index += 1)
+            trace.record({ ...geometry, scrollTop: index, isFollowing: false, reason: 'stop' });
+        const entries = trace.entries();
+        expect(entries).toHaveLength(AGENT_CHAT_FOLLOW_TRACE_CAPACITY);
+        expect(entries[0]?.scrollTop).toBe(1);
+    });
+});
+
+describe('agentChatFollowTrace', () => {
+    it('publishes one shared trace for a CDP session to read', () => {
+        const trace = agentChatFollowTrace();
+        expect(agentChatFollowTrace()).toBe(trace);
+        trace.record({ ...geometry, isFollowing: false, reason: 'anchor' });
+        expect(globalThis.__caxriChatFollowTrace?.entries().at(-1)?.reason).toBe('anchor');
     });
 });

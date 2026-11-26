@@ -197,6 +197,7 @@ function AgentChatPaneContent({
     const scroll = useAgentChatScroll(snapshot?.revision, {
         isTurnLive: isAgentChatBusy(snapshot) || pending.timeline.length > 0,
         latestPromptId: snapshot?.items.findLast((item) => item.type === 'userMessage')?.id,
+        traceLabel: terminalId.slice(0, 8),
         turnSelector: AGENT_CHAT_TURN_SELECTOR,
     });
     const {
