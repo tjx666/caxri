@@ -188,6 +188,18 @@ const ACCEPTANCE_STATUSES = new Set<AcceptanceStatus>([
 const ACCEPTANCE_VERDICTS = new Set<AcceptanceVerdict>(['failed', 'passed', 'uncertain']);
 
 /**
+ * The newest round's index, which is the viewer's `turn` value. Falls back to the round count for a bundle whose runs
+ * carry no index, and is `undefined` for a report that has not run a round yet.
+ */
+function latestRoundIndex(
+    rounds: ReadonlyArray<z.infer<typeof acceptanceRoundSchema>>,
+): number | undefined {
+    const indexes = rounds.flatMap((round) => round.run?.roundIndex ?? []);
+    const latest = indexes.length > 0 ? Math.max(...indexes) : rounds.length;
+    return latest > 0 ? latest : undefined;
+}
+
+/**
  * Projects one acceptance bundle onto the wire shape, answering for the round the link pinned rather than for the
  * report as a whole. A link that named round 2 must keep reporting round 2 after round 3 runs: that is what makes a
  * pasted link a stable reference instead of a moving one. Without a pinned round the latest report answers.
@@ -215,7 +227,9 @@ export function mapAcceptanceBundle(
     return {
         id: reference.id,
         state: acceptanceProjectStatusState({ status, verdict }),
-        url: acceptanceUrl(reference.id, reference.round),
+        // An unpinned link opens the round whose tally it shows. Without `turn` the viewer lands on its own default
+        // round, so a chip reading "Round 3" opened a page that was not round 3.
+        url: acceptanceUrl(reference.id, reference.round ?? latestRoundIndex(rounds)),
         ...(reference.round && { round: reference.round }),
         ...(bundle.subject?.title && { title: bundle.subject.title }),
         ...(status && { status }),

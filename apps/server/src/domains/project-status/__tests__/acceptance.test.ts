@@ -148,7 +148,8 @@ describe('status bar acceptance chip', () => {
         const acceptances = await chipFor(bundle(), link(ID, 1));
         expect(acceptances).toEqual([
             expect.objectContaining({
-                url: link(ID),
+                // Opens the round the chip names, not the viewer's default round.
+                url: link(ID, 2),
                 passedChecks: 11,
                 totalChecks: 12,
                 roundCount: 2,
