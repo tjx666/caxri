@@ -103,6 +103,7 @@ function EarlierInterruptionsToggle({
  * running tasks can be stopped), both shown on hover or focus, then the `N interrupted earlier` toggle.
  */
 export function AgentChatBackgroundHeaderActions({
+    currentCount,
     earlierCount,
     isEarlierShown,
     listId,
@@ -111,6 +112,10 @@ export function AgentChatBackgroundHeaderActions({
     onClearEarlier,
     onToggleEarlier,
 }: {
+    /**
+     * How many rows stay once the earlier interruptions are dismissed; the header stays only for two or more.
+     */
+    currentCount: number;
     earlierCount: number;
     isEarlierShown: boolean;
     listId: string;
@@ -132,16 +137,16 @@ export function AgentChatBackgroundHeaderActions({
                         onClick={(event) => {
                             /*
                              * The button and the count both leave with the rows, so focus moves to the section's fold
-                             * toggle first instead of falling to the document body. When these were the section's only
-                             * rows, the toggle is disabled and the whole strip leaves too, so focus goes to the
-                             * composer's message editor below it.
+                             * toggle first instead of falling to the document body. When at most one row stays, the
+                             * header leaves too (a lone row takes none, and no row means no list), so focus goes to
+                             * the composer's message editor below it.
                              */
                             const button = event.currentTarget;
                             const fold = button
                                 .closest('section')
                                 ?.querySelector<HTMLButtonElement>('[data-agent-chat-strip-fold]');
                             const target =
-                                fold && !fold.disabled
+                                fold && currentCount >= 2
                                     ? fold
                                     : button
                                           .closest('[data-agent-chat-composer-strip]')

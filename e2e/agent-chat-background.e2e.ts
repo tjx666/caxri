@@ -119,12 +119,14 @@ test('a Codex Chat stops all of its running background work at once', async ({},
         await message.fill('start a subagent hold');
         await message.press('Enter');
         await expect(chat.getByText('A helper is working on it.')).toBeVisible();
-        // A single running task keeps its own Stop and offers no Stop all.
+        // A single running task takes no header: it keeps its own Stop, with no fold and no Stop all.
         const sole = await openBackgroundWork(chat);
         await expect(
             sole.getByRole('button', { name: /^Stop Inspect the fixtures/u }),
         ).toBeVisible();
         await expect(sole.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+        await expect(sole.locator('[data-agent-chat-strip-fold]')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('codex-background-single.png') });
 
         await message.fill('run it in the background');
         await message.press('Enter');

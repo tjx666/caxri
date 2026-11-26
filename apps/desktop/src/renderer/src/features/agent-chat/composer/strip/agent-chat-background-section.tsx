@@ -22,6 +22,7 @@ import type { AgentChatBackgroundItem } from './agent-chat-background-items';
 import {
     agentChatBackgroundItems,
     agentChatBackgroundRows,
+    isAgentChatBackgroundHeaderless,
     splitAgentChatBackgroundItems,
 } from './agent-chat-background-items';
 import {
@@ -45,10 +46,10 @@ const WINDOW_OPENED_AT = performance.timeOrigin;
 /**
  * The list itself: a collapsible section whose header names it and says what matters even folded (how many rows need
  * the user, how many still run, how many delegations an earlier run left interrupted), then one row per item in
- * `agentChatBackgroundRows` order. The header folds everything, rows that need the user included; unfolded, every row
- * shows and the strip's height cap scrolls them. A polite live region announces what the delegated rows need (the strip
- * announces the task counts). Leaves the strip once nothing runs, nothing needs the user, and no earlier interruption
- * is left.
+ * `agentChatBackgroundRows` order. A lone row takes no header (`isAgentChatBackgroundHeaderless`): it already says what
+ * the header would. The header folds everything, rows that need the user included; unfolded, every row shows and the
+ * strip's height cap scrolls them. A polite live region announces what the delegated rows need (the strip announces the
+ * task counts). Leaves the strip once nothing runs, nothing needs the user, and no earlier interruption is left.
  */
 function BackgroundList({
     delegated,
@@ -97,6 +98,7 @@ function BackgroundList({
         <AgentChatStripSection
             actions={
                 <AgentChatBackgroundHeaderActions
+                    currentCount={current.length}
                     earlierCount={earlier.length}
                     isEarlierShown={isEarlierShown}
                     listId={listId}
@@ -113,6 +115,7 @@ function BackgroundList({
                 />
             }
             hasBody={rows.length > 0}
+            isHeaderless={isAgentChatBackgroundHeaderless(current, earlier)}
             label={t('agentChat.tasks.backgroundWork')}
             section="background"
             status={

@@ -6,6 +6,7 @@ import {
     agentChatBackgroundRows,
     delegatedBackgroundItemId,
     delegatedBackgroundState,
+    isAgentChatBackgroundHeaderless,
     splitAgentChatBackgroundItems,
 } from '../agent-chat-background-items';
 
@@ -179,5 +180,35 @@ describe('splitAgentChatBackgroundItems', () => {
         const shown = ids(agentChatBackgroundRows(current, earlier, true));
         expect(shown.slice(4, 6)).toEqual(['delegation:cut-earlier', 'delegation:reset-earlier']);
         expect(shown.slice(6)).toEqual(['delegation:running-child', 'build']);
+    });
+});
+
+describe('isAgentChatBackgroundHeaderless', () => {
+    const OPENED_AT = 1000;
+    const split = (...delegated: AgentDelegationSession[]) =>
+        splitAgentChatBackgroundItems(
+            agentChatBackgroundItems({
+                delegated,
+                dismissedIds: NONE,
+                work: { failed: [], running: [shell('build')] },
+            }),
+            OPENED_AT,
+        );
+
+    it('drops the header for a lone row, which already says what the header would', () => {
+        const { current, earlier } = split();
+        expect(isAgentChatBackgroundHeaderless(current, earlier)).toBe(true);
+    });
+
+    it('keeps it for two rows, or for one beside interruptions from an earlier run that only the header counts', () => {
+        const two = split(entry('child'));
+        expect(isAgentChatBackgroundHeaderless(two.current, two.earlier)).toBe(false);
+        const withEarlier = split(
+            entry('cut', { failure: 'target_changed', settledAt: 10, status: 'interrupted' }),
+        );
+        expect(withEarlier.current).toHaveLength(1);
+        expect(isAgentChatBackgroundHeaderless(withEarlier.current, withEarlier.earlier)).toBe(
+            false,
+        );
     });
 });
