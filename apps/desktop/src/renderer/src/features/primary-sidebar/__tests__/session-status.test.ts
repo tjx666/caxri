@@ -305,6 +305,43 @@ describe('Session list status', () => {
     });
 });
 
+describe('background tasks left after a settled turn', () => {
+    const shells = { backgroundTaskCount: 1 };
+
+    it('shows the background ring once the result is read', () => {
+        expect(sessionStatus(sessionSource('completed'), shells, translate)).toEqual({
+            ariaDescription: 'The turn is done. Background tasks still running: 1',
+            ariaLabel: 'Background tasks running',
+            kind: 'backgroundTasks',
+        });
+    });
+
+    it('yields to the unread result, a live turn, and a failed delegation', () => {
+        expect(
+            sessionStatus(
+                sessionSource('completed', { hasUnread: true, lastAttentionKind: 'completed' }),
+                shells,
+                translate,
+            ),
+        ).toMatchObject({ kind: 'attention' });
+        expect(sessionStatus(sessionSource('running'), shells, translate)).toMatchObject({
+            kind: 'running',
+            variant: 'active',
+        });
+        expect(
+            sessionStatus(sessionSource('completed'), shells, translate, {
+                delegationFailed: true,
+            }),
+        ).toMatchObject({ kind: 'failed' });
+    });
+
+    it('stays out of the Project heading counts', () => {
+        expect(
+            summarizeSessionStatuses([sessionSource('completed')], () => shells, translate),
+        ).toEqual({ attention: 0, running: 0 });
+    });
+});
+
 describe('failed delegation status', () => {
     const failed = { delegationFailed: true };
 

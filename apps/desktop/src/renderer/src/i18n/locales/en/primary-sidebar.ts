@@ -208,6 +208,10 @@ export const primarySidebar = {
     'primarySidebar.status.usageWait.label': 'Waiting for limit reset',
     'primarySidebar.status.usageWait.description': 'Continues automatically at {{time}}',
 
+    'primarySidebar.status.backgroundTasks.label': 'Background tasks running',
+    'primarySidebar.status.backgroundTasks.description':
+        'The turn is done. Background tasks still running: {{count}}',
+
     // Pull request presentation
     'primarySidebar.pullRequest.state.closed': 'Closed',
     'primarySidebar.pullRequest.state.draft': 'Draft',

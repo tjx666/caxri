@@ -204,8 +204,8 @@ rather than an ellipsis.
 
 **The status glyph is the Project tree's own.** `SessionStatusIndicator` draws it in both bodies of
 the side bar from one projection (`sessionStatus`), which follows the same rule this view groups by:
-a **Working** row spins (the slower dotted ring while it only waits on background shells,
-subagents, or monitors), a **Needs attention** row shows an amber mark (a `?` for a question, a dot
+a **Working** row spins (the slower dotted ring while it only waits on background subagents or
+workflows), a **Needs attention** row shows an amber mark (a `?` for a question, a dot
 for a result) that breathes until the row is marked Done and ripples three times when a new result
 arrives unread, and a plain **Idle** row shows nothing. Only this view passes `pendingAttention`,
 so a read Session keeps its amber mark here alone: the Project tree, its heading counts, and the MRU
@@ -223,7 +223,11 @@ under **Working** but swaps the spinner for a slow, muted dotted ring: it is wai
 to wake it, not busy, and it is not ready for review. Background shells and monitors never hold the
 turn. Once only they remain, the turn's reply is usually the result the user needs to read, and a
 dev server, log tail, or CI watcher may outlive the turn by hours, so the turn settles as usual and
-the Session turns unread. A shell that later wakes the Agent starts a new turn. Orca's quiet
+the Session turns unread. A shell that later wakes the Agent starts a new turn. Once that reply is
+read, a Chat whose background tasks still run shows the same dotted ring (`backgroundTasks`, from the
+live `TerminalRecord.backgroundTaskCount`) in place of its pull request glyph, so it does not read as
+idle; the row stays in its settled group and out of the Project heading's running count. A PTY
+Agent has no such signal, since Claude Code's hooks report nothing when a shell ends. Orca's quiet
 monitoring sub-mode is the precedent for keeping the subagent wait inside running instead of adding
 a state.
 

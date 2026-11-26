@@ -206,6 +206,10 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.status.usageWait.label': '等待额度重置',
     'primarySidebar.status.usageWait.description': '将在 {{time}} 自动继续',
 
+    'primarySidebar.status.backgroundTasks.label': '后台任务运行中',
+    'primarySidebar.status.backgroundTasks.description':
+        '这一轮已结束，仍有 {{count}} 个后台任务在运行',
+
     // Pull request presentation
     'primarySidebar.pullRequest.state.closed': '已关闭',
     'primarySidebar.pullRequest.state.draft': '草稿',
