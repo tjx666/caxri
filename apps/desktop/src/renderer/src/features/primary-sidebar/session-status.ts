@@ -38,6 +38,11 @@ export type SessionStatus =
           isPending?: boolean;
           variant: SessionAttentionVariant;
       })
+    /**
+     * The turn is over and its result was read, but background work the Agent started still runs (see
+     * `backgroundTaskCount`). It never counts as running.
+     */
+    | (VisibleSessionStatus & { kind: 'backgroundTasks' })
     | (VisibleSessionStatus & { kind: 'detached' })
     | (VisibleSessionStatus & { kind: 'failed' })
     | (VisibleSessionStatus & { kind: 'running'; variant: SessionRunningVariant })
@@ -46,6 +51,10 @@ export type SessionStatus =
 
 export interface SessionStatusTerminal {
     agentOperation?: AgentOperation;
+    /**
+     * Running background tasks of a Chat; see `TerminalRecord.backgroundTaskCount`.
+     */
+    backgroundTaskCount?: number;
     lastProcessState?: ProcessState;
     /**
      * When the Chat continues on its own after a plan limit resets; present only while it waits.
@@ -90,6 +99,10 @@ type SessionStatusSource = Pick<
  * the user's: the host gets the hand-back and reports in its own turn, which raises the host's own attention. So an
  * unread `completed` result settles quietly there instead of lighting amber; a question it waits on, a failure, and an
  * approval still do, since only the user can act on those.
+ *
+ * Last above the settled default sits `backgroundTasks`: a turn that ended with only background shells left settles
+ * (issue #4191), so its result raises attention first; once read, a Chat whose background tasks still run shows the
+ * background ring instead of reading as idle (issue #4198). It is not running, so heading counts leave it out.
  */
 export function sessionStatus(
     session: SessionStatusSource,
@@ -178,8 +191,18 @@ export function sessionStatus(
         if (delegationFailed && session.lastAttentionKind !== 'waiting') return failedStatus;
         return attentionStatus(session, t);
     }
+    if (delegationFailed) return failedStatus;
 
-    return delegationFailed ? failedStatus : { kind: 'default' };
+    if (terminal.backgroundTaskCount !== undefined && terminal.backgroundTaskCount > 0)
+        return {
+            ariaDescription: t('primarySidebar.status.backgroundTasks.description', {
+                count: terminal.backgroundTaskCount,
+            }),
+            ariaLabel: t('primarySidebar.status.backgroundTasks.label'),
+            kind: 'backgroundTasks',
+        };
+
+    return { kind: 'default' };
 }
 
 /**

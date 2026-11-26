@@ -26,6 +26,7 @@ import type { ProjectionUsageLimitWaits } from './continuation/usage-continuatio
 import { forgetParsedTranscript } from './history/read';
 import { ChatFollowUpQueue } from './queue/follow-up-queue';
 import { deliveredNoticeOf } from './stamps/delegation-notices';
+import { ChatBackgroundTaskCounts } from './tasks/background-task-counts';
 import { forgetTaskRevisions } from './tasks/projections';
 
 export type ChatTerminal = TerminalRecord & { provider: AgentProvider };
@@ -155,8 +156,16 @@ export class ChatStates {
      */
     private readonly subagents: ChatSubagentSummaries;
 
+    /**
+     * The live background task counts the sidebar shows; see {@link ChatBackgroundTaskCounts}.
+     */
+    readonly backgroundTasks: ChatBackgroundTaskCounts;
+
     constructor(private readonly options: ChatStatesOptions) {
         this.subagents = new ChatSubagentSummaries(options.database, (terminalId) =>
+            this.publish(terminalId),
+        );
+        this.backgroundTasks = new ChatBackgroundTaskCounts((terminalId) =>
             this.publish(terminalId),
         );
         this.reconcileSubagentsOnStart();
@@ -246,7 +255,10 @@ export class ChatStates {
                 logger: this.options.logger,
                 send: (event) => this.options.send(event),
                 onChange: () => state.followUps.dispatch(),
-                onTasksChanged: (tasks) => this.subagents.record(terminalId, tasks),
+                onTasksChanged: (tasks) => {
+                    this.subagents.record(terminalId, tasks);
+                    this.backgroundTasks.record(terminalId, tasks);
+                },
                 delegatedTask: (delegationId, redirect) =>
                     delegatedTaskDetails(this.options.database, delegationId, redirect),
                 delegationNotice: deliveredNoticeOf(this.options.database, terminalId),
@@ -337,6 +349,7 @@ export class ChatStates {
             this.revisionFloors.set(terminalId, state.projection.retire());
             this.states.delete(terminalId);
             this.subagents.forget(terminalId);
+            this.backgroundTasks.forget(terminalId);
         }
         if (isClosed) {
             forgetTaskRevisions(this.taskRevisionFloors, terminalId);

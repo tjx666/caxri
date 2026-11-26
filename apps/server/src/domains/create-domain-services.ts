@@ -223,6 +223,7 @@ export async function createDomainServices(
         chatStateStore(database).subagents,
         { waitingAt: (id) => agentChat.states.usageLimitWaits?.waitingAt(id) },
         agentRuntime.usageGuards,
+        agentChat.states.backgroundTasks,
     );
     const introspection = createIntrospectionServices(
         database,

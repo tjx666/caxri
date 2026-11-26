@@ -18,6 +18,7 @@ import { syncSpinPhase } from './shared-spin-phase';
  */
 const STATUS_SLOT_CLASS: Record<Exclude<SessionStatus['kind'], 'default'>, string> = {
     attention: 'session-status-attention text-warning',
+    backgroundTasks: 'session-status-background-tasks text-muted',
     detached: 'session-status-detached text-muted',
     failed: 'session-status-failed text-danger',
     running: 'session-status-running text-muted',
@@ -151,7 +152,8 @@ export function SessionStatusIndicator({
 /**
  * The glyph inside a visible status slot: a breathing amber mark for attention (with an arrival ripple while unread),
  * an unplugged plug when detached, a circled X when a delegated task failed, and a running arc that turns into a slower
- * dotted ring while the Agent only waits on its own background work.
+ * dotted ring while the Agent only waits on its own background work, or after its read turn left background tasks
+ * running.
  */
 function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind: 'default' }> }) {
     if (status.kind === 'detached') return <Unplug aria-hidden="true" size={12} />;
@@ -159,6 +161,7 @@ function SessionStatusGlyph({ status }: { status: Exclude<SessionStatus, { kind:
     // The same circled X the Chat's failed tool rows and the Activity view draw, at the question mark's size and weight.
     if (status.kind === 'failed')
         return <CircleX aria-hidden="true" size={14} strokeWidth={2.25} />;
+    if (status.kind === 'backgroundTasks') return <BackgroundArc />;
     if (status.kind === 'running')
         return status.variant === 'background' ? <BackgroundArc /> : <RunningArc />;
     return (

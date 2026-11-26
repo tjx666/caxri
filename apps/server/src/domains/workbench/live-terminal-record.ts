@@ -7,9 +7,9 @@ import type {
 
 /**
  * Adds what only a running Server Core knows to a stored Terminal row before any Client sees it: the live Agent
- * subphase, the time a usage-limit wait continues, a PTY Agent's weekly usage guard, the PTY's process id, and a Chat's
- * persisted subagent summaries (read from SQLite, so projecting them starts no provider the way `agentChat.read`
- * does).
+ * subphase, the time a usage-limit wait continues, a Chat's running background task count, a PTY Agent's weekly usage
+ * guard, the PTY's process id, and a Chat's persisted subagent summaries (read from SQLite, so projecting them starts
+ * no provider the way `agentChat.read` does).
  */
 export function createLiveTerminalRecord(
     coordinator: { agentOperation(terminalId: string): TerminalRecord['agentOperation'] },
@@ -27,13 +27,16 @@ export function createLiveTerminalRecord(
      * The weekly usage guard of a provider, injected for the same reason; projected onto PTY Agent Terminals only.
      */
     usageGuards: { current(provider: AgentProvider): AgentUsageGuard | undefined },
+    /**
+     * The Chats' running background task counts, injected for the same reason as `summaries`.
+     */
+    backgroundTasks: { count(terminalId: string): number | undefined },
 ): (terminal: TerminalRecord) => TerminalRecord {
     return (terminal) => {
-        const subagents = terminal.surface === 'chat' ? summaries.list(terminal.id) : undefined;
+        const isChat = terminal.surface === 'chat';
+        const subagents = isChat ? summaries.list(terminal.id) : undefined;
         const guard =
-            terminal.surface !== 'chat' && terminal.provider
-                ? usageGuards.current(terminal.provider)
-                : undefined;
+            !isChat && terminal.provider ? usageGuards.current(terminal.provider) : undefined;
         return {
             ...terminal,
             ...(guard && {
@@ -42,6 +45,7 @@ export function createLiveTerminalRecord(
             ...(subagents && subagents.length > 0 && { subagents: [...subagents] }),
             agentOperation: coordinator.agentOperation(terminal.id),
             usageLimitWaitAt: usageLimitWaits.waitingAt(terminal.id),
+            backgroundTaskCount: isChat ? backgroundTasks.count(terminal.id) : undefined,
             processId: terminals.processId(terminal.id),
         };
     };

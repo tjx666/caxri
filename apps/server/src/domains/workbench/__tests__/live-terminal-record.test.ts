@@ -35,6 +35,7 @@ describe('createLiveTerminalRecord', () => {
                         ? { provider, usedPercent: 99.4, resetsAt: 9_000, handoff: 'available' }
                         : undefined,
             },
+            { count: () => 2 },
         );
         expect(live(pty).usageGuard).toEqual({ usedPercent: 99.4, resetsAt: 9_000 });
         expect(live(chat).usageGuard).toBeUndefined();
@@ -43,6 +44,8 @@ describe('createLiveTerminalRecord', () => {
         expect(live(pty).usageLimitWaitAt).toBeUndefined();
         expect(live(chat).subagents).toMatchObject([{ taskId: 't1', status: 'completed' }]);
         expect(live(pty).subagents).toBeUndefined();
+        expect(live(chat).backgroundTaskCount).toBe(2);
+        expect(live(pty).backgroundTaskCount).toBeUndefined();
         const empty = database.createTerminal(session.id, 'codex', undefined, 'chat');
         expect(live(empty)).not.toHaveProperty('subagents');
     });

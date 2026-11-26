@@ -101,6 +101,13 @@ export const terminalRecordSchema = z.object({
      */
     usageLimitWaitAt: z.number().optional(),
     /**
+     * Live Runtime-only: how many background tasks (shells or subagents) the Chat's Agent started are still running,
+     * present only when at least one is. A turn that ended with only background shells left already settled (issue
+     * #4191), so this is what lets a list show that work continues after its reply was read. Projected from the Chat's
+     * task list when the Terminal is read and never stored on the Terminal row; PTY Terminals never carry it.
+     */
+    backgroundTaskCount: z.number().int().positive().optional(),
+    /**
      * Live Runtime-only: set on a PTY Agent Terminal while its provider's account is at the weekly usage guard (issue
      * #2608), so the Terminal can say so. Chat Terminals carry the guard in their own snapshot and never get it.
      * Informational: a running PTY is not interrupted and `--resume` is not refused. Projected when the Terminal is
