@@ -571,7 +571,8 @@ diff`, and a work summary whose waits name one subagent reads `waited for Review
   live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
   in the composer strip's Background work list, one collapsible section shared with the Sessions the Chat delegated to
   (`agent-chat-background-items.ts`): rows that need the user come first, then the rest, each part grouped by kind
-  (delegated Sessions, workflow runs, subagents, background shells). Its header (`Background work`, then
+  (delegated Sessions, workflow runs, subagents, background shells). A lone row with nothing interrupted earlier
+  takes no header, since the row already says what the header would. Otherwise its header (`Background work`, then
   `N need you · M running`) folds and unfolds the whole list, rows that need the user included, and keeps saying
   what matters while folded; the fold is per Chat for the window's lifetime (`agentChatStripFolds`). Unfolded, every
   row shows and the strip's height cap scrolls them. A delegated interruption that settled before the window opened

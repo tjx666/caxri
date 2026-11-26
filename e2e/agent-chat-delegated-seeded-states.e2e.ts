@@ -196,8 +196,11 @@ test('the strip counts interruptions from an earlier run in its header and clear
             .click();
         await expect(earlier).toHaveCount(0);
         await expect(rowOf(failed.quota)).toBeVisible();
-        // The button left with the count, so keyboard focus lands on the header rather than the document body.
-        await expect(fold).toBeFocused();
+        // A lone row takes no header, so keyboard focus lands on the message editor rather than the document body.
+        await expect(fold).toHaveCount(0);
+        await expect(
+            page.locator(VISIBLE_SESSION).getByRole('textbox', { name: 'Message' }),
+        ).toBeFocused();
 
         // The dismissal outlives the window.
         await page.reload();

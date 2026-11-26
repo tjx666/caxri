@@ -163,6 +163,18 @@ export function splitAgentChatBackgroundItems(
 }
 
 /**
+ * Whether the list drops its header: one current row and no earlier interruptions. The row already says everything the
+ * header would (its status, its own Stop or Dismiss), Stop all needs two tasks, and folding a single row saves nothing,
+ * so the header would only repeat the row above it.
+ */
+export function isAgentChatBackgroundHeaderless(
+    current: readonly AgentChatBackgroundItem[],
+    earlier: readonly AgentChatBackgroundItem[],
+): boolean {
+    return current.length === 1 && earlier.length === 0;
+}
+
+/**
  * The rows the list shows: the current rows that need the user, then the earlier interruptions when the user opened
  * them, then the work still running. Opening the earlier rows only inserts rows, never moves one already in view.
  */

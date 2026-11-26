@@ -29,6 +29,7 @@ export function AgentChatStripSection({
     count,
     glyph,
     hasBody = true,
+    isHeaderless = false,
     label,
     meta,
     section,
@@ -53,6 +54,11 @@ export function AgentChatStripSection({
      * empty list. The chevron's slot is kept so the header's right edge does not move when rows arrive.
      */
     hasBody?: boolean;
+    /**
+     * Drops the header and shows the body unfolded whatever the stored fold, for a section whose single row already
+     * says what the header would (Background work with one task). The section keeps its accessible name.
+     */
+    isHeaderless?: boolean;
     label: string;
     meta?: ReactNode;
     section: AgentChatStripSectionName;
@@ -84,67 +90,73 @@ export function AgentChatStripSection({
         >
             {/*
              * Sticky inside the strip's shared scroll cap, so scrolling a long list never carries its header out of view
-             * and leaves rows with nothing naming them. Opaque so rows pass under it.
+             * and leaves rows with nothing naming them. Opaque so rows pass under it. A headerless section has none.
              */}
-            <div className="sticky top-0 z-10 flex h-8 items-center bg-surface px-1 text-[12px] text-muted">
-                <div className="group flex h-7 min-w-0 flex-1 items-center gap-1 rounded hover:bg-list-hover-background">
-                    <button
-                        aria-controls={hasBody ? bodyId : undefined}
-                        aria-expanded={hasBody ? !isCollapsed : undefined}
-                        disabled={!hasBody}
-                        aria-label={ariaLabel}
-                        data-agent-chat-strip-fold=""
-                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted group-hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-default"
-                        ref={toggleReference}
-                        type="button"
-                        onClick={toggle}
-                    >
-                        {glyph}
-                        <span className="shrink-0 text-foreground">{label}</span>
-                        {count !== undefined && (
-                            <span className="shrink-0 tabular-nums">{count}</span>
-                        )}
-                        {status}
-                        {isCollapsed && summary && (
-                            <span className="min-w-0 truncate">{summary}</span>
-                        )}
-                        {meta !== undefined && (
-                            <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
-                        )}
-                    </button>
-                    {actions}
-                    {hasBody ? (
+            {isHeaderless ? null : (
+                <div className="sticky top-0 z-10 flex h-8 items-center bg-surface px-1 text-[12px] text-muted">
+                    <div className="group flex h-7 min-w-0 flex-1 items-center gap-1 rounded hover:bg-list-hover-background">
                         <button
-                            aria-hidden="true"
-                            className="flex h-full w-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted group-hover:text-foreground"
-                            tabIndex={-1}
+                            aria-controls={hasBody ? bodyId : undefined}
+                            aria-expanded={hasBody ? !isCollapsed : undefined}
+                            disabled={!hasBody}
+                            aria-label={ariaLabel}
+                            data-agent-chat-strip-fold=""
+                            className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-muted group-hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-default"
+                            ref={toggleReference}
                             type="button"
-                            onClick={() => {
-                                toggleReference.current?.focus();
-                                toggle();
-                            }}
+                            onClick={toggle}
                         >
-                            <ChevronRight
-                                className={cn(
-                                    'size-3.5',
-                                    agentChatChevronMotion(!isCollapsed),
-                                    !isCollapsed && 'rotate-90',
-                                )}
-                            />
+                            {glyph}
+                            <span className="shrink-0 text-foreground">{label}</span>
+                            {count !== undefined && (
+                                <span className="shrink-0 tabular-nums">{count}</span>
+                            )}
+                            {status}
+                            {isCollapsed && summary && (
+                                <span className="min-w-0 truncate">{summary}</span>
+                            )}
+                            {meta !== undefined && (
+                                <span className="ml-auto shrink-0 pl-1 tabular-nums">{meta}</span>
+                            )}
                         </button>
-                    ) : (
-                        <span aria-hidden="true" className="w-7 shrink-0" />
-                    )}
+                        {actions}
+                        {hasBody ? (
+                            <button
+                                aria-hidden="true"
+                                className="flex h-full w-7 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-muted group-hover:text-foreground"
+                                tabIndex={-1}
+                                type="button"
+                                onClick={() => {
+                                    toggleReference.current?.focus();
+                                    toggle();
+                                }}
+                            >
+                                <ChevronRight
+                                    className={cn(
+                                        'size-3.5',
+                                        agentChatChevronMotion(!isCollapsed),
+                                        !isCollapsed && 'rotate-90',
+                                    )}
+                                />
+                            </button>
+                        ) : (
+                            <span aria-hidden="true" className="w-7 shrink-0" />
+                        )}
+                    </div>
                 </div>
-            </div>
-            <DisclosureMotion
-                animate={hasToggled}
-                expanded={!isCollapsed}
-                id={bodyId}
-                kind={`agent-chat-strip-${section}`}
-            >
-                <div className="px-1 pb-1.5">{children}</div>
-            </DisclosureMotion>
+            )}
+            {isHeaderless ? (
+                <div className="px-1 py-1">{children}</div>
+            ) : (
+                <DisclosureMotion
+                    animate={hasToggled}
+                    expanded={!isCollapsed}
+                    id={bodyId}
+                    kind={`agent-chat-strip-${section}`}
+                >
+                    <div className="px-1 pb-1.5">{children}</div>
+                </DisclosureMotion>
+            )}
         </section>
     );
 }
