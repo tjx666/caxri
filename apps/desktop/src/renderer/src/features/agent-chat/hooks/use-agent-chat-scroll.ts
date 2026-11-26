@@ -187,6 +187,93 @@ export function isAgentChatCatchUpScroll({
     return !hasMoved || isViewResize || Math.abs(to - from) > viewHeight;
 }
 
+/**
+ * Always-on, in-memory record of when an Agent Chat transcript starts or stops following its end, published read-only
+ * on `globalThis.__caxriChatFollowTrace` for a CDP session (see the `debug` skill).
+ *
+ * It exists for a failure that leaves no other evidence: a user comes back to a Chat whose turn finished while they
+ * were elsewhere and finds its last lines below the composer behind Jump to latest, although they never scrolled.
+ * Whatever stopped following happened minutes earlier in a hidden Session, and a recorder installed after the report
+ * cannot see it. Each entry names the transition's cause from a closed set and the view's geometry at that moment;
+ * never text. Read it with `__caxriChatFollowTrace.entries()`; see {@link agentChatFollowTrace}.
+ *
+ * Why following started or stopped. `scroll-up` and `scroll-end` come from a scroll event judged by
+ * `isFollowingAfterScroll`; `stop` is a caller moving into history (find, the message rail, edge keys, a history page);
+ * `anchor` is a user toggling a row; `reach-end` is a layout pass finding the view at the end; `jump` is Jump to
+ * latest; `new-prompt` is a new user message starting a turn.
+ */
+type AgentChatFollowReason =
+    'anchor' | 'jump' | 'new-prompt' | 'reach-end' | 'scroll-end' | 'scroll-up' | 'stop';
+
+export interface AgentChatFollowEntry {
+    t: number;
+    /**
+     * The Chat's label (a Terminal id prefix), or `null` for a view that has none, such as a task tab.
+     */
+    view: string | null;
+    isFollowing: boolean;
+    reason: AgentChatFollowReason;
+    scrollTop: number;
+    /**
+     * Where the view was last put or seen before this transition; see `isFollowingAfterScroll`.
+     */
+    lastScrollTop: number | null;
+    scrollHeight: number;
+    clientHeight: number;
+    /**
+     * Height of the space kept below the latest turn.
+     */
+    spacerHeight: number | null;
+    isTurnLive: boolean;
+    /**
+     * Whether the view was rendered at all (`checkVisibility`): `false` inside a kept-alive Session hidden off screen.
+     */
+    isViewVisible: boolean;
+    isDocumentVisible: boolean;
+}
+
+/**
+ * Ring capacity. Transitions are rare (a few per turn), so this spans hours of use.
+ */
+export const AGENT_CHAT_FOLLOW_TRACE_CAPACITY = 300;
+
+export interface AgentChatFollowTrace {
+    record(entry: Omit<AgentChatFollowEntry, 't'>): void;
+    entries(): AgentChatFollowEntry[];
+}
+
+export function createAgentChatFollowTrace(now: () => number = Date.now): AgentChatFollowTrace {
+    const ring: AgentChatFollowEntry[] = [];
+    return {
+        record(entry) {
+            ring.push({ t: now(), ...entry });
+            if (ring.length > AGENT_CHAT_FOLLOW_TRACE_CAPACITY) ring.shift();
+        },
+        entries: () => [...ring],
+    };
+}
+
+declare global {
+    // eslint-disable-next-line vars-on-top -- `declare global { var … }` is the required ambient form
+    var __caxriChatFollowTrace: { entries(): AgentChatFollowEntry[] } | undefined;
+}
+
+const sharedTrace = createAgentChatFollowTrace();
+
+/**
+ * The window's follow trace, published on first use so a CDP session can read it with
+ * `__caxriChatFollowTrace.entries()`.
+ */
+export function agentChatFollowTrace(): AgentChatFollowTrace {
+    if (!Object.hasOwn(globalThis, '__caxriChatFollowTrace')) {
+        Object.defineProperty(globalThis, '__caxriChatFollowTrace', {
+            configurable: true,
+            value: { entries: () => sharedTrace.entries() },
+        });
+    }
+    return sharedTrace;
+}
+
 function offsetInView(view: HTMLElement, element: HTMLElement): number {
     return element.getBoundingClientRect().top - view.getBoundingClientRect().top;
 }
@@ -214,6 +301,7 @@ export function useAgentChatScroll(
     {
         isTurnLive = false,
         latestPromptId,
+        traceLabel,
         turnSelector,
     }: {
         /**
@@ -225,6 +313,10 @@ export function useAgentChatScroll(
          * The newest user message's id. A change after the first one seen resumes following.
          */
         latestPromptId?: string;
+        /**
+         * Names this view in the window's follow trace (see `agentChatFollowTrace`), such as a Terminal id prefix.
+         */
+        traceLabel?: string;
         turnSelector?: string;
     } = {},
 ): {
@@ -283,6 +375,32 @@ export function useAgentChatScroll(
      * Whether the view has ever left its top, by the user or by following; see {@link isAgentChatCatchUpScroll}.
      */
     const hasMovedReference = useRef(false);
+    /**
+     * Writes the follow state and records a change in the window's follow trace (see `agentChatFollowTrace`).
+     */
+    const setFollowing = useCallback(
+        (isFollowing: boolean, reason: AgentChatFollowReason) => {
+            if (isFollowingReference.current === isFollowing) return;
+            isFollowingReference.current = isFollowing;
+            const view = scrollReference.current;
+            if (!view) return;
+            const spacer = spacerReference.current;
+            agentChatFollowTrace().record({
+                view: traceLabel ?? null,
+                isFollowing,
+                reason,
+                scrollTop: view.scrollTop,
+                lastScrollTop: lastScrollTopReference.current ?? null,
+                scrollHeight: view.scrollHeight,
+                clientHeight: view.clientHeight,
+                spacerHeight: spacer ? spacer.getBoundingClientRect().height : null,
+                isTurnLive,
+                isViewVisible: view.checkVisibility(),
+                isDocumentVisible: document.visibilityState === 'visible',
+            });
+        },
+        [isTurnLive, traceLabel],
+    );
     const sizeSpacer = useCallback(
         /**
          * @param scrollTop Where the view was last put or seen, not where it is now: a finished turn folding shrinks
@@ -385,28 +503,29 @@ export function useAgentChatScroll(
         if (element.scrollTop > 0) hasMovedReference.current = true;
         // Scrolling back through a finished turn consumes the space below it, which leaves the view at the new end.
         sizeSpacer(element.scrollTop);
-        isFollowingReference.current = isFollowingAfterScroll(element, {
+        const isFollowing = isFollowingAfterScroll(element, {
             isFollowing: isFollowingReference.current,
             lastScrollTop: lastScrollTopReference.current,
         });
+        setFollowing(isFollowing, isFollowing ? 'scroll-end' : 'scroll-up');
         lastScrollTopReference.current = element.scrollTop;
         syncLatestInView();
-    }, [sizeSpacer, syncLatestInView]);
+    }, [setFollowing, sizeSpacer, syncLatestInView]);
     const jumpToLatest = useCallback(() => {
         anchorReference.current = undefined;
-        isFollowingReference.current = true;
+        setFollowing(true, 'jump');
         pin();
         syncLatestInView();
-    }, [pin, syncLatestInView]);
+    }, [pin, setFollowing, syncLatestInView]);
     const stopFollowing = useCallback(() => {
-        isFollowingReference.current = false;
+        setFollowing(false, 'stop');
         syncLatestInView();
-    }, [syncLatestInView]);
+    }, [setFollowing, syncLatestInView]);
     const anchor = useCallback(
         (element: HTMLElement) => {
             const view = scrollReference.current;
             if (!view) return;
-            isFollowingReference.current = false;
+            setFollowing(false, 'anchor');
             syncLatestInView();
             anchorReference.current = {
                 element,
@@ -420,21 +539,21 @@ export function useAgentChatScroll(
                     ),
             };
         },
-        [syncLatestInView],
+        [setFollowing, syncLatestInView],
     );
     const seenPromptIdReference = useRef(latestPromptId);
     useLayoutEffect(() => {
         const element = scrollReference.current;
         if (element && !isFollowingReference.current && isScrolledToEnd(element))
-            isFollowingReference.current = true;
+            setFollowing(true, 'reach-end');
         if (isNewAgentChatPrompt(seenPromptIdReference.current, latestPromptId)) {
             anchorReference.current = undefined;
-            isFollowingReference.current = true;
+            setFollowing(true, 'new-prompt');
         }
         if (latestPromptId !== undefined) seenPromptIdReference.current = latestPromptId;
         pin();
         syncLatestInView();
-    }, [latestPromptId, pin, revision, syncLatestInView]);
+    }, [latestPromptId, pin, revision, setFollowing, syncLatestInView]);
     useEffect(() => {
         const content = contentReference.current;
         const view = scrollReference.current;

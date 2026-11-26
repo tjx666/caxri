@@ -446,6 +446,17 @@ ignores clicks, read both from the installed app with `worktree-browser.ts --pac
 the target with no `pointerdown` mean the press stopped above the page (a drag region or the macOS
 full-screen title bar), while a recorded press means a page handler ignored it.
 
+### Chat stopped following: `globalThis.__caxriChatFollowTrace`
+
+Present in every build once a Chat has mounted. `entries()` returns the last few hundred times a Chat
+transcript started or stopped following its end, each with a closed `reason` (`scroll-up`,
+`scroll-end`, `stop`, `anchor`, `reach-end`, `jump`, `new-prompt`), the Chat's Terminal id prefix,
+the view's scroll geometry, and whether the view and the document were visible. When the user
+reports a Chat that came back short of its end behind Jump to latest without their scrolling, read
+it from the installed app with `worktree-browser.ts --packaged`: the last `isFollowing: false`
+entry for that Chat names what stopped following and when, which a recorder installed after the
+report cannot recover.
+
 ### Renderer query cache: dev-only snapshot injection
 
 To verify how the Renderer reacts to external state a fixture cannot produce (a newly opened pull
